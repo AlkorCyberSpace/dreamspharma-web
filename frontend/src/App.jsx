@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import DashboardLayout from "./pages/DashboardLayout";
 import Dashboard from "./components/Dashboard";
 import AdminLogin from "./pages/AdminLogin";
+import AdminSignup from "./pages/AdminSignup";
 
 function App() {
   return (
@@ -12,6 +13,9 @@ function App() {
 
         {/* Standalone login page */}
         <Route path="/login" element={<AdminLogin />} />
+
+        {/* Standalone signup page */}
+        <Route path="/signup" element={<AdminSignup />} />
 
         {/* Dashboard layout with nested routes */}
         <Route path="/" element={<DashboardLayout />}>

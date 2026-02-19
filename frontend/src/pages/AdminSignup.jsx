@@ -2,9 +2,13 @@ import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
 
-export default function AdminLogin() {
+export default function AdminSignup() {
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -26,7 +30,7 @@ export default function AdminLogin() {
     >
       {/* LEFT GLASS BOX */}
       <div
-        className="ml-16 w-[400px] px-10 py-8 rounded-3xl 
+        className="ml-16 w-[380px] px-8 py-6 rounded-3xl 
         backdrop-blur-xl 
         bg-gradient-to-br 
         from-[#2c5e7e]/80 
@@ -35,9 +39,26 @@ export default function AdminLogin() {
         shadow-2xl 
         border border-white/10"
       >
-        <h1 className="text-5xl font-light text-white mb-8">Sign In</h1>
+        <h1 className="text-4xl font-light text-white mb-6">Sign Up</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="text-sm text-gray-300">Full Name</label>
+            <input
+              type="text"
+              name="name"
+              placeholder="Enter your name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full mt-2 px-4 py-2 rounded-lg 
+              bg-[#123347] 
+              text-white 
+              placeholder-gray-400 
+              focus:outline-none"
+            />
+          </div>
+
           {/* Email */}
           <div>
             <label className="text-sm text-gray-300">Email</label>
@@ -57,17 +78,12 @@ export default function AdminLogin() {
 
           {/* Password */}
           <div className="relative">
-            <div className="flex justify-between">
-              <label className="text-sm text-gray-300">Password</label>
-              <span className="text-sm text-gray-300 cursor-pointer">
-                Forgot Password ?
-              </span>
-            </div>
+            <label className="text-sm text-gray-300">Password</label>
 
             <input
               type={showPassword ? "text" : "password"}
               name="password"
-              placeholder="*************"
+              placeholder="Create password"
               value={formData.password}
               onChange={handleChange}
               className="w-full mt-2 px-4 py-3 rounded-lg 
@@ -93,17 +109,17 @@ export default function AdminLogin() {
               className="px-12 py-3 bg-gray-200 text-black 
               rounded-xl font-medium hover:bg-gray-300 transition"
             >
-              Sign In
+              Sign Up
             </button>
           </div>
 
           <p className="text-center text-gray-300 pt-4 text-sm">
-            Don’t have an account ?{" "}
+            Already have an account ?{" "}
             <Link
-              to="/signup"
+              to="/login"
               className="text-white font-medium hover:underline"
             >
-              Sign up
+              Sign in
             </Link>
           </p>
         </form>
