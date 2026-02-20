@@ -1,18 +1,24 @@
 import React, { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
+    setError(""); 
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log(formData);
+    setLoading(true);
+    setError("");
+
   };
 
   return (
@@ -86,14 +92,30 @@ export default function AdminLogin() {
             </button>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Button */}
           <div className="text-center pt-4">
             <button
               type="submit"
+              disabled={loading}
               className="px-12 py-3 bg-gray-200 text-black 
-              rounded-xl font-medium hover:bg-gray-300 transition"
+              rounded-xl font-medium hover:bg-gray-300 transition
+              disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center mx-auto min-w-[160px]"
             >
-              Sign In
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing In...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </button>
           </div>
 
