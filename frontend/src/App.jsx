@@ -5,6 +5,9 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminSignup from "./pages/AdminSignup";
 import Orders from "./components/Orders";
 
+import Retailers from "./pages/Retailers";
+import Refunds from "./pages/Refunds";
+
 function App() {
   return (
     <BrowserRouter>
@@ -22,10 +25,8 @@ function App() {
         <Route path="/" element={<DashboardLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="orders" element={<Orders />} />
-          {/* <Route path="retailers" element={<Retailers />} />
-          <Route path="orders" element={<Orders />} />
           <Route path="refunds" element={<Refunds />} />
-          <Route path="products" element={<Products />} />
+          {/* <Route path="products" element={<Products />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} /> */}
         </Route>

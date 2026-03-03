@@ -1,128 +1,71 @@
 
+import React from "react";
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
-  Boxes,
   ShoppingCart,
-  TrendingUp,
-  CreditCard,
-  ChevronDown,
-  ChevronRight,
+  RefreshCcw,
+  Package,
+  Database,
+  FileBarChart2,
+  Tag,
+  FileText,
+  Settings,
+  Users,
 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useState } from "react";
 
-export default function Sidebar({ open, setOpen }) {
-  const [inventoryOpen, setInventoryOpen] = useState(false);
+export default function Sidebar() {
+  const menuItems = [
+    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, end: true },
+    { name: "Retailers & KYC", path: "/retailers", icon: Users },
+    { name: "Orders", path: "/orders", icon: ShoppingCart },
+    { name: "Refunds", path: "/refunds", icon: RefreshCcw },
+    { name: "Products", path: "/products", icon: Package },
+    { name: "ERP Sync Monitor", path: "/erp", icon: Database },
+    { name: "Reports", path: "/reports", icon: FileBarChart2 },
+    { name: "Offers & Banners", path: "/offers", icon: Tag },
+    { name: "Audit Logs", path: "/audit", icon: FileText },
+    { name: "Settings", path: "/settings", icon: Settings },
+  ];
 
   return (
-    <>
-      {/* Overlay */}
-      {open && (
-        <div
-          onClick={() => setOpen(false)}
-          className="fixed inset-0 bg-black/40 z-30 md:hidden"
-        />
-      )}
+    <div className="w-64 bg-[#EDEDED] shadow-[4px_0_15px_rgba(0,0,0,0.08)] min-h-screen py-6">
 
-      <aside
-        className={`
-          fixed md:relative top-0 left-0 h-full 
-          w-64 bg-gray-800 text-white p-6 z-40
-          transition-transform duration-300
-          ${open ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0 md:flex-shrink-0
-        `}
-      >
-        <h1 className="text-2xl font-bold mb-10 tracking-wide">
-          Banana ERP
+      {/* Logo Section */}
+      <div className="flex items-center gap-3 mb-10 px-6">
+        <div className="w-8 h-8 bg-teal-600 rounded-md flex items-center justify-center text-white font-bold">
+          DP
+        </div>
+        <h1 className="text-xl font-semibold text-teal-700">
+          Dreams Pharma
         </h1>
+      </div>
 
-        <nav className="space-y-2 text-sm">
-          <SidebarItem
-            to="/"
-            icon={<LayoutDashboard size={18} />}
-            name="Dashboard"
-          />
+      {/* Menu */}
+      <ul className="space-y-1">
+        {menuItems.map((item, index) => {
+          const Icon = item.icon;
 
-          {/* Inventory with dropdown */}
-          <div>
-            <button
-              onClick={() => setInventoryOpen(!inventoryOpen)}
-              className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-gray-700 transition"
-            >
-              <div className="flex items-center gap-3">
-                <Boxes size={18} />
-                <span>Inventory</span>
-              </div>
-
-              {inventoryOpen ? (
-                <ChevronDown size={16} />
-              ) : (
-                <ChevronRight size={16} />
-              )}
-            </button>
-
-            {/* Sublinks */}
-            {inventoryOpen && (
-              <div className="ml-8 mt-1 space-y-1">
-                <SidebarSubItem 
-                  to="/inventory/products" 
-                  name="Products" />
-
-                <SidebarSubItem
-                  to="/inventory/stock"
-                  name="Stock"
-                />
-                <SidebarSubItem
-                  to="/inventory/add"
-                  name="Add Stock"
-                />
-              </div>
-            )}
-          </div>
-
-          <SidebarItem
-            to="/sales/customers"
-            icon={<TrendingUp size={18} />}
-            name="Customers"
-          />
-
-          <SidebarItem
-            to="/purchases/suppliers"
-            icon={<ShoppingCart size={18} />}
-            name="Suppliers"
-          />
-
-          <SidebarItem
-            to="/expenses"
-            icon={<CreditCard size={18} />}
-            name="Expenses"
-          />
-        </nav>
-      </aside>
-    </>
-  );
-}
-
-function SidebarItem({ icon, name, to }) {
-  return (
-    <Link
-      to={to}
-      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-700 transition font-medium"
-    >
-      {icon}
-      <span>{name}</span>
-    </Link>
-  );
-}
-
-function SidebarSubItem({ name, to }) {
-  return (
-    <Link
-      to={to}
-      className="block p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition"
-    >
-      {name}
-    </Link>
+          return (
+            <li key={index}>
+              <NavLink
+                to={item.path}
+                end={item.end}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-10 py-3 text-sm font-medium transition-all duration-200
+                   ${isActive
+                    ? "bg-white text-[#127690] border-l-4 border-[#127690]"
+                    : "text-gray-600 hover:bg-white hover:text-[#5f8b96]"
+                  }`
+                }
+              >
+                <Icon size={18} />
+                {item.name}
+              </NavLink>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

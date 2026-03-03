@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { loginAPI } from "../services/allAPI";
 
+import axios from "axios";
+import { loginAPI } from "../services/allAPI";
 export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ username: "", password: "" });
@@ -15,23 +16,30 @@ export default function AdminLogin() {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-        const response = await loginAPI(formData);
-        if (response.status === 200) {
-          const { token } = response.data;
-          localStorage.setItem("token", token);
-              navigate("/dashboard");
 
-        }
-      
-    } catch (error) {
-      setError("Invalid credentials");
-    }
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+
+  try {
+    const response = await loginAPI({
+      username: formData.username,
+      password: formData.password,
+    });
+
+    localStorage.setItem("access", response.data.access);
+    localStorage.setItem("refresh", response.data.refresh);
+
+    navigate("/dashboard");
+
+  } catch (error) {
+    console.log(error.response?.data);
+    setError("Invalid username or password");
+  } finally {
     setLoading(false);
-
-  };
+  }
+};
 
   return (
     <div
