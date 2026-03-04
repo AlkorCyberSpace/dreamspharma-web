@@ -34,7 +34,7 @@ export default function AdminLogin() {
     navigate("/dashboard");
 
   } catch (error) {
-    console.log(error.response?.data);
+    console.log(error);
     setError("Invalid username or password");
   } finally {
     setLoading(false);
