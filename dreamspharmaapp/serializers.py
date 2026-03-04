@@ -1,6 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
-from .models import KYC, OTP
+from .models import (
+    KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
+    SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
+    Cart, CartItem, Wishlist, WishlistItem
+)
 from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
@@ -148,10 +152,23 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if not phone_number:
             raise serializers.ValidationError({"phone_number": "Phone number is required"})
 
-        if User.objects.filter(email=email).exists():
-            raise serializers.ValidationError({"email": "Email already exists"})
-        if User.objects.filter(phone_number=phone_number).exists():
-            raise serializers.ValidationError({"phone_number": "Phone number already exists"})
+        # Check email: Allow re-registration only if existing user has PENDING_OTP_VERIFICATION status
+        existing_email_user = User.objects.filter(email=email).first()
+        if existing_email_user:
+            if existing_email_user.status == 'PENDING_OTP_VERIFICATION':
+                # Delete the pending registration to allow re-registration
+                existing_email_user.delete()
+            else:
+                raise serializers.ValidationError({"email": "Email already exists"})
+        
+        # Check phone number: Allow re-registration only if existing user has PENDING_OTP_VERIFICATION status
+        existing_phone_user = User.objects.filter(phone_number=phone_number).first()
+        if existing_phone_user:
+            if existing_phone_user.status == 'PENDING_OTP_VERIFICATION':
+                # Delete the pending registration to allow re-registration
+                existing_phone_user.delete()
+            else:
+                raise serializers.ValidationError({"phone_number": "Phone number already exists"})
 
         # Optionally, add phone number format validation here
         return data
@@ -187,9 +204,9 @@ class KYCSerializer(serializers.ModelSerializer):
         model = KYC
         fields = [
             'id', 'username', 'shop_name', 'shop_address', 'shop_email', 'shop_phone',
-            'customer_address', 'gst_number', 'drug_license_number',
-            'drug_license', 'id_proof', 'store_photo', 'status', 
-            'submitted_at', 'approved_at', 'rejection_reason'
+            'customer_name', 'customer_id', 'customer_photo', 'customer_address', 
+            'gst_number', 'drug_license_number', 'drug_license', 'id_proof', 'store_photo', 
+            'status', 'submitted_at', 'approved_at', 'rejection_reason'
         ]
         read_only_fields = ['id', 'submitted_at', 'approved_at', 'status']
 
@@ -198,14 +215,33 @@ class KYCSubmitSerializer(serializers.ModelSerializer):
     drug_license = serializers.FileField(required=True)
     id_proof = serializers.FileField(required=True)
     store_photo = serializers.FileField(required=True)
+    customer_name = serializers.CharField(required=False, allow_blank=True)
+    customer_id = serializers.CharField(required=False, allow_blank=True, help_text='Aadhaar or PAN')
     
     class Meta:
         model = KYC
         fields = [
-            'shop_name', 'shop_address', 'shop_email', 'shop_phone', 'customer_address',
-            'gst_number', 'drug_license_number', 'drug_license',
-            'id_proof', 'store_photo'
+            'shop_name', 'shop_address', 'shop_email', 'shop_phone', 'customer_name', 
+            'customer_id', 'customer_address', 'gst_number', 
+            'drug_license_number', 'drug_license', 'id_proof', 'store_photo'
         ]
+    
+    def validate_customer_id(self, value):
+        """
+        Validate Aadhaar format: exactly 12 digits, no alphabets or special characters
+        """
+        if value and value.strip():  # Only validate if provided and not empty
+            # Check if it contains only digits
+            if not value.isdigit():
+                raise serializers.ValidationError(
+                    "Aadhaar must contain only numeric digits. Alphabets and special characters are not allowed."
+                )
+            # Check if length is exactly 12
+            if len(value) != 12:
+                raise serializers.ValidationError(
+                    "Aadhaar must be exactly 12 digits long."
+                )
+        return value
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
@@ -287,4 +323,345 @@ class ChangePasswordSerializer(serializers.Serializer):
         return data
 
 
+# ==================== ERP INTEGRATION SERIALIZERS ====================
 
+class GenerateTokenRequestSerializer(serializers.Serializer):
+    """Serializer for API token generation request"""
+    c2Code = serializers.CharField(max_length=20)
+    storeId = serializers.CharField(max_length=20)
+    prodCode = serializers.CharField(max_length=20, required=False, default="02")
+    securityKey = serializers.CharField(max_length=255)
+
+
+class GenerateTokenResponseSerializer(serializers.Serializer):
+    """Serializer for API token generation response"""
+    code = serializers.CharField()
+    type = serializers.CharField()
+    apiKey = serializers.CharField()
+
+
+class ItemMasterSerializer(serializers.ModelSerializer):
+    """Serializer for ItemMaster model"""
+    c_item_code = serializers.CharField(source='item_code')
+    itemName = serializers.CharField(source='item_name')
+    itemQtyPerBox = serializers.IntegerField(source='item_qty_per_box')
+    batchNo = serializers.CharField(source='batch_no')
+    std_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
+    max_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
+    expiryDate = serializers.DateField(source='expiry_date')
+    
+    class Meta:
+        model = ItemMaster
+        fields = ['c_item_code', 'itemName', 'itemQtyPerBox', 'batchNo', 'std_disc', 'max_disc', 'expiryDate', 'mrp']
+
+
+class FetchStockRequestSerializer(serializers.Serializer):
+    """Serializer for stock fetch request"""
+    c2Code = serializers.CharField(max_length=20)
+    storeId = serializers.CharField(max_length=20)
+    prodCode = serializers.CharField(max_length=20, required=False, default="02")
+    apiKey = serializers.CharField(max_length=255)
+    inputDateTime = serializers.DateTimeField(required=False)
+
+
+class StockItemSerializer(serializers.ModelSerializer):
+    """Serializer for stock items in response"""
+    itemCode = serializers.CharField(source='item.item_code')
+    itemName = serializers.CharField(source='item.item_name')
+    contCode = serializers.CharField(source='cont_code')
+    contName = serializers.CharField(source='cont_name')
+    qtyBox = serializers.IntegerField(source='qty_box')
+    totalBalLsQty = serializers.IntegerField(source='total_bal_ls_qty')
+    packQty = serializers.IntegerField(source='pack_qty')
+    looseQty = serializers.IntegerField(source='loose_qty')
+    lastModifiedDateTime = serializers.DateTimeField(source='last_modified_datetime')
+    
+    class Meta:
+        model = Stock
+        fields = ['itemCode', 'itemName', 'contCode', 'contName', 'qtyBox', 'totalBalLsQty', 'packQty', 'looseQty', 'lastModifiedDateTime']
+
+
+class SalesOrderItemSerializer(serializers.ModelSerializer):
+    """Serializer for sales order items"""
+    itemSeq = serializers.IntegerField(source='item_seq')
+    itemcode = serializers.CharField(source='item_code')
+    totalLooseQty = serializers.IntegerField(source='total_loose_qty')
+    totalLooseSchQty = serializers.IntegerField(source='total_loose_sch_qty')
+    serviceQty = serializers.IntegerField(source='service_qty')
+    saleRate = serializers.DecimalField(max_digits=10, decimal_places=3, source='sale_rate')
+    discPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='disc_per')
+    schDiscPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='sch_disc_per')
+    
+    class Meta:
+        model = SalesOrderItem
+        fields = ['itemSeq', 'itemcode', 'totalLooseQty', 'totalLooseSchQty', 'serviceQty', 'saleRate', 'discPer', 'schDiscPer']
+
+
+class CreateSalesOrderRequestSerializer(serializers.Serializer):
+    """Serializer for creating sales order"""
+    c2Code = serializers.CharField(max_length=20)
+    storeId = serializers.CharField(max_length=20)
+    prodCode = serializers.CharField(max_length=20, required=False, default="02")
+    apiKey = serializers.CharField(max_length=255)
+    ipNo = serializers.CharField(max_length=100)
+    mobileNo = serializers.CharField(max_length=15)
+    patientName = serializers.CharField(max_length=255)
+    patientAddress = serializers.CharField()
+    patientEmail = serializers.EmailField()
+    counterSale = serializers.IntegerField()
+    ordDate = serializers.DateField()
+    ordTime = serializers.TimeField()
+    userId = serializers.CharField(max_length=100)
+    actCode = serializers.CharField(max_length=50)
+    actName = serializers.CharField(max_length=255)
+    drCode = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    drName = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    drAddress = serializers.CharField(required=False, allow_blank=True)
+    drRegNo = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    drOfficeCode = serializers.CharField(max_length=50, required=False, default="-")
+    dmanCode = serializers.CharField(max_length=50, required=False, default="-")
+    orderTotal = serializers.DecimalField(max_digits=12, decimal_places=2)
+    orderDiscPer = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=0.00)
+    refNo = serializers.IntegerField(required=False)
+    orderId = serializers.IntegerField()
+    remark = serializers.CharField(required=False, allow_null=True)
+    urgentFlag = serializers.IntegerField(required=False, default=0)
+    ordConversionFlag = serializers.IntegerField(required=False, default=0)
+    dcConversionFlag = serializers.IntegerField(required=False, default=0)
+    ordRefNo = serializers.IntegerField(required=False, default=0)
+    sysName = serializers.CharField(max_length=100)
+    sysIp = serializers.IPAddressField()
+    sysUser = serializers.CharField(max_length=100)
+    materialInfo = SalesOrderItemSerializer(many=True)
+
+
+class DocumentDetailSerializer(serializers.Serializer):
+    """Serializer for document details in order response"""
+    brCode = serializers.CharField(source='br_code')
+    tranYear = serializers.CharField(source='tran_year')
+    tranPrefix = serializers.CharField(source='tran_prefix')
+    tranSrno = serializers.CharField(source='tran_srno')
+    documentPk = serializers.CharField(source='document_pk')
+    OrderId = serializers.CharField(source='order_id')
+    createdDate = serializers.DateField(source='ord_date')
+    billTotal = serializers.CharField(source='bill_total')
+
+
+class CreateSalesOrderResponseSerializer(serializers.Serializer):
+    """Serializer for sales order creation response"""
+    code = serializers.CharField()
+    type = serializers.CharField()
+    message = serializers.CharField()
+    documentDetails = DocumentDetailSerializer(many=True)
+
+
+class CreateGLCustomerRequestSerializer(serializers.Serializer):
+    """Serializer for global local customer creation request"""
+    c2Code = serializers.CharField(max_length=20)
+    StoreID = serializers.CharField(max_length=20)
+    apiKey = serializers.CharField(max_length=255)
+    Code = serializers.CharField(max_length=50)
+    ipName = serializers.CharField(max_length=255)
+    Mail = serializers.EmailField()
+    Gender = serializers.CharField(max_length=1)
+    Dlno = serializers.CharField(max_length=100, required=False)
+    City = serializers.CharField(max_length=255)
+    ipState = serializers.CharField(max_length=255)
+    Address1 = serializers.CharField()
+    Address2 = serializers.CharField(required=False)
+    Pincode = serializers.IntegerField()
+    Mobile = serializers.CharField(max_length=15)
+    Gstno = serializers.CharField(max_length=20, required=False)
+
+
+class CreateGLCustomerResponseSerializer(serializers.Serializer):
+    """Serializer for global local customer creation response"""
+    code = serializers.CharField()
+    type = serializers.CharField()
+    message = serializers.CharField()
+
+
+class InvoiceDetailForStatusSerializer(serializers.ModelSerializer):
+    """Serializer for invoice details in order status"""
+    productId = serializers.CharField(source='product_id')
+    productName = serializers.CharField(source='product_name')
+    hsnCode = serializers.CharField(source='hsn_code')
+    qtyPerBox = serializers.CharField(source='qty_per_box')
+    expiryDate = serializers.DateField(source='expiry_date')
+    saleRate = serializers.DecimalField(max_digits=10, decimal_places=3, source='sale_rate')
+    discAmt = serializers.DecimalField(max_digits=10, decimal_places=2, source='disc_amt')
+    discPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='disc_per')
+    itemTotal = serializers.DecimalField(max_digits=12, decimal_places=2, source='item_total')
+    cgstPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='cgst_per')
+    cgstAmt = serializers.DecimalField(max_digits=10, decimal_places=2, source='cgst_amt')
+    sgstPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='sgst_per')
+    sgstAmt = serializers.DecimalField(max_digits=10, decimal_places=2, source='sgst_amt')
+    igstPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='igst_per')
+    igstAmt = serializers.DecimalField(max_digits=10, decimal_places=2, source='igst_amt')
+    cessPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='cess_per')
+    cessAmt = serializers.DecimalField(max_digits=10, decimal_places=2, source='cess_amt')
+    
+    class Meta:
+        model = InvoiceDetail
+        fields = [
+            'productId', 'productName', 'hsnCode', 'qtyPerBox', 'batch', 'qty', 
+            'expiryDate', 'mrp', 'saleRate', 'discAmt', 'discPer', 'itemTotal',
+            'cgstPer', 'cgstAmt', 'sgstPer', 'sgstAmt', 'igstPer', 'igstAmt', 'cessPer', 'cessAmt'
+        ]
+
+
+class InvoiceForStatusSerializer(serializers.ModelSerializer):
+    """Serializer for invoice in order status response"""
+    docNo = serializers.CharField(source='doc_no')
+    docDate = serializers.DateField(source='doc_date')
+    docStatus = serializers.CharField(source='doc_status')
+    createdBy = serializers.CharField(source='created_by')
+    docDiscount = serializers.CharField(source='doc_discount')
+    docTotal = serializers.CharField(source='doc_total')
+    detail = InvoiceDetailForStatusSerializer(source='details', many=True)
+    
+    class Meta:
+        model = Invoice
+        fields = ['docNo', 'docDate', 'docStatus', 'createdBy', 'docDiscount', 'docTotal', 'detail']
+
+
+class OrderStatusResponseSerializer(serializers.Serializer):
+    """Serializer for order status response"""
+    code = serializers.CharField()
+    orderId = serializers.CharField()
+    custCode = serializers.CharField()
+    fromGstNo = serializers.CharField()
+    toGstNo = serializers.CharField()
+    customerType = serializers.CharField()
+    doctorName = serializers.CharField()
+    invoices = InvoiceForStatusSerializer(many=True)
+
+
+# ==================== CART & WISHLIST SERIALIZERS ====================
+
+class CartItemSerializer(serializers.ModelSerializer):
+    """Serializer for cart item"""
+    itemCode = serializers.CharField(source='item.item_code', read_only=True)
+    itemName = serializers.CharField(source='item.item_name', read_only=True)
+    mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
+    discountPercentage = serializers.SerializerMethodField()
+    discountedPrice = serializers.SerializerMethodField()
+    itemTotalMrp = serializers.SerializerMethodField()
+    itemTotalDiscounted = serializers.SerializerMethodField()
+    itemSavings = serializers.SerializerMethodField()
+    batchNo = serializers.CharField(source='batch_no', read_only=True)
+    
+    class Meta:
+        model = CartItem
+        fields = [
+            'id', 'itemCode', 'itemName', 'mrp', 'quantity', 'batchNo',
+            'discountPercentage', 'discountedPrice', 'itemTotalMrp', 
+            'itemTotalDiscounted', 'itemSavings'
+        ]
+    
+    def get_discountPercentage(self, obj):
+        return obj.get_discount_percentage()
+    
+    def get_discountedPrice(self, obj):
+        return obj.get_discounted_price()
+    
+    def get_itemTotalMrp(self, obj):
+        return obj.get_item_total_mrp()
+    
+    def get_itemTotalDiscounted(self, obj):
+        return obj.get_item_total_discounted()
+    
+    def get_itemSavings(self, obj):
+        return obj.get_item_savings()
+
+
+class CartSerializer(serializers.ModelSerializer):
+    """Serializer for cart"""
+    items = CartItemSerializer(many=True, read_only=True)
+    bagTotal = serializers.SerializerMethodField()
+    bagSavings = serializers.SerializerMethodField()
+    subtotal = serializers.SerializerMethodField()
+    grandTotal = serializers.SerializerMethodField()
+    itemCount = serializers.SerializerMethodField()
+    convenienceFee = serializers.DecimalField(source='convenience_fee', max_digits=10, decimal_places=2)
+    deliveryFee = serializers.DecimalField(source='delivery_fee', max_digits=10, decimal_places=2)
+    platformFee = serializers.DecimalField(source='platform_fee', max_digits=10, decimal_places=2)
+    
+    class Meta:
+        model = Cart
+        fields = [
+            'id', 'items', 'bagTotal', 'bagSavings', 'subtotal', 'grandTotal',
+            'convenienceFee', 'deliveryFee', 'platformFee', 'itemCount'
+        ]
+    
+    def get_bagTotal(self, obj):
+        return obj.get_bag_total()
+    
+    def get_bagSavings(self, obj):
+        return obj.get_bag_savings()
+    
+    def get_subtotal(self, obj):
+        return obj.get_subtotal()
+    
+    def get_grandTotal(self, obj):
+        return obj.get_grand_total()
+    
+    def get_itemCount(self, obj):
+        return obj.get_item_count()
+
+
+class AddToCartSerializer(serializers.Serializer):
+    """Serializer for adding item to cart"""
+    itemCode = serializers.CharField()
+    quantity = serializers.IntegerField(min_value=1, default=1)
+    batchNo = serializers.CharField(required=False, allow_null=True)
+
+
+class UpdateCartItemSerializer(serializers.Serializer):
+    """Serializer for updating cart item quantity"""
+    quantity = serializers.IntegerField(min_value=1)
+
+
+class WishlistItemSerializer(serializers.ModelSerializer):
+    """Serializer for wishlist item"""
+    itemCode = serializers.CharField(source='item.item_code', read_only=True)
+    itemName = serializers.CharField(source='item.item_name', read_only=True)
+    mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
+    discountPercentage = serializers.SerializerMethodField()
+    discountedPrice = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = WishlistItem
+        fields = ['id', 'itemCode', 'itemName', 'mrp', 'discountPercentage', 'discountedPrice', 'created_at']
+    
+    def get_discountPercentage(self, obj):
+        return float(obj.item.std_disc)
+    
+    def get_discountedPrice(self, obj):
+        mrp = float(obj.item.mrp)
+        discount = float(obj.item.std_disc)
+        return round(mrp * (1 - discount / 100), 2)
+
+
+class WishlistSerializer(serializers.ModelSerializer):
+    """Serializer for wishlist"""
+    items = WishlistItemSerializer(many=True, read_only=True)
+    itemCount = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Wishlist
+        fields = ['id', 'items', 'itemCount']
+    
+    def get_itemCount(self, obj):
+        return obj.get_item_count()
+
+
+class AddToWishlistSerializer(serializers.Serializer):
+    """Serializer for adding item to wishlist"""
+    itemCode = serializers.CharField()
+
+
+class MoveToCartSerializer(serializers.Serializer):
+    """Serializer for moving item from wishlist to cart"""
+    itemCode = serializers.CharField()
+    quantity = serializers.IntegerField(min_value=1, default=1)

@@ -42,20 +42,20 @@ class CustomUserAdmin(admin.ModelAdmin):
 
 @admin.register(KYC)
 class KYCAdmin(admin.ModelAdmin):
-    list_display = ['user_name', 'shop_name', 'status_badge', 'submitted_at', 'approved_at']
+    list_display = ['user_name', 'customer_name', 'shop_name', 'status_badge', 'submitted_at', 'approved_at']
     list_filter = ['status', 'submitted_at', 'approved_at']
-    search_fields = ['user__username', 'user__email', 'shop_name', 'shop_email', 'shop_phone', 'gst_number', 'drug_license_number']
+    search_fields = ['user__username', 'user__email', 'customer_name', 'customer_id', 'shop_name', 'shop_email', 'shop_phone', 'gst_number', 'drug_license_number']
     readonly_fields = ['submitted_at', 'approved_at', 'user', 'drug_license_preview', 'id_proof_preview', 'store_photo_preview']
     
     fieldsets = (
         ('User Information', {
             'fields': ('user',)
         }),
+        ('Customer Information', {
+            'fields': ('customer_name', 'customer_id', 'customer_address')
+        }),
         ('Shop Details', {
             'fields': ('shop_name', 'shop_address', 'shop_email', 'shop_phone')
-        }),
-        ('Customer Details', {
-            'fields': ('customer_address',)
         }),
         ('Business Documents', {
             'fields': ('gst_number', 'drug_license_number', 'drug_license', 'drug_license_preview', 'id_proof', 'id_proof_preview', 'store_photo', 'store_photo_preview')
@@ -74,6 +74,10 @@ class KYCAdmin(admin.ModelAdmin):
     def user_name(self, obj):
         return obj.user.username
     user_name.short_description = 'User'
+    
+    def customer_name(self, obj):
+        return obj.customer_name if obj.customer_name else '-'
+    customer_name.short_description = 'Customer Name'
     
     def drug_license_preview(self, obj):
         if obj.drug_license:

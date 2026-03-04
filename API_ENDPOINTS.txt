@@ -1,0 +1,1030 @@
+================================================================================
+                    DREAM PHARMA API DOCUMENTATION
+                         All Endpoints & Payloads
+================================================================================
+
+Base URL: http://localhost:8000/api/
+
+Headers (for all requests):
+Content-Type: application/json
+
+Headers (for authenticated requests):
+Content-Type: application/json
+Authorization: Bearer <access_token>
+
+================================================================================
+                         AUTHENTICATION ENDPOINTS
+================================================================================
+
+--------------------------------------------------------------------------------
+1. SUPERADMIN LOGIN
+--------------------------------------------------------------------------------
+POST /api/auth/login/
+
+Request:
+{
+    "email": "admin@dreampharma.com",
+    "password": "Admin@123"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "user": {
+            "id": 1,
+            "username": "admin",
+            "email": "admin@dreampharma.com",
+            "role": "SUPERADMIN"
+        },
+        "tokens": {
+            "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+2. RETAILER LOGIN (Step 1: Request OTP)
+--------------------------------------------------------------------------------
+POST /api/retailer-auth/login/
+
+Request:
+{
+    "email": "retailer@example.com"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "OTP sent successfully to your email",
+    "data": {
+        "user_id": 5,
+        "email": "retailer@example.com"
+    }
+}
+
+--------------------------------------------------------------------------------
+3. RETAILER VERIFY OTP (Step 2: Verify & Get Tokens)
+--------------------------------------------------------------------------------
+POST /api/retailer-auth/verify-otp/
+
+Request:
+{
+    "user_id": 5,
+    "otp": "1234"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Login successful",
+    "data": {
+        "user": {
+            "id": 5,
+            "username": "retailer1",
+            "email": "retailer@example.com",
+            "role": "RETAILER",
+            "status": "APPROVED"
+        },
+        "tokens": {
+            "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+            "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+4. USER REGISTRATION
+--------------------------------------------------------------------------------
+POST /api/auth/register/
+
+Request:
+{
+    "username": "newretailer",
+    "email": "newretailer@example.com",
+    "password": "SecurePass123!",
+    "password2": "SecurePass123!",
+    "first_name": "John",
+    "phone_number": "9876543210"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Registration successful. Please verify your email with OTP.",
+    "data": {
+        "user_id": 10,
+        "email": "newretailer@example.com"
+    }
+}
+
+--------------------------------------------------------------------------------
+5. REQUEST OTP
+--------------------------------------------------------------------------------
+POST /api/otp/request_otp/
+
+Request:
+{
+    "user_id": 10
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "OTP sent successfully",
+    "data": {
+        "email": "newretailer@example.com",
+        "expires_in": 60
+    }
+}
+
+--------------------------------------------------------------------------------
+6. VERIFY OTP
+--------------------------------------------------------------------------------
+POST /api/otp/verify_otp/
+
+Request:
+{
+    "user_id": 10,
+    "otp": "5678"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "OTP verified successfully"
+}
+
+--------------------------------------------------------------------------------
+7. FORGOT PASSWORD
+--------------------------------------------------------------------------------
+POST /api/auth/forgot-password/
+
+Request:
+{
+    "email": "user@example.com"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Password reset OTP sent to your email",
+    "data": {
+        "user_id": 5
+    }
+}
+
+--------------------------------------------------------------------------------
+8. VERIFY RESET OTP
+--------------------------------------------------------------------------------
+POST /api/auth/verify-reset-otp/
+
+Request:
+{
+    "user_id": 5,
+    "otp": "1234"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "OTP verified. You can now reset your password."
+}
+
+--------------------------------------------------------------------------------
+9. RESET PASSWORD
+--------------------------------------------------------------------------------
+POST /api/auth/reset-password/
+
+Request:
+{
+    "user_id": 5,
+    "new_password": "NewSecurePass123!",
+    "confirm_password": "NewSecurePass123!"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Password reset successfully"
+}
+
+--------------------------------------------------------------------------------
+10. CHANGE PASSWORD (Authenticated)
+--------------------------------------------------------------------------------
+PUT /api/auth/change-password/<user_id>/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Request:
+{
+    "old_password": "OldPass123!",
+    "new_password": "NewPass456!",
+    "confirm_password": "NewPass456!"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Password changed successfully"
+}
+
+--------------------------------------------------------------------------------
+11. SUPERADMIN CHANGE PASSWORD
+--------------------------------------------------------------------------------
+PUT /api/auth/superadmin-change-password/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Request:
+{
+    "old_password": "Admin@123",
+    "new_password": "NewAdmin@456",
+    "confirm_password": "NewAdmin@456"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Password changed successfully"
+}
+
+================================================================================
+                           PROFILE ENDPOINTS
+================================================================================
+
+--------------------------------------------------------------------------------
+12. GET PROFILE
+--------------------------------------------------------------------------------
+GET /api/profile/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Response (Success):
+{
+    "success": true,
+    "data": {
+        "id": 5,
+        "username": "retailer1",
+        "email": "retailer@example.com",
+        "first_name": "John",
+        "role": "RETAILER",
+        "status": "APPROVED",
+        "created_at": "2026-02-20T10:30:00Z"
+    }
+}
+
+--------------------------------------------------------------------------------
+13. UPDATE PROFILE
+--------------------------------------------------------------------------------
+PUT /api/profile/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Request:
+{
+    "first_name": "John Updated",
+    "phone_number": "9876543211"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Profile updated successfully"
+}
+
+================================================================================
+                              KYC ENDPOINTS
+================================================================================
+
+--------------------------------------------------------------------------------
+14. SUBMIT KYC
+--------------------------------------------------------------------------------
+POST /api/kyc/submit/<user_id>/
+
+Headers:
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+
+Request (Form Data):
+- shop_name: "ABC Pharmacy"
+- shop_address: "123 Main Street, City"
+- shop_email: "abc@pharmacy.com"
+- shop_phone: "9876543210"
+- customer_address: "456 Customer Street"
+- customer_name: "John Doe"
+- customer_id: "ABCD1234EFGH5678"
+- gst_number: "29ABCDE1234F1Z5"
+- drug_license_number: "DL-12345-2024"
+- drug_license: <file> (PDF/JPG/PNG)
+- id_proof: <file> (PDF/JPG/PNG)
+- store_photo: <file> (PDF/JPG/PNG)
+- customer_photo: <file> (PDF/JPG/PNG) [Optional]
+
+Response (Success):
+{
+    "success": true,
+    "message": "KYC submitted successfully",
+    "data": {
+        "kyc_id": 1,
+        "status": "PENDING"
+    }
+}
+
+================================================================================
+                              HOME ENDPOINT
+================================================================================
+
+--------------------------------------------------------------------------------
+15. HOME
+--------------------------------------------------------------------------------
+GET /api/home/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Response (Success):
+{
+    "success": true,
+    "message": "Welcome to Dream Pharma",
+    "data": {
+        "user": "retailer1",
+        "role": "RETAILER"
+    }
+}
+
+================================================================================
+                         CART ENDPOINTS
+================================================================================
+
+--------------------------------------------------------------------------------
+16. GET CART
+--------------------------------------------------------------------------------
+GET /api/cart/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Response (Success - with items):
+{
+    "success": true,
+    "message": "Cart retrieved successfully",
+    "data": {
+        "id": 1,
+        "items": [
+            {
+                "id": 1,
+                "itemCode": "I00003",
+                "itemName": "DOLO 250MG SUSP",
+                "mrp": 75.03,
+                "quantity": 2,
+                "batchNo": "DOLN096",
+                "discountPercentage": 24.24,
+                "discountedPrice": 56.84,
+                "itemTotalMrp": 150.06,
+                "itemTotalDiscounted": 113.68,
+                "itemSavings": 36.38
+            },
+            {
+                "id": 2,
+                "itemCode": "I00017",
+                "itemName": "AMALGIN",
+                "mrp": 85.50,
+                "quantity": 1,
+                "batchNo": "AMG001",
+                "discountPercentage": 15.00,
+                "discountedPrice": 72.68,
+                "itemTotalMrp": 85.50,
+                "itemTotalDiscounted": 72.68,
+                "itemSavings": 12.82
+            }
+        ],
+        "bagTotal": 235.56,
+        "bagSavings": 49.20,
+        "subtotal": 186.36,
+        "convenienceFee": 0.00,
+        "deliveryFee": 0.00,
+        "platformFee": 29.00,
+        "grandTotal": 215.36,
+        "itemCount": 2
+    }
+}
+
+Response (Success - empty cart):
+{
+    "success": true,
+    "message": "Cart retrieved successfully",
+    "data": {
+        "id": 1,
+        "items": [],
+        "bagTotal": 0,
+        "bagSavings": 0,
+        "subtotal": 0,
+        "convenienceFee": 0.00,
+        "deliveryFee": 0.00,
+        "platformFee": 29.00,
+        "grandTotal": 29.00,
+        "itemCount": 0
+    }
+}
+
+--------------------------------------------------------------------------------
+17. ADD TO CART
+--------------------------------------------------------------------------------
+POST /api/cart/add/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Request:
+{
+    "itemCode": "I00003",
+    "quantity": 2,
+    "batchNo": "DOLN096"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "DOLO 250MG SUSP added to cart",
+    "data": {
+        "id": 1,
+        "items": [...],
+        "bagTotal": 150.06,
+        "bagSavings": 36.38,
+        "grandTotal": 142.68,
+        "itemCount": 1
+    }
+}
+
+--------------------------------------------------------------------------------
+18. UPDATE CART ITEM QUANTITY
+--------------------------------------------------------------------------------
+PUT /api/cart/item/<item_id>/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Note: item_id is the CartItem database ID (returned in cart items as "id")
+
+Request:
+{
+    "quantity": 5
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "Cart item updated successfully",
+    "data": {
+        "id": 1,
+        "items": [...],
+        "bagTotal": 375.15,
+        "grandTotal": 313.20,
+        "itemCount": 1
+    }
+}
+
+--------------------------------------------------------------------------------
+19. REMOVE ITEM FROM CART
+--------------------------------------------------------------------------------
+DELETE /api/cart/item/<item_id>/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Note: item_id is the CartItem database ID
+
+Response (Success):
+{
+    "success": true,
+    "message": "DOLO 250MG SUSP removed from cart",
+    "data": {
+        "id": 1,
+        "items": [],
+        "bagTotal": 0,
+        "grandTotal": 29.00,
+        "itemCount": 0
+    }
+}
+
+--------------------------------------------------------------------------------
+20. CLEAR ENTIRE CART
+--------------------------------------------------------------------------------
+DELETE /api/cart/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Response (Success):
+{
+    "success": true,
+    "message": "Cart cleared successfully",
+    "data": {
+        "id": 1,
+        "items": [],
+        "bagTotal": 0,
+        "grandTotal": 29.00,
+        "itemCount": 0
+    }
+}
+
+================================================================================
+                        WISHLIST ENDPOINTS
+================================================================================
+
+--------------------------------------------------------------------------------
+21. GET WISHLIST
+--------------------------------------------------------------------------------
+GET /api/wishlist/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Response (Success - with items):
+{
+    "success": true,
+    "message": "Wishlist retrieved successfully",
+    "data": {
+        "id": 1,
+        "items": [
+            {
+                "id": 1,
+                "itemCode": "I00003",
+                "itemName": "DOLO 250MG SUSP",
+                "mrp": 75.03,
+                "discountPercentage": 24.24,
+                "discountedPrice": 56.84,
+                "created_at": "2026-02-25T10:30:00Z"
+            },
+            {
+                "id": 2,
+                "itemCode": "I00048",
+                "itemName": "PARACETAMOL 650MG",
+                "mrp": 16.81,
+                "discountPercentage": 18.00,
+                "discountedPrice": 13.78,
+                "created_at": "2026-02-25T10:35:00Z"
+            }
+        ],
+        "itemCount": 2
+    }
+}
+
+Response (Success - empty wishlist):
+{
+    "success": true,
+    "message": "Wishlist retrieved successfully",
+    "data": {
+        "id": 1,
+        "items": [],
+        "itemCount": 0
+    }
+}
+
+--------------------------------------------------------------------------------
+22. ADD TO WISHLIST
+--------------------------------------------------------------------------------
+POST /api/wishlist/add/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Request:
+{
+    "itemCode": "I00003"
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "DOLO 250MG SUSP added to wishlist",
+    "data": {
+        "id": 1,
+        "items": [...],
+        "itemCount": 1
+    }
+}
+
+Response (Already exists):
+{
+    "success": false,
+    "message": "DOLO 250MG SUSP is already in your wishlist"
+}
+
+--------------------------------------------------------------------------------
+23. REMOVE FROM WISHLIST
+--------------------------------------------------------------------------------
+DELETE /api/wishlist/item/<item_id>/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Note: item_id is the WishlistItem database ID (returned in wishlist items as "id")
+
+Response (Success):
+{
+    "success": true,
+    "message": "DOLO 250MG SUSP removed from wishlist",
+    "data": {
+        "id": 1,
+        "items": [],
+        "itemCount": 0
+    }
+}
+
+--------------------------------------------------------------------------------
+24. MOVE FROM WISHLIST TO CART
+--------------------------------------------------------------------------------
+POST /api/wishlist/move-to-cart/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Request:
+{
+    "itemCode": "I00003",
+    "quantity": 1
+}
+
+Response (Success):
+{
+    "success": true,
+    "message": "DOLO 250MG SUSP moved to cart",
+    "data": {
+        "cart": {
+            "id": 1,
+            "items": [...],
+            "bagTotal": 75.03,
+            "grandTotal": 85.84,
+            "itemCount": 1
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+25. CLEAR ENTIRE WISHLIST
+--------------------------------------------------------------------------------
+DELETE /api/wishlist/
+
+Headers:
+Authorization: Bearer <access_token>
+
+Response (Success):
+{
+    "success": true,
+    "message": "Wishlist cleared successfully",
+    "data": {
+        "id": 1,
+        "items": [],
+        "itemCount": 0
+    }
+}
+
+================================================================================
+                    ERP INTEGRATION ENDPOINTS
+              (External API - Test Server on Port 44000)
+================================================================================
+
+ERP Base URL: http://localhost:44000
+
+--------------------------------------------------------------------------------
+26. GENERATE TOKEN
+--------------------------------------------------------------------------------
+POST http://localhost:44000/ws_c2_services_generate_token
+
+Request:
+{
+    "c2Code": "03C000",
+    "storeId": "001",
+    "prodCode": "02",
+    "securityKey": "TUVVek1EQXhNalE9"
+}
+
+Response (Success):
+{
+    "code": "200",
+    "type": "generateToken",
+    "apiKey": "MDNDMDAwMDAxXjIwMjQtMTEtMjkgMTQ6MTg="
+}
+
+--------------------------------------------------------------------------------
+27. GET ITEM MASTER DATA
+--------------------------------------------------------------------------------
+POST http://localhost:44000/ws_c2_services_get_master_data
+
+Request:
+{
+    "c2Code": "03C000",
+    "storeId": "001",
+    "prodCode": "02",
+    "indexId": 100,
+    "inputDateTime": "2024-11-28 10:10:00",
+    "apiKey": "MDNDMDAwMDAxXjIwMjQtMTEtMjkgMTQ6MTg="
+}
+
+Response (Success):
+{
+    "code": "200",
+    "type": "getMasterData",
+    "data": [
+        {
+            "c_item_code": "I00003",
+            "itemName": "DOLO 250MG SUSP",
+            "itemQtyPerBox": 1,
+            "batchNo": "DOLN096",
+            "stockBalQty": 984,
+            "std_disc": 24.24,
+            "max_disc": 0.00,
+            "expiryDate": "2025-11-01",
+            "mrp": 75.03
+        }
+    ]
+}
+
+--------------------------------------------------------------------------------
+28. FETCH STOCK
+--------------------------------------------------------------------------------
+POST http://localhost:44000/ws_c2_services_fetch_stock
+
+Request:
+{
+    "c2Code": "03B000",
+    "storeId": "001",
+    "prodCode": "02",
+    "apiKey": "MDNCMDAwMDAxXjIwMjYtMDEtMDkgMTQ6MjA=",
+    "inputDateTime": "2021-07-01 16:20:34.502"
+}
+
+Response (Success):
+[
+    {
+        "itemCode": "I00017",
+        "itemName": "AMALGIN",
+        "contCode": "-",
+        "contName": "-",
+        "qtyBox": 1,
+        "totalBalLsQty": 2000,
+        "packQty": 2000,
+        "looseQty": 0,
+        "lastModifiedDateTime": "2025-12-08 16:57:25.162"
+    },
+    {
+        "itemCode": "513556",
+        "itemName": "1 PARA 650MG TAB",
+        "contCode": "P008",
+        "contName": "PARACETAMOL",
+        "qtyBox": 10,
+        "totalBalLsQty": 9970,
+        "packQty": 997,
+        "looseQty": 0,
+        "lastModifiedDateTime": "2025-08-11 16:39:41.296"
+    }
+]
+
+--------------------------------------------------------------------------------
+29. CREATE SALES ORDER
+--------------------------------------------------------------------------------
+POST http://localhost:44000/ws_c2_services_create_sale_order
+
+Request:
+{
+    "c2Code": "03C000",
+    "storeId": "001",
+    "prodCode": "02",
+    "apiKey": "MDNDMDAwMDAxXjIwMjUtMDEtMDkgMTA6MDE=",
+    "ipNo": "8237791693",
+    "mobileNo": "8237791693",
+    "patientName": "ADITYA",
+    "patientAddress": "JP Nagar",
+    "patientEmail": "9866567767@mail.in",
+    "counterSale": "1",
+    "ordDate": "2024-07-24",
+    "ordTime": "11:52:35",
+    "userId": "Rajath",
+    "actCode": "GC01",
+    "actName": "Lawrence Nadar",
+    "drCode": "GD01",
+    "drName": "",
+    "drAddress": "",
+    "drRegNo": "",
+    "drOfficeCode": "-",
+    "dmanCode": "-",
+    "orderTotal": "254.18",
+    "orderDiscPer": "0.00",
+    "refNo": 987,
+    "orderId": 120,
+    "remark": null,
+    "urgentFlag": 0,
+    "ordConversionFlag": 0,
+    "dcConversionFlag": 0,
+    "ordRefNo": 0,
+    "sysName": "PL-EG-RIL",
+    "sysIp": "172.16.18.11",
+    "sysUser": "Gajanan",
+    "materialInfo": [
+        {
+            "itemSeq": 1,
+            "itemcode": "I00049",
+            "totalLooseQty": 30,
+            "totalLooseSchQty": 0,
+            "serviceQty": 0,
+            "saleRate": "6.806",
+            "discPer": "0.00",
+            "schDiscPer": "0.00"
+        },
+        {
+            "itemSeq": 2,
+            "itemcode": "I00048",
+            "totalLooseQty": 10,
+            "totalLooseSchQty": 5,
+            "serviceQty": 0,
+            "saleRate": "16.806",
+            "discPer": "1.00",
+            "schDiscPer": "0.00"
+        }
+    ]
+}
+
+Response (Success):
+{
+    "code": "200",
+    "type": "SaleOrderCreate",
+    "message": "Document No. : 24001540035 successfully processed.",
+    "documentDetails": [
+        {
+            "brCode": "001",
+            "tranYear": "24",
+            "tranPrefix": "6",
+            "tranSrno": "35",
+            "documentPk": 24001540035,
+            "OrderId": 120,
+            "createdDate": "2024-07-24",
+            "billTotal": "254.18"
+        }
+    ]
+}
+
+--------------------------------------------------------------------------------
+30. GL CUSTOMER CREATION
+--------------------------------------------------------------------------------
+POST http://localhost:44000/ws_c2_services_gl_cust_creation
+
+Request:
+{
+    "c2Code": "03C000",
+    "StoreID": "000",
+    "apiKey": "MDNDMDAwMDAxXjIwMjQtMTEtMjkgMTQ6MTg=",
+    "Code": "234",
+    "ipName": "Test",
+    "Mail": "adityakadam@gmail.com",
+    "Gender": "M",
+    "Dlno": "20B MHMZ2120187",
+    "City": "mumbai",
+    "ipState": "Madhya Pradesh",
+    "Address1": "sss",
+    "Address2": "rrr",
+    "Pincode": 400050,
+    "Mobile": "9833576358",
+    "Gstno": "uvdchdvch1341"
+}
+
+Response (Success):
+{
+    "code": "200",
+    "type": "glcustcreation",
+    "message": "Customer Name : Test with Customer Code : 234 created successfully."
+}
+
+--------------------------------------------------------------------------------
+31. GET ORDER STATUS
+--------------------------------------------------------------------------------
+POST http://localhost:44000/ws_c2_services_get_orderstatus
+
+Request:
+{
+    "c2Code": "0Q8000",
+    "storeId": "101",
+    "prodCode": "02",
+    "apiKey": "MFE4MDAwMTAxMDJeMjAyNS0wMi0yNyAxNDo0NToxMC40NTQ=",
+    "orderId": "aditya001"
+}
+
+Response (Success):
+{
+    "code": "200",
+    "orderId": "aditya001",
+    "custCode": "GC01",
+    "fromGstNo": "07NQQAE5107K2ZW",
+    "toGstNo": "07NQQAE5107K2ZW",
+    "customerType": "Un - Registered",
+    "doctorName": "-",
+    "invoices": [
+        {
+            "docNo": "001/25/S/105",
+            "docDate": "2025-09-20",
+            "docStatus": "Invoice Created",
+            "createdBy": "MYBOSS",
+            "docDiscount": "0.00",
+            "docTotal": "106.00",
+            "detail": [
+                {
+                    "productId": "648538",
+                    "productName": "&ME PCOS CRANBERRY DRINK",
+                    "hsnCode": "21069099",
+                    "qtyPerBox": "1",
+                    "batch": "3030",
+                    "qty": "1.000",
+                    "expiryDate": "2029-07-01",
+                    "mrp": "170.000",
+                    "saleRate": "90.000",
+                    "discAmt": "0.00",
+                    "discPer": "0.00",
+                    "itemTotal": "170.000000",
+                    "cgstPer": "0.00",
+                    "cgstAmt": "0.00",
+                    "sgstPer": "0.00",
+                    "sgstAmt": "0.00",
+                    "igstPer": "18.00",
+                    "igstAmt": "16.20",
+                    "cessPer": "0.00",
+                    "cessAmt": "0.00"
+                }
+            ]
+        }
+    ]
+}
+
+================================================================================
+                        ERROR RESPONSES
+================================================================================
+
+400 Bad Request:
+{
+    "success": false,
+    "message": "Invalid data",
+    "errors": {
+        "field_name": ["Error description"]
+    }
+}
+
+401 Unauthorized:
+{
+    "detail": "Authentication credentials were not provided."
+}
+OR
+{
+    "detail": "Given token not valid for any token type"
+}
+
+404 Not Found:
+{
+    "success": false,
+    "message": "Item with code XXX not found"
+}
+
+500 Internal Server Error:
+{
+    "success": false,
+    "message": "Error description"
+}
+
+================================================================================
+                     AVAILABLE TEST ITEM CODES
+              (For Cart & Wishlist testing - from ERP)
+================================================================================
+
+Item Code    | Item Name                    | MRP      | Discount
+-------------|------------------------------|----------|----------
+I00003       | DOLO 250MG SUSP              | 75.03    | 24.24%
+I00017       | AMALGIN                      | 85.50    | 15.00%
+I00049       | ASPIRIN 500MG                | 6.81     | 20.00%
+I00048       | PARACETAMOL 650MG            | 16.81    | 18.00%
+513556       | 1 PARA 650MG TAB             | 45.00    | 22.00%
+648538       | &ME PCOS CRANBERRY DRINK     | 170.00   | 10.00%
+
+================================================================================
+                          HOW TO TEST
+================================================================================
+
+1. Start Django Server:
+   cd C:\Users\soorya\Desktop\Dreampharma\dreamspharma\dreamspharma
+   python manage.py migrate
+   python manage.py runserver
+
+2. Start ERP Test Server (in separate terminal):
+   cd C:\Users\soorya\Desktop\Dreampharma\dreamspharma\dreamspharma
+   python erp_test_server.py
+
+3. Django Server runs on: http://localhost:8000
+4. ERP Test Server runs on: http://localhost:44000
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================

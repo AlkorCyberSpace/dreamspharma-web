@@ -162,6 +162,8 @@ EMAIL_HOST_PASSWORD='ofzo pvte mcen jhhb'
 DEFAULT_FROM_EMAIL='sooryakr2004@gmail.com'
 
 
-    
+# ==================== ERP INTEGRATION ====================
+# Change this IP when client provides the actual ERP server IP
+ERP_BASE_URL = 'http://localhost:44000'  # <-- CHANGE THIS IP WHEN CLIENT PROVIDES
 
 

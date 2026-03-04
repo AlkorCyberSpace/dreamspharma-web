@@ -11,13 +11,20 @@ from django.conf import settings
 import random
 import re
 import string
+import base64
 
-from .models import CustomUser, KYC, OTP
+from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem
 from .serializers import (
     CustomUserSerializer, UserRegistrationSerializer, KYCSerializer, 
     KYCSubmitSerializer, SuperAdminLoginSerializer, RetailerLoginSerializer,
     ForgotPasswordSerializer, OTPVerifySerializer, PasswordResetSerializer,
-    ChangePasswordSerializer
+    ChangePasswordSerializer, GenerateTokenRequestSerializer, GenerateTokenResponseSerializer,
+    ItemMasterSerializer, FetchStockRequestSerializer, StockItemSerializer,
+    CreateSalesOrderRequestSerializer, CreateSalesOrderResponseSerializer,
+    CreateGLCustomerRequestSerializer, CreateGLCustomerResponseSerializer,
+    OrderStatusResponseSerializer, InvoiceForStatusSerializer,
+    CartSerializer, CartItemSerializer, AddToCartSerializer, UpdateCartItemSerializer,
+    WishlistSerializer, WishlistItemSerializer, AddToWishlistSerializer, MoveToCartSerializer
 )
 
 
@@ -52,26 +59,86 @@ class ProfileView(APIView):
             target_user = user
         if getattr(target_user, 'role', None) != 'RETAILER':
             return Response({'error': 'Only retailers have profiles at this endpoint.'}, status=status.HTTP_403_FORBIDDEN)
-        # Try to get KYC info
+        
+        # Try to get KYC info using queryset to avoid RelatedObjectDoesNotExist issues
         kyc = None
+        kyc_exists = False
         try:
-            kyc = target_user.kyc
-        except Exception:
-            pass
+            kyc = KYC.objects.get(user=target_user)
+            kyc_exists = True
+        except KYC.DoesNotExist:
+            kyc_exists = False
+        except Exception as e:
+            print(f"Error fetching KYC: {e}")
+            kyc_exists = False
+        
         profile = {
             'id': target_user.id,
             'name': target_user.first_name or target_user.username,
             'shop_name': kyc.shop_name if kyc else '',
             'shop_address': kyc.shop_address if kyc else '',
             'customer_name': kyc.customer_name if kyc else '',
+            'customer_id': kyc.customer_id if kyc else '',
             'email': target_user.email,
+            'customer_email': kyc.shop_email if kyc else '',
             'phone': target_user.phone_number or (kyc.customer_mobile if kyc else ''),
-            'store_photo': request.build_absolute_uri(kyc.store_photo.url) if kyc and kyc.store_photo else ''
+            'store_photo': request.build_absolute_uri(kyc.store_photo.url) if kyc and kyc.store_photo else '',
+            'customer_photo': request.build_absolute_uri(kyc.customer_photo.url) if kyc and kyc.customer_photo else '',
+            'kyc_exists': kyc_exists,
+            'kyc_status': kyc.get_status_display() if kyc else 'Not Submitted'
         }
         return Response(profile, status=status.HTTP_200_OK)
 
-    def post(self, request):
-        return Response({'error': 'Profile creation via this endpoint is not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    def post(self, request, user_id=None):
+        """
+        POST: Upload customer photo to profile
+        Expects user_id as URL parameter or uses authenticated user
+        """
+        # Determine which user to update
+        if user_id is not None:
+            user = get_object_or_404(User, id=user_id)
+        else:
+            if not request.user.is_authenticated:
+                return Response({'error': 'Authentication required to upload customer photo.'}, status=status.HTTP_401_UNAUTHORIZED)
+            user = request.user
+        
+        if getattr(user, 'role', None) != 'RETAILER':
+            return Response({'error': 'Only retailers can upload customer photo.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if customer_photo is provided
+        if 'customer_photo' not in request.FILES:
+            return Response({'error': 'customer_photo file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get KYC record using queryset
+        kyc = None
+        try:
+            kyc = KYC.objects.get(user=user)
+        except KYC.DoesNotExist:
+            return Response({'error': 'KYC record not found. Please submit KYC first.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': f'Error retrieving KYC: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update customer_photo
+        kyc.customer_photo = request.FILES['customer_photo']
+        kyc.save()
+        
+        # Return updated profile
+        profile = {
+            'id': user.id,
+            'name': user.first_name or user.username,
+            'shop_name': kyc.shop_name if kyc else '',
+            'shop_address': kyc.shop_address if kyc else '',
+            'customer_name': kyc.customer_name if kyc else '',
+            'customer_id': kyc.customer_id if kyc else '',
+            'email': user.email,
+            'customer_email': kyc.shop_email if kyc else '',
+            'phone': user.phone_number or (kyc.customer_mobile if kyc else ''),
+            'store_photo': self.request.build_absolute_uri(kyc.store_photo.url) if kyc and kyc.store_photo else '',
+            'customer_photo': self.request.build_absolute_uri(kyc.customer_photo.url) if kyc and kyc.customer_photo else '',
+            'kyc_exists': True,
+            'kyc_status': kyc.get_status_display()
+        }
+        return Response(profile, status=status.HTTP_200_OK)
 
     def put(self, request, user_id=None):
         # Allow public update by user_id
@@ -81,13 +148,19 @@ class ProfileView(APIView):
         if getattr(user, 'role', None) != 'RETAILER':
             return Response({'error': 'Only retailers can update their profile.'}, status=status.HTTP_403_FORBIDDEN)
         serializer = CustomUserSerializer(user, data=request.data, partial=True)
-        kyc_fields = ['shop_name', 'shop_address', 'customer_name', 'store_photo', 'customer_mobile']
+        kyc_fields = ['shop_name', 'shop_address', 'customer_name', 'customer_id', 'customer_photo', 'store_photo', 'customer_mobile']
         kyc_data = {field: request.data.get(field) for field in kyc_fields if field in request.data}
         kyc = None
+        kyc_exists = False
         try:
-            kyc = user.kyc
-        except Exception:
-            pass
+            kyc = KYC.objects.get(user=user)
+            kyc_exists = True
+        except KYC.DoesNotExist:
+            kyc_exists = False
+        except Exception as e:
+            print(f"Error fetching KYC: {e}")
+            kyc_exists = False
+        
         # Update user fields
         if serializer.is_valid():
             serializer.save()
@@ -104,9 +177,14 @@ class ProfileView(APIView):
                 'shop_name': kyc.shop_name if kyc else '',
                 'shop_address': kyc.shop_address if kyc else '',
                 'customer_name': kyc.customer_name if kyc else '',
+                'customer_id': kyc.customer_id if kyc else '',
                 'email': user.email,
+                'customer_email': kyc.shop_email if kyc else '',
                 'phone': user.phone_number or (kyc.customer_mobile if kyc else ''),
-                'store_photo': self.request.build_absolute_uri(kyc.store_photo.url) if kyc and kyc.store_photo else ''
+                'store_photo': self.request.build_absolute_uri(kyc.store_photo.url) if kyc and kyc.store_photo else '',
+                'customer_photo': self.request.build_absolute_uri(kyc.customer_photo.url) if kyc and kyc.customer_photo else '',
+                'kyc_exists': kyc_exists,
+                'kyc_status': kyc.get_status_display() if kyc else 'Not Submitted'
             }
             return Response(profile, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -320,7 +398,7 @@ class UserRegistrationView(APIView):
         
        
         user = registration_serializer.save()
-        user.status = 'REGISTERED'
+        user.status = 'PENDING_OTP_VERIFICATION'
         user.save()
         
       
@@ -371,8 +449,8 @@ class OTPRequestView(APIView):
         try:
             user = User.objects.get(email=email, role='RETAILER')
             
-            # Allow OTP request for REGISTERED (resend during registration), OTP_VERIFIED (resend during KYC), and APPROVED (login) users
-            allowed_statuses = ['REGISTERED', 'OTP_VERIFIED', 'APPROVED']
+            # Allow OTP request for PENDING_OTP_VERIFICATION (during registration) and APPROVED (login) users
+            allowed_statuses = ['PENDING_OTP_VERIFICATION', 'APPROVED']
             if user.status not in allowed_statuses:
                 return Response({
                     'error': f'Your account status: {user.get_status_display()}. Cannot request OTP at this stage.'
@@ -382,10 +460,20 @@ class OTPRequestView(APIView):
             otp_obj = OTP.objects.create(user=user)
             otp_code = otp_obj.generate_otp()
             
+            # Determine OTP purpose based on user status
+            if user.status == 'PENDING_OTP_VERIFICATION':
+                # Registration OTP
+                otp_subject = "Your Dream's Pharmacy Registration OTP"
+                otp_message = f'Your 4-digit OTP for registration verification is: {otp_code}\n\nThis OTP is valid for 1 minute.'
+            else:  # user.status == 'APPROVED'
+                # Login OTP
+                otp_subject = "Your Dream's Pharmacy Login OTP"
+                otp_message = f'Your 4-digit OTP for login is: {otp_code}\n\nThis OTP is valid for 1 minute.'
+            
             try:
                 send_mail(
-                    subject="Your Dream's Pharmacy Login OTP",
-                    message=f'Your 4-digit OTP for login is: {otp_code}\n\nThis OTP is valid for 1 minute.',
+                    subject=otp_subject,
+                    message=otp_message,
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[user.email],
                     fail_silently=False,
@@ -438,8 +526,9 @@ class OTPVerifyView(APIView):
                 otp_obj.save()
                 
                 
-                if user.status == 'REGISTERED':
-                    user.status = 'OTP_VERIFIED'
+                if user.status == 'PENDING_OTP_VERIFICATION':
+                    # Change status to REGISTERED after OTP verification
+                    user.status = 'REGISTERED'
                     user.save()
                     return Response({
                         'message': 'Your OTP has been verified. Please submit your KYC to continue.',
@@ -464,7 +553,7 @@ class OTPVerifyView(APIView):
                 
                 else:
                     return Response({
-                        'error': f'Cannot verify OTP. User status is {user.get_status_display()}. Expected REGISTERED or APPROVED.',
+                        'error': f'Cannot verify OTP. User status is {user.get_status_display()}. Expected PENDING_OTP_VERIFICATION or APPROVED.',
                         'otp_expires_in': otp_obj.get_expiry_time_remaining()
                     }, status=status.HTTP_400_BAD_REQUEST)
             else:
@@ -485,7 +574,7 @@ class KYCSubmitView(APIView):
     POST /api/kyc/submit/<user_id>/ - Submit KYC documents for approval
     Example: POST /api/kyc/submit/28/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny] 
     
     def post(self, request, user_id=None):
         """Submit KYC documents. User must have verified OTP first."""
@@ -517,7 +606,8 @@ class KYCSubmitView(APIView):
                 'kyc': KYCSerializer(user.kyc).data
             }, status=status.HTTP_400_BAD_REQUEST)
        
-        if user.status != 'OTP_VERIFIED':
+        # Check if user status is REGISTERED (which means OTP has been verified)
+        if user.status != 'REGISTERED':
             return Response({
                 'error': f'You must verify OTP first before submitting KYC. Current status: {user.get_status_display()}',
                 'workflow_stage': user.status,
@@ -590,31 +680,26 @@ class PasswordResetView(APIView):
         otp_obj.is_verified = True
         otp_obj.save()
         return Response({"message": "Password reset successful. You can now log in with your new password."}, status=status.HTTP_200_OK)
-from django.contrib.auth import get_user_model
-User = get_user_model()
 
 class ChangePasswordView(APIView):
-    permission_classes = [AllowAny]  
+    permission_classes = [IsAuthenticated]
 
-    def post(self, request, user_id):
+    def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
-
         if serializer.is_valid():
-            try:
-                user = User.objects.get(id=user_id)
-            except User.DoesNotExist:
-                return Response({"error": "User not found"}, status=404)
-
+            user = request.user
             if not user.check_password(serializer.validated_data['oldpassword']):
-                return Response({"oldpassword": "Old password incorrect"}, status=400)
-
+                return Response(
+                    {"oldpassword": "Old password is incorrect."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             user.set_password(serializer.validated_data['newpassword'])
             user.save()
-
-            return Response({"message": "Password changed successfully"})
-
-        return Response(serializer.errors, status=400)
-
+            return Response(
+                {"message": "Password changed successfully."},
+                status=status.HTTP_200_OK
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class SuperAdminChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
@@ -674,3 +759,706 @@ class LogoutView(APIView):
         except Exception:
             return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
 
+
+# ==================== ERP INTEGRATION VIEWS ====================
+
+class GenerateTokenView(APIView):
+    """
+    Generate API token for ERP integration
+    POST: Generate and return API token
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = GenerateTokenRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            c2_code = serializer.validated_data['c2Code']
+            store_id = serializer.validated_data['storeId']
+            prod_code = serializer.validated_data.get('prodCode', '02')
+            security_key = serializer.validated_data['securityKey']
+            
+            try:
+                # Get or create API token
+                api_token, created = APIToken.objects.get_or_create(
+                    c2_code=c2_code,
+                    defaults={
+                        'store_id': store_id,
+                        'prod_code': prod_code,
+                        'security_key': security_key,
+                        'api_key': base64.b64encode(f"{c2_code}^{timezone.now()}".encode()).decode()
+                    }
+                )
+                
+                response_data = {
+                    'code': '200',
+                    'type': 'generateToken',
+                    'apiKey': api_token.api_key
+                }
+                return Response(response_data, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({
+                    'code': '500',
+                    'type': 'generateToken',
+                    'message': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'code': '400',
+            'type': 'generateToken',
+            'message': 'Invalid parameters'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GetItemMasterView(APIView):
+    """
+    Get item master details
+    GET: Fetch item details based on parameters
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        serializer = FetchStockRequestSerializer(data=request.query_params)
+        if serializer.is_valid():
+            api_key = serializer.validated_data['apiKey']
+            
+            try:
+                # Validate API key
+                api_token = APIToken.objects.get(api_key=api_key, is_active=True)
+            except APIToken.DoesNotExist:
+                return Response({
+                    'code': '401',
+                    'type': 'getMasterData',
+                    'message': 'Unauthorized - Invalid API key'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Get items from database
+            items = ItemMaster.objects.all()
+            item_serializer = ItemMasterSerializer(items, many=True)
+            
+            return Response({
+                'code': '200',
+                'type': 'getMasterData',
+                'data': item_serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'code': '400',
+            'type': 'getMasterData',
+            'message': 'Invalid parameters'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FetchStockView(APIView):
+    """
+    Fetch stock details for items
+    GET: Get stock information for all items
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        serializer = FetchStockRequestSerializer(data=request.query_params)
+        if serializer.is_valid():
+            api_key = serializer.validated_data['apiKey']
+            store_id = serializer.validated_data.get('storeId')
+            
+            try:
+                # Validate API key
+                api_token = APIToken.objects.get(api_key=api_key, is_active=True)
+            except APIToken.DoesNotExist:
+                return Response({
+                    'code': '401',
+                    'message': 'Unauthorized - Invalid API key'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Get stock data
+            if store_id:
+                stocks = Stock.objects.filter(store_id=store_id)
+            else:
+                stocks = Stock.objects.all()
+            
+            stock_serializer = StockItemSerializer(stocks, many=True)
+            
+            return Response(stock_serializer.data, status=status.HTTP_200_OK)
+        
+        return Response({
+            'code': '400',
+            'message': 'Invalid parameters'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CreateSalesOrderView(APIView):
+    """
+    Create a sales order in the system
+    POST: Create sales order with line items
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = CreateSalesOrderRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            api_key = serializer.validated_data['apiKey']
+            
+            try:
+                # Validate API key
+                api_token = APIToken.objects.get(api_key=api_key, is_active=True)
+            except APIToken.DoesNotExist:
+                return Response({
+                    'code': '401',
+                    'type': 'SaleOrderCreate',
+                    'message': 'Unauthorized - Invalid API key'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            try:
+                # Create sales order
+                sales_order = SalesOrder.objects.create(
+                    c2_code=serializer.validated_data['c2Code'],
+                    store_id=serializer.validated_data['storeId'],
+                    order_id=f"{serializer.validated_data['orderId']}",
+                    ip_no=serializer.validated_data['ipNo'],
+                    mobile_no=serializer.validated_data['mobileNo'],
+                    patient_name=serializer.validated_data['patientName'],
+                    patient_address=serializer.validated_data['patientAddress'],
+                    patient_email=serializer.validated_data['patientEmail'],
+                    counter_sale=bool(serializer.validated_data['counterSale']),
+                    ord_date=serializer.validated_data['ordDate'],
+                    ord_time=serializer.validated_data['ordTime'],
+                    user_id=serializer.validated_data['userId'],
+                    cust_code=serializer.validated_data['actCode'],
+                    cust_name=serializer.validated_data['actName'],
+                    dr_code=serializer.validated_data.get('drCode', ''),
+                    dr_name=serializer.validated_data.get('drName', ''),
+                    dr_address=serializer.validated_data.get('drAddress', ''),
+                    dr_reg_no=serializer.validated_data.get('drRegNo', ''),
+                    dr_office_code=serializer.validated_data.get('drOfficeCode', '-'),
+                    dman_code=serializer.validated_data.get('dmanCode', '-'),
+                    order_total=serializer.validated_data['orderTotal'],
+                    order_disc_per=serializer.validated_data.get('orderDiscPer', 0),
+                    ref_no=serializer.validated_data.get('refNo'),
+                    remark=serializer.validated_data.get('remark'),
+                    urgent_flag=bool(serializer.validated_data.get('urgentFlag', 0)),
+                    ord_conversion_flag=bool(serializer.validated_data.get('ordConversionFlag', 0)),
+                    dc_conversion_flag=bool(serializer.validated_data.get('dcConversionFlag', 0)),
+                    ord_ref_no=serializer.validated_data.get('ordRefNo', 0),
+                    sys_name=serializer.validated_data['sysName'],
+                    sys_ip=serializer.validated_data['sysIp'],
+                    sys_user=serializer.validated_data['sysUser'],
+                    br_code=serializer.validated_data['storeId'],
+                    tran_year=str(timezone.now().year % 100),
+                    tran_prefix='6',
+                    tran_srno='1',
+                    bill_total=serializer.validated_data['orderTotal']
+                )
+                
+                # Create line items
+                material_info = serializer.validated_data['materialInfo']
+                for item in material_info:
+                    SalesOrderItem.objects.create(
+                        sales_order=sales_order,
+                        item_seq=item['item_seq'],
+                        item_code=item['item_code'],
+                        total_loose_qty=item['total_loose_qty'],
+                        total_loose_sch_qty=item.get('total_loose_sch_qty', 0),
+                        service_qty=item.get('service_qty', 0),
+                        sale_rate=item['sale_rate'],
+                        disc_per=item.get('disc_per', 0),
+                        sch_disc_per=item.get('sch_disc_per', 0)
+                    )
+                
+                # Generate document number
+                sales_order.document_pk = f"{sales_order.br_code}{sales_order.tran_year}{sales_order.tran_prefix}{sales_order.id}"
+                sales_order.save()
+                
+                response_data = {
+                    'code': '200',
+                    'type': 'SaleOrderCreate',
+                    'message': f'Document No. : {sales_order.document_pk} successfully processed.',
+                    'documentDetails': [{
+                        'brCode': sales_order.br_code,
+                        'tranYear': sales_order.tran_year,
+                        'tranPrefix': sales_order.tran_prefix,
+                        'tranSrno': sales_order.tran_srno,
+                        'documentPk': sales_order.document_pk,
+                        'OrderId': sales_order.order_id,
+                        'createdDate': str(sales_order.ord_date),
+                        'billTotal': str(sales_order.bill_total)
+                    }]
+                }
+                return Response(response_data, status=status.HTTP_201_CREATED)
+            
+            except Exception as e:
+                return Response({
+                    'code': '500',
+                    'type': 'SaleOrderCreate',
+                    'message': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'code': '400',
+            'type': 'SaleOrderCreate',
+            'message': 'Invalid parameters'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CreateGLCustomerView(APIView):
+    """
+    Create Global Local Customer Master
+    POST: Create customer record accessible across stores
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = CreateGLCustomerRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            api_key = serializer.validated_data['apiKey']
+            code = serializer.validated_data['Code']
+            
+            try:
+                # Validate API key
+                api_token = APIToken.objects.get(api_key=api_key, is_active=True)
+            except APIToken.DoesNotExist:
+                return Response({
+                    'code': '401',
+                    'type': 'glcustcreation',
+                    'message': 'Unauthorized - Invalid API key'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Check if customer code already exists
+            if GLCustomer.objects.filter(code=code).exists():
+                return Response({
+                    'code': '400',
+                    'type': 'glcustcreation',
+                    'message': f'LcCode Already Exists:{code}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                customer = GLCustomer.objects.create(
+                    c2_code=serializer.validated_data['c2Code'],
+                    store_id=serializer.validated_data['StoreID'],
+                    code=code,
+                    ip_name=serializer.validated_data['ipName'],
+                    mail=serializer.validated_data['Mail'],
+                    gender=serializer.validated_data['Gender'],
+                    dl_no=serializer.validated_data.get('Dlno', ''),
+                    city=serializer.validated_data['City'],
+                    ip_state=serializer.validated_data['ipState'],
+                    address1=serializer.validated_data['Address1'],
+                    address2=serializer.validated_data.get('Address2', ''),
+                    pincode=serializer.validated_data['Pincode'],
+                    mobile=serializer.validated_data['Mobile'],
+                    gst_no=serializer.validated_data.get('Gstno', '')
+                )
+                
+                return Response({
+                    'code': '200',
+                    'type': 'glcustcreation',
+                    'message': f"Customer Name : {customer.ip_name} with Customer Code : {customer.code} created sucessfully."
+                }, status=status.HTTP_201_CREATED)
+            
+            except Exception as e:
+                return Response({
+                    'code': '500',
+                    'type': 'glcustcreation',
+                    'message': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'code': '400',
+            'type': 'glcustcreation',
+            'message': 'Invalid parameters'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GetOrderStatusView(APIView):
+    """
+    Get order status with transaction details
+    GET: Retrieve sales order status and invoice details
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        # Parse request parameters
+        c2_code = request.query_params.get('c2Code')
+        store_id = request.query_params.get('storeId')
+        api_key = request.query_params.get('apiKey')
+        order_id = request.query_params.get('orderId')
+        
+        if not all([c2_code, store_id, api_key, order_id]):
+            return Response({
+                'code': '400',
+                'message': 'Missing required parameters'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Validate API key
+            api_token = APIToken.objects.get(api_key=api_key, is_active=True)
+        except APIToken.DoesNotExist:
+            return Response({
+                'code': '401',
+                'message': 'Unauthorized - Invalid API key'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            # Get sales order
+            sales_order = SalesOrder.objects.get(order_id=order_id, c2_code=c2_code)
+            
+            # Get invoices for this order
+            invoices = Invoice.objects.filter(sales_order=sales_order)
+            
+            response_data = {
+                'code': '200',
+                'orderId': sales_order.order_id,
+                'custCode': sales_order.cust_code,
+                'fromGstNo': '07NQQAE5107K2ZW',  # Replace with actual GST from backend
+                'toGstNo': '07NQQAE5107K2ZW',    # Replace with actual GST from customer
+                'customerType': 'Un - Registered',
+                'doctorName': sales_order.dr_name or '-',
+                'invoices': []
+            }
+            
+            invoice_serializer = InvoiceForStatusSerializer(invoices, many=True)
+            response_data['invoices'] = invoice_serializer.data
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+        
+        except SalesOrder.DoesNotExist:
+            return Response({
+                'code': '404',
+                'message': 'Order not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            return Response({
+                'code': '500',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==================== CART VIEWS ====================
+
+class CartView(APIView):
+    """
+    Get or clear user's cart
+    GET: Retrieve cart with all items and totals
+    DELETE: Clear entire cart
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        cart, created = Cart.objects.get_or_create(user=request.user)
+        serializer = CartSerializer(cart)
+        return Response({
+            'success': True,
+            'message': 'Cart retrieved successfully',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def delete(self, request):
+        try:
+            cart = Cart.objects.get(user=request.user)
+            cart.items.all().delete()
+            serializer = CartSerializer(cart)
+            return Response({
+                'success': True,
+                'message': 'Cart cleared successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        except Cart.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Cart not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+class AddToCartView(APIView):
+    """
+    Add item to cart
+    POST: Add a new item or update quantity if exists
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = AddToCartSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid data',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        item_code = serializer.validated_data['itemCode']
+        quantity = serializer.validated_data.get('quantity', 1)
+        batch_no = serializer.validated_data.get('batchNo')
+        
+        try:
+            item = ItemMaster.objects.get(item_code=item_code)
+        except ItemMaster.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': f'Item with code {item_code} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get or create cart
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        
+        # Check if item already in cart
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            item=item,
+            defaults={'quantity': quantity, 'batch_no': batch_no}
+        )
+        
+        if not created:
+            # Update quantity
+            cart_item.quantity += quantity
+            cart_item.save()
+        
+        cart_serializer = CartSerializer(cart)
+        return Response({
+            'success': True,
+            'message': f'{item.item_name} added to cart' if created else f'{item.item_name} quantity updated',
+            'data': cart_serializer.data
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class UpdateCartItemView(APIView):
+    """
+    Update cart item quantity
+    PUT: Update quantity of specific cart item
+    DELETE: Remove item from cart
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def put(self, request, item_id):
+        serializer = UpdateCartItemSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid data',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            cart = Cart.objects.get(user=request.user)
+            cart_item = CartItem.objects.get(id=item_id, cart=cart)
+            cart_item.quantity = serializer.validated_data['quantity']
+            cart_item.save()
+            
+            cart_serializer = CartSerializer(cart)
+            return Response({
+                'success': True,
+                'message': 'Cart item updated successfully',
+                'data': cart_serializer.data
+            }, status=status.HTTP_200_OK)
+        except Cart.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Cart not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except CartItem.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Cart item not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    def delete(self, request, item_id):
+        try:
+            cart = Cart.objects.get(user=request.user)
+            cart_item = CartItem.objects.get(id=item_id, cart=cart)
+            item_name = cart_item.item.item_name
+            cart_item.delete()
+            
+            cart_serializer = CartSerializer(cart)
+            return Response({
+                'success': True,
+                'message': f'{item_name} removed from cart',
+                'data': cart_serializer.data
+            }, status=status.HTTP_200_OK)
+        except Cart.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Cart not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except CartItem.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Cart item not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+# ==================== WISHLIST VIEWS ====================
+
+class WishlistView(APIView):
+    """
+    Get or clear user's wishlist
+    GET: Retrieve wishlist with all items
+    DELETE: Clear entire wishlist
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
+        serializer = WishlistSerializer(wishlist)
+        return Response({
+            'success': True,
+            'message': 'Wishlist retrieved successfully',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    def delete(self, request):
+        try:
+            wishlist = Wishlist.objects.get(user=request.user)
+            wishlist.items.all().delete()
+            serializer = WishlistSerializer(wishlist)
+            return Response({
+                'success': True,
+                'message': 'Wishlist cleared successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        except Wishlist.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Wishlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+class AddToWishlistView(APIView):
+    """
+    Add item to wishlist
+    POST: Add a new item to wishlist
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = AddToWishlistSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid data',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        item_code = serializer.validated_data['itemCode']
+        
+        try:
+            item = ItemMaster.objects.get(item_code=item_code)
+        except ItemMaster.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': f'Item with code {item_code} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get or create wishlist
+        wishlist, _ = Wishlist.objects.get_or_create(user=request.user)
+        
+        # Check if item already in wishlist
+        wishlist_item, created = WishlistItem.objects.get_or_create(
+            wishlist=wishlist,
+            item=item
+        )
+        
+        if not created:
+            return Response({
+                'success': False,
+                'message': f'{item.item_name} is already in your wishlist'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        wishlist_serializer = WishlistSerializer(wishlist)
+        return Response({
+            'success': True,
+            'message': f'{item.item_name} added to wishlist',
+            'data': wishlist_serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+
+class RemoveFromWishlistView(APIView):
+    """
+    Remove item from wishlist
+    DELETE: Remove specific item from wishlist
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, item_id):
+        try:
+            wishlist = Wishlist.objects.get(user=request.user)
+            wishlist_item = WishlistItem.objects.get(id=item_id, wishlist=wishlist)
+            item_name = wishlist_item.item.item_name
+            wishlist_item.delete()
+            
+            wishlist_serializer = WishlistSerializer(wishlist)
+            return Response({
+                'success': True,
+                'message': f'{item_name} removed from wishlist',
+                'data': wishlist_serializer.data
+            }, status=status.HTTP_200_OK)
+        except Wishlist.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Wishlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except WishlistItem.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Wishlist item not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+class MoveToCartView(APIView):
+    """
+    Move item from wishlist to cart
+    POST: Move item to cart and remove from wishlist
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = MoveToCartSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid data',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        item_code = serializer.validated_data['itemCode']
+        quantity = serializer.validated_data.get('quantity', 1)
+        
+        try:
+            item = ItemMaster.objects.get(item_code=item_code)
+        except ItemMaster.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': f'Item with code {item_code} not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get wishlist and check if item exists
+        try:
+            wishlist = Wishlist.objects.get(user=request.user)
+            wishlist_item = WishlistItem.objects.get(wishlist=wishlist, item=item)
+        except (Wishlist.DoesNotExist, WishlistItem.DoesNotExist):
+            return Response({
+                'success': False,
+                'message': 'Item not found in wishlist'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get or create cart and add item
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            item=item,
+            defaults={'quantity': quantity}
+        )
+        
+        if not created:
+            cart_item.quantity += quantity
+            cart_item.save()
+        
+        # Remove from wishlist
+        wishlist_item.delete()
+        
+        cart_serializer = CartSerializer(cart)
+        return Response({
+            'success': True,
+            'message': f'{item.item_name} moved to cart',
+            'data': {
+                'cart': cart_serializer.data
+            }
+        }, status=status.HTTP_200_OK)

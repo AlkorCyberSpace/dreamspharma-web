@@ -4,8 +4,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from dreamspharmaapp.models import KYC
-from .serializers import RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer
+from .serializers import (
+    RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer
+)
 
 User = get_user_model()
 
@@ -47,11 +50,11 @@ class SuperAdminGetAllRetailersView(APIView):
 class ApproveKYCView(APIView):
     """
     API endpoint for superadmin to approve KYC.
-    POST /api/superadmin/kyc/approve/ - Approve a retailer's KYC
+    POST /api/superadmin/kyc/approve/<user_id>/ - Approve a retailer's KYC
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request, user_id):
         """Approve KYC for a retailer"""
         # Check if user is a superadmin
         if request.user.role != 'SUPERADMIN':
@@ -59,7 +62,8 @@ class ApproveKYCView(APIView):
                 'error': 'Only Super Admin can approve KYC'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = ApproveKYCSerializer(data=request.data)
+        data = {'user_id': user_id}
+        serializer = ApproveKYCSerializer(data=data)
         
         if serializer.is_valid():
             kyc = serializer.save()
@@ -79,11 +83,11 @@ class ApproveKYCView(APIView):
 class RejectKYCView(APIView):
     """
     API endpoint for superadmin to reject KYC.
-    POST /api/superadmin/kyc/reject/ - Reject a retailer's KYC with reason
+    POST /api/superadmin/kyc/reject/<user_id>/ - Reject a retailer's KYC with reason
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request, user_id):
         """Reject KYC for a retailer"""
         # Check if user is a superadmin
         if request.user.role != 'SUPERADMIN':
@@ -91,7 +95,8 @@ class RejectKYCView(APIView):
                 'error': 'Only Super Admin can reject KYC'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        serializer = RejectKYCSerializer(data=request.data)
+        data = {'user_id': user_id, **request.data}
+        serializer = RejectKYCSerializer(data=data)
         
         if serializer.is_valid():
             kyc = serializer.save()
