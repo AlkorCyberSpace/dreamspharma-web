@@ -3,12 +3,24 @@ from django.contrib.auth import get_user_model, authenticate
 from .models import (
     KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
     SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
-    Cart, CartItem, Wishlist, WishlistItem
+    Cart, CartItem, Wishlist, WishlistItem, Brand, ProductInfo, Address
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
+
+# ==================== BRAND SERIALIZER ====================
+
+class BrandSerializer(serializers.ModelSerializer):
+    """Serializer for Brand"""
+    class Meta:
+        model = Brand
+        fields = ['id', 'name', 'logo', 'description', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+# ==================== USER SERIALIZERS ====================
 
 class CustomUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -127,7 +139,6 @@ class RetailerLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Password is incorrect. Please try again.")
         
         data['user'] = authenticated_user
-        data['is_first_login'] = not authenticated_user.first_login_otp_verified
         return data
 
 
@@ -353,6 +364,18 @@ class ItemMasterSerializer(serializers.ModelSerializer):
     class Meta:
         model = ItemMaster
         fields = ['c_item_code', 'itemName', 'itemQtyPerBox', 'batchNo', 'std_disc', 'max_disc', 'expiryDate', 'mrp']
+
+
+class ProductListSerializer(serializers.Serializer):
+    """Simplified serializer for product listing in brand categorization page"""
+    itemCode = serializers.CharField()
+    itemName = serializers.CharField()
+    brandName = serializers.CharField(allow_null=True)
+    productImage = serializers.CharField(allow_null=True)
+    mrp = serializers.DecimalField(max_digits=10, decimal_places=2)
+    discountPercentage = serializers.DecimalField(max_digits=10, decimal_places=2)
+    discountedPrice = serializers.DecimalField(max_digits=10, decimal_places=2)
+    description = serializers.CharField(allow_null=True)
 
 
 class FetchStockRequestSerializer(serializers.Serializer):
@@ -612,9 +635,17 @@ class CartSerializer(serializers.ModelSerializer):
 
 class AddToCartSerializer(serializers.Serializer):
     """Serializer for adding item to cart"""
-    itemCode = serializers.CharField()
-    quantity = serializers.IntegerField(min_value=1, default=1)
+    itemCode = serializers.CharField(max_length=50, min_length=1)
+    quantity = serializers.IntegerField(min_value=1, max_value=100, default=1)
     batchNo = serializers.CharField(required=False, allow_null=True)
+    
+    def validate_quantity(self, value):
+        """Validate quantity is reasonable to prevent spam orders"""
+        if value < 1:
+            raise serializers.ValidationError("Quantity must be at least 1 unit")
+        if value > 100:
+            raise serializers.ValidationError("Cannot order more than 100 units at once")
+        return value
 
 
 class UpdateCartItemSerializer(serializers.Serializer):
@@ -632,7 +663,7 @@ class WishlistItemSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WishlistItem
-        fields = ['id', 'itemCode', 'itemName', 'mrp', 'discountPercentage', 'discountedPrice', 'created_at']
+        fields = ['id', 'itemCode', 'itemName', 'mrp', 'quantity', 'discountPercentage', 'discountedPrice', 'created_at']
     
     def get_discountPercentage(self, obj):
         return float(obj.item.std_disc)
@@ -665,3 +696,159 @@ class MoveToCartSerializer(serializers.Serializer):
     """Serializer for moving item from wishlist to cart"""
     itemCode = serializers.CharField()
     quantity = serializers.IntegerField(min_value=1, default=1)
+
+# ==================== ADDRESS SERIALIZERS ====================
+
+class AddressSerializer(serializers.ModelSerializer):
+    """Serializer for Address management"""
+    
+    class Meta:
+        model = Address
+        fields = [
+            'id', 'user', 'name', 'phone', 'pincode', 'city', 'state',
+            'locality', 'flat_building', 'landmark', 'address_type',
+            'is_default', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+    
+    def validate_phone(self, value):
+        """Validate phone number format"""
+        if not value.isdigit() or len(value) < 10 or len(value) > 15:
+            raise serializers.ValidationError("Phone number must be 10-15 digits")
+        return value
+    
+    def validate_pincode(self, value):
+        """Validate pincode format"""
+        if not value.isdigit() or len(value) < 4 or len(value) > 10:
+            raise serializers.ValidationError("Pincode must be 4-10 digits")
+        return value
+    
+    def validate(self, data):
+        """Cross-field validation"""
+        # Check for locality or flat_building at minimum
+        if not data.get('locality') and not data.get('flat_building'):
+            raise serializers.ValidationError("Either locality or flat/building name is required")
+        return data
+
+
+class AddressListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for listing addresses"""
+    full_address = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Address
+        fields = [
+            'id', 'name', 'phone', 'pincode', 'city', 'state',
+            'address_type', 'is_default', 'is_active', 'full_address'
+        ]
+    
+    def get_full_address(self, obj):
+        return obj.get_full_address()
+
+
+class CreateAddressSerializer(serializers.ModelSerializer):
+    """Serializer for creating address"""
+    
+    class Meta:
+        model = Address
+        fields = [
+            'name', 'phone', 'pincode', 'city', 'state',
+            'locality', 'flat_building', 'landmark', 'address_type', 'is_default'
+        ]
+    
+    def validate_phone(self, value):
+        """Validate phone number format"""
+        if not value.isdigit() or len(value) < 10 or len(value) > 15:
+            raise serializers.ValidationError("Phone number must be 10-15 digits")
+        return value
+    
+    def validate_pincode(self, value):
+        """Validate pincode format"""
+        if not value.isdigit() or len(value) < 4 or len(value) > 10:
+            raise serializers.ValidationError("Pincode must be 4-10 digits")
+        return value
+    
+    def validate(self, data):
+        """Cross-field validation"""
+        if not data.get('locality') and not data.get('flat_building'):
+            raise serializers.ValidationError("Either locality or flat/building name is required")
+        return data
+
+
+class SelectAddressSerializer(serializers.Serializer):
+    """Serializer for selecting address for order"""
+    address_id = serializers.IntegerField(required=True, help_text="ID of the address to use")
+    
+    def validate_address_id(self, value):
+        """Validate address exists"""
+        try:
+            Address.objects.get(id=value)
+        except Address.DoesNotExist:
+            raise serializers.ValidationError("Address not found")
+        return value
+
+
+class DetectLocationSerializer(serializers.Serializer):
+    """Serializer for GPS-based location detection"""
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True, help_text="GPS latitude")
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True, help_text="GPS longitude")
+    accuracy = serializers.IntegerField(required=False, allow_null=True, help_text="GPS accuracy in meters")
+    
+    def validate_latitude(self, value):
+        """Validate latitude range"""
+        if value < -90 or value > 90:
+            raise serializers.ValidationError("Latitude must be between -90 and 90")
+        return value
+    
+    def validate_longitude(self, value):
+        """Validate longitude range"""
+        if value < -180 or value > 180:
+            raise serializers.ValidationError("Longitude must be between -180 and 180")
+        return value
+
+
+class LocationAddressResponseSerializer(serializers.Serializer):
+    """Response serializer for detected/geocoded address"""
+    full_address = serializers.CharField(help_text="Complete formatted address")
+    street = serializers.CharField(allow_blank=True, help_text="Street name and number")
+    locality = serializers.CharField(help_text="Locality/Area/Street")
+    city = serializers.CharField(help_text="City name")
+    state = serializers.CharField(help_text="State/Province")
+    pincode = serializers.CharField(allow_blank=True, help_text="Postal code")
+    country = serializers.CharField(allow_blank=True, help_text="Country")
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, help_text="Latitude")
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, help_text="Longitude")
+    accuracy = serializers.CharField(help_text="Location accuracy level")
+
+
+class ConfirmLocationAddressSerializer(serializers.ModelSerializer):
+    """Serializer for confirming and saving detected address"""
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
+    location_accuracy = serializers.IntegerField(required=False, allow_null=True)
+    
+    class Meta:
+        model = Address
+        fields = [
+            'name', 'phone', 'pincode', 'city', 'state',
+            'locality', 'flat_building', 'landmark', 'address_type',
+            'is_default', 'latitude', 'longitude', 'location_accuracy'
+        ]
+    
+    def validate_phone(self, value):
+        """Validate phone number format"""
+        if not value.isdigit() or len(value) < 10 or len(value) > 15:
+            raise serializers.ValidationError("Phone number must be 10-15 digits")
+        return value
+    
+    def validate_pincode(self, value):
+        """Validate pincode format"""
+        if not value.isdigit() or len(value) < 4 or len(value) > 10:
+            raise serializers.ValidationError("Pincode must be 4-10 digits")
+        return value
+    
+    def validate(self, data):
+        """Cross-field validation"""
+        if not data.get('locality') and not data.get('flat_building'):
+            raise serializers.ValidationError("Either locality or flat/building name is required")
+        return data

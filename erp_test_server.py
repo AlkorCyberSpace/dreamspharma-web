@@ -6,7 +6,7 @@ Usage:
     pip install flask
     python erp_test_server.py
 
-Server will run on: http://localhost:44000
+Server will run on: http://192.168.1.63:8000/
 """
 
 from flask import Flask, request, jsonify
@@ -30,7 +30,7 @@ ITEMS = [
         "stockBalQty": 984,
         "std_disc": 24.24,
         "max_disc": 0.00,
-        "expiryDate": "2025-11-01",
+        "expiryDate": "2027-11-01",
         "mrp": 75.03
     },
     {
@@ -41,7 +41,7 @@ ITEMS = [
         "stockBalQty": 2000,
         "std_disc": 15.00,
         "max_disc": 0.00,
-        "expiryDate": "2025-12-01",
+        "expiryDate": "2027-12-01",
         "mrp": 85.50
     },
     {
@@ -52,7 +52,7 @@ ITEMS = [
         "stockBalQty": 500,
         "std_disc": 20.00,
         "max_disc": 5.00,
-        "expiryDate": "2025-10-15",
+        "expiryDate": "2027-10-15",
         "mrp": 6.81
     },
     {
@@ -63,7 +63,7 @@ ITEMS = [
         "stockBalQty": 1200,
         "std_disc": 18.00,
         "max_disc": 3.00,
-        "expiryDate": "2025-09-30",
+        "expiryDate": "2027-09-30",
         "mrp": 16.81
     },
     {
@@ -74,7 +74,7 @@ ITEMS = [
         "stockBalQty": 9970,
         "std_disc": 22.00,
         "max_disc": 4.00,
-        "expiryDate": "2025-08-20",
+        "expiryDate": "2027-08-20",
         "mrp": 45.00
     },
     {

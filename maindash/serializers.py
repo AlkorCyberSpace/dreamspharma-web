@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from dreamspharmaapp.models import KYC
+from .emails import send_kyc_approval_email, send_kyc_rejection_email
 
 User = get_user_model()
 
@@ -63,6 +64,12 @@ class ApproveKYCSerializer(serializers.Serializer):
         user.status = 'APPROVED'
         user.save()
         
+        # Send approval email
+        try:
+            send_kyc_approval_email(user, kyc)
+        except Exception as e:
+            print(f"Failed to send approval email: {e}")
+        
         return kyc
 
 
@@ -105,6 +112,12 @@ class RejectKYCSerializer(serializers.Serializer):
         user.status = 'KYC_SUBMITTED'
         user.is_kyc_approved = False
         user.save()
+        
+        # Send rejection email
+        try:
+            send_kyc_rejection_email(user, kyc, rejection_reason)
+        except Exception as e:
+            print(f"Failed to send rejection email: {e}")
         
         return kyc
 

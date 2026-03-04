@@ -38,9 +38,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
-    'rest_framework',       
+    'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',  # Required for token rotation
+    'django_apscheduler',
     'dreamspharmaapp',
-    'maindash',       
+    'maindash', 
+    'payment',      
 
 ]
 
@@ -82,6 +85,42 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
+}
+
+# ==================== JWT SETTINGS ====================
+# Industry-standard: Short access tokens + silent refresh
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    # Short-lived access token (10 minutes) - mobile app refreshes silently
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),
+    
+    # Long-lived refresh token (7 days) - user stays logged in
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    
+    # Rotate refresh tokens on every refresh (more secure)
+    'ROTATE_REFRESH_TOKENS': True,
+    
+    # Blacklist old refresh tokens after rotation
+    'BLACKLIST_AFTER_ROTATION': True,
+    
+    # Update last login timestamp
+    'UPDATE_LAST_LOGIN': True,
+    
+    # Algorithm
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    
+    # Token headers
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    
+    # User identification
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    
+    # Token type claim
+    'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
 # Database
@@ -167,3 +206,78 @@ DEFAULT_FROM_EMAIL='sooryakr2004@gmail.com'
 ERP_BASE_URL = 'http://localhost:44000'  # <-- CHANGE THIS IP WHEN CLIENT PROVIDES
 
 
+# ==================== APScheduler Configuration ====================
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {module} {funcName}:{lineno} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+        'simple': {
+            'format': '[{levelname}] {asctime} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+            'level': 'INFO',
+        },
+        'pharmacy_orders_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'pharmacy_orders.log'),
+            'maxBytes': 1024 * 1024 * 10,  # 10MB
+            'backupCount': 10,
+            'formatter': 'verbose',
+        },
+        'error_file': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'errors.log'),
+            'maxBytes': 1024 * 1024 * 10,  # 10MB
+            'backupCount': 10,
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'apscheduler.schedulers.background': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'apscheduler.executors': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'apscheduler.jobstores': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'dreamspharmaapp': {
+            'handlers': ['console', 'pharmacy_orders_file', 'error_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['error_file', 'console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    }
+}
+
+# Create logs directory if it doesn't exist
+import os
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# ==================== RAZORPAY PAYMENT SETTINGS ====================
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_SN2KVaGDoF3Mdz')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', 'e180zkNhC8ks54aeD0FuU9am')
+
+# Razorpay Settings
+RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', 'your_webhook_secret')

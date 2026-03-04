@@ -146,6 +146,24 @@ class OTP(models.Model):
         return f"OTP - {self.email}"
 
 
+# ==================== BRAND MODEL ====================
+
+class Brand(models.Model):
+    """Medicine brand/manufacturer - used for categorization"""
+    name = models.CharField(max_length=255, unique=True)
+    logo = models.ImageField(upload_to='brands/', null=True, blank=True)
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        ordering = ['name']
+
+
 # ==================== ERP INTEGRATION MODELS ====================
 
 class APIToken(models.Model):
@@ -187,6 +205,23 @@ class ItemMaster(models.Model):
     
     class Meta:
         ordering = ['item_code']
+
+
+class ProductInfo(models.Model):
+    """Product information for brand categorization and display"""
+    item = models.OneToOneField(ItemMaster, on_delete=models.CASCADE, related_name='product_info', primary_key=True)
+    brand = models.ForeignKey(Brand, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
+    description = models.TextField(blank=True, null=True)
+    product_image = models.ImageField(upload_to='products/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.item.item_name} - {self.brand.name if self.brand else 'No Brand'}"
+    
+    class Meta:
+        verbose_name_plural = "Product Info"
+        ordering = ['-created_at']
 
 
 class Stock(models.Model):
@@ -239,6 +274,58 @@ class GLCustomer(models.Model):
         ordering = ['-created_at']
 
 
+class Address(models.Model):
+    """Delivery addresses for users"""
+    ADDRESS_TYPE_CHOICES = (
+        ('HOME', 'Home'),
+        ('OFFICE', 'Office'),
+        ('OTHER', 'Others'),
+    )
+    
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='addresses')
+    name = models.CharField(max_length=200, help_text='Name of recipient')
+    phone = models.CharField(
+        max_length=15,
+        validators=[RegexValidator(r'^\d{10,15}$', 'Phone number must be 10-15 digits')]
+    )
+    pincode = models.CharField(max_length=10)
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    locality = models.CharField(max_length=255, help_text='Locality/Area/Street')
+    flat_building = models.CharField(max_length=255, blank=True, null=True, help_text='Flat no/Building Name')
+    landmark = models.CharField(max_length=255, blank=True, null=True, help_text='Landmark (optional)')
+    address_type = models.CharField(max_length=20, choices=ADDRESS_TYPE_CHOICES, default='HOME')
+    is_default = models.BooleanField(default=False, help_text='Set as default delivery address')
+    is_active = models.BooleanField(default=True)
+    
+    # GPS Coordinates
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text='Latitude from GPS/map')
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text='Longitude from GPS/map')
+    location_accuracy = models.IntegerField(blank=True, null=True, help_text='GPS accuracy in meters')
+    is_gps_verified = models.BooleanField(default=False, help_text='Address confirmed via GPS coordinates')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-is_default', '-created_at']
+        unique_together = ('user', 'phone', 'pincode', 'locality')  # Avoid duplicate exact addresses
+    
+    def __str__(self):
+        return f"{self.name} - {self.address_type} ({self.city}, {self.state})"
+    
+    def get_full_address(self):
+        """Return complete formatted address"""
+        parts = [self.flat_building, self.locality, self.city, self.state, self.pincode]
+        return ', '.join([p for p in parts if p])
+    
+    def save(self, *args, **kwargs):
+        # Only one default address per user
+        if self.is_default:
+            Address.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
 class SalesOrder(models.Model):
     """Sales Order document"""
     c2_code = models.CharField(max_length=20)
@@ -248,6 +335,7 @@ class SalesOrder(models.Model):
     mobile_no = models.CharField(max_length=15)
     patient_name = models.CharField(max_length=255)
     patient_address = models.TextField()
+    delivery_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name='sales_orders', blank=True, null=True, help_text="Linked delivery address for this order")
     patient_email = models.EmailField()
     counter_sale = models.BooleanField(default=False)
     ord_date = models.DateField()
@@ -296,6 +384,8 @@ class SalesOrderItem(models.Model):
     item_seq = models.IntegerField()
     item_code = models.CharField(max_length=50)
     item_name = models.CharField(max_length=255, blank=True, null=True)
+    batch_no = models.CharField(max_length=100, blank=True, null=True, help_text='Medicine batch number for recall tracking')
+    expiry_date = models.DateField(blank=True, null=True, help_text='Medicine expiry date')
     total_loose_qty = models.IntegerField()
     total_loose_sch_qty = models.IntegerField(default=0)
     service_qty = models.IntegerField(default=0)
@@ -306,7 +396,7 @@ class SalesOrderItem(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"{self.item_code} - Qty: {self.total_loose_qty}"
+        return f"{self.item_code} - Batch: {self.batch_no} - Qty: {self.total_loose_qty}"
     
     class Meta:
         ordering = ['item_seq']
@@ -464,11 +554,13 @@ class WishlistItem(models.Model):
     """Individual item in a wishlist"""
     wishlist = models.ForeignKey(Wishlist, on_delete=models.CASCADE, related_name='items')
     item = models.ForeignKey(ItemMaster, on_delete=models.CASCADE, related_name='wishlist_items')
+    quantity = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         unique_together = ('wishlist', 'item')
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.item.item_name} (Wishlist: {self.wishlist.user.username})"
+        return f"{self.item.item_name} x {self.quantity} (Wishlist: {self.wishlist.user.username})"
