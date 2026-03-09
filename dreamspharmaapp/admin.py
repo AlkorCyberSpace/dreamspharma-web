@@ -152,53 +152,32 @@ class OTPAdmin(admin.ModelAdmin):
     user_name.short_description = 'User'
 
 
-# ==================== BRAND ADMIN ====================
+# ==================== PRODUCT INFO ADMIN ====================
 
-from .models import Brand, ProductInfo
+from .models import ProductInfo, ProductImage
 
 
-@admin.register(Brand)
-class BrandAdmin(admin.ModelAdmin):
-    list_display = ['name', 'logo_preview', 'is_active', 'product_count', 'created_at']
-    list_filter = ['is_active', 'created_at']
-    search_fields = ['name', 'description']
-    readonly_fields = ['created_at', 'updated_at', 'logo_preview']
-    fieldsets = (
-        ('Brand Information', {
-            'fields': ('name', 'logo', 'logo_preview', 'description', 'is_active')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-    
-    def logo_preview(self, obj):
-        if obj.logo:
-            return format_html(
-                '<img src="{}" style="max-width: 100px; max-height: 100px;" />', 
-                obj.logo.url
-            )
-        return "No logo"
-    logo_preview.short_description = "Logo Preview"
-    
-    def product_count(self, obj):
-        return obj.products.count()
-    product_count.short_description = "Products"
+class ProductImageInline(admin.TabularInline):
+    """Inline admin for ProductImage"""
+    model = ProductImage
+    extra = 1
+    fields = ['image', 'image_order']
+    ordering = ['image_order']
 
 
 @admin.register(ProductInfo)
 class ProductInfoAdmin(admin.ModelAdmin):
-    list_display = ['item_code', 'item_name', 'brand_name', 'image_preview', 'created_at']
-    list_filter = ['brand', 'created_at']
-    search_fields = ['item__item_code', 'item__item_name', 'brand__name']
-    readonly_fields = ['created_at', 'updated_at', 'image_preview']
+    list_display = ['item_code', 'item_name', 'subheading_preview', 'image_count', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['item__item_code', 'item__item_name', 'subheading', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [ProductImageInline]
     fieldsets = (
         ('Product', {
             'fields': ('item',)
         }),
-        ('Brand & Details', {
-            'fields': ('brand', 'description', 'product_image', 'image_preview')
+        ('Details', {
+            'fields': ('subheading', 'description')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
@@ -214,16 +193,11 @@ class ProductInfoAdmin(admin.ModelAdmin):
         return obj.item.item_name
     item_name.short_description = "Item Name"
     
-    def brand_name(self, obj):
-        return obj.brand.name if obj.brand else "No Brand"
-    brand_name.short_description = "Brand"
+    def subheading_preview(self, obj):
+        return obj.subheading if obj.subheading else "No subheading"
+    subheading_preview.short_description = "Subheading"
     
-    def image_preview(self, obj):
-        if obj.product_image:
-            return format_html(
-                '<img src="{}" style="max-width: 100px; max-height: 100px;" />', 
-                obj.product_image.url
-            )
-        return "No image"
-    image_preview.short_description = "Image Preview"
+    def image_count(self, obj):
+        return obj.images.count()
+    image_count.short_description = "Images Count"
 

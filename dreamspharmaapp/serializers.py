@@ -3,21 +3,11 @@ from django.contrib.auth import get_user_model, authenticate
 from .models import (
     KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
     SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
-    Cart, CartItem, Wishlist, WishlistItem, Brand, ProductInfo, Address
+    Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
-
-
-# ==================== BRAND SERIALIZER ====================
-
-class BrandSerializer(serializers.ModelSerializer):
-    """Serializer for Brand"""
-    class Meta:
-        model = Brand
-        fields = ['id', 'name', 'logo', 'description', 'is_active', 'created_at']
-        read_only_fields = ['id', 'created_at']
 
 
 # ==================== USER SERIALIZERS ====================
@@ -351,8 +341,25 @@ class GenerateTokenResponseSerializer(serializers.Serializer):
     apiKey = serializers.CharField()
 
 
+class ProductImageSerializer(serializers.ModelSerializer):
+    """Serializer for product images"""
+    
+    class Meta:
+        model = ProductImage
+        fields = ['image', 'image_order']
+
+
+class ProductInfoForItemMasterSerializer(serializers.ModelSerializer):
+    """Serializer for ProductInfo when included with ItemMaster"""
+    images = ProductImageSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = ProductInfo
+        fields = ['subheading', 'description', 'images']
+
+
 class ItemMasterSerializer(serializers.ModelSerializer):
-    """Serializer for ItemMaster model"""
+    """Serializer for ItemMaster model with product information"""
     c_item_code = serializers.CharField(source='item_code')
     itemName = serializers.CharField(source='item_name')
     itemQtyPerBox = serializers.IntegerField(source='item_qty_per_box')
@@ -360,17 +367,53 @@ class ItemMasterSerializer(serializers.ModelSerializer):
     std_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
     max_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
     expiryDate = serializers.DateField(source='expiry_date')
+    # New fields for mobile app
+    subheading = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
     
     class Meta:
         model = ItemMaster
-        fields = ['c_item_code', 'itemName', 'itemQtyPerBox', 'batchNo', 'std_disc', 'max_disc', 'expiryDate', 'mrp']
+        fields = ['c_item_code', 'itemName', 'itemQtyPerBox', 'batchNo', 'std_disc', 'max_disc', 'expiryDate', 'mrp', 'subheading', 'description', 'images']
+    
+    def get_subheading(self, obj):
+        """Get subheading from ProductInfo if exists"""
+        try:
+            return obj.product_info.subheading or ""
+        except:
+            return ""
+    
+    def get_description(self, obj):
+        """Get description from ProductInfo if exists"""
+        try:
+            return obj.product_info.description or ""
+        except:
+            return ""
+    
+    def get_images(self, obj):
+        """Get product images from ProductInfo"""
+        try:
+            request = self.context.get('request')
+            images = obj.product_info.images.all().order_by('image_order')[:3]
+            image_urls = []
+            for img in images:
+                if request:
+                    image_url = request.build_absolute_uri(img.image.url)
+                else:
+                    image_url = img.image.url
+                image_urls.append({
+                    'image': image_url,
+                    'image_order': img.image_order
+                })
+            return image_urls
+        except:
+            return []
 
 
 class ProductListSerializer(serializers.Serializer):
-    """Simplified serializer for product listing in brand categorization page"""
+    """Simplified serializer for product listing"""
     itemCode = serializers.CharField()
     itemName = serializers.CharField()
-    brandName = serializers.CharField(allow_null=True)
     productImage = serializers.CharField(allow_null=True)
     mrp = serializers.DecimalField(max_digits=10, decimal_places=2)
     discountPercentage = serializers.DecimalField(max_digits=10, decimal_places=2)
@@ -379,12 +422,13 @@ class ProductListSerializer(serializers.Serializer):
 
 
 class FetchStockRequestSerializer(serializers.Serializer):
-    """Serializer for stock fetch request"""
-    c2Code = serializers.CharField(max_length=20)
-    storeId = serializers.CharField(max_length=20)
-    prodCode = serializers.CharField(max_length=20, required=False, default="02")
-    apiKey = serializers.CharField(max_length=255)
-    inputDateTime = serializers.DateTimeField(required=False)
+    """Serializer for ERP item master request - matches ERP API spec"""
+    c2Code = serializers.CharField(max_length=20, required=True, help_text="Company/Branch code")
+    storeId = serializers.CharField(max_length=20, required=True, help_text="Store identifier")
+    apiKey = serializers.CharField(max_length=255, required=True, help_text="API authentication key")
+    prodCode = serializers.CharField(max_length=20, required=False, default="02", help_text="Production code (optional)")
+    indexId = serializers.IntegerField(required=False, help_text="Item index ID (optional)")
+    inputDateTime = serializers.DateTimeField(required=False, help_text="Reference date/time (optional)")
 
 
 class StockItemSerializer(serializers.ModelSerializer):
@@ -773,6 +817,97 @@ class CreateAddressSerializer(serializers.ModelSerializer):
         if not data.get('locality') and not data.get('flat_building'):
             raise serializers.ValidationError("Either locality or flat/building name is required")
         return data
+
+
+# ==================== PRODUCT INFO UPDATE SERIALIZERS ====================
+
+class UpdateProductInfoRequestSerializer(serializers.Serializer):
+    """Serializer for updating product info (subheading, description, and images)
+    Authentication: JWT Token (SUPERADMIN only)
+    """
+    c_item_code = serializers.CharField(required=True, help_text="Item code")
+    subheading = serializers.CharField(required=False, allow_blank=True, help_text="Product subheading/subtitle")
+    description = serializers.CharField(required=False, allow_blank=True, help_text="Product description")
+    # Image fields - accepts multiple images
+    image_1 = serializers.ImageField(required=False, allow_null=True, help_text="Primary product image")
+    image_2 = serializers.ImageField(required=False, allow_null=True, help_text="Secondary product image")
+    image_3 = serializers.ImageField(required=False, allow_null=True, help_text="Tertiary product image")
+    
+    def validate_c_item_code(self, value):
+        """Validate that item exists"""
+        try:
+            ItemMaster.objects.get(item_code=value)
+        except ItemMaster.DoesNotExist:
+            raise serializers.ValidationError(f"Item with code {value} does not exist")
+        return value
+    
+    def validate_image_1(self, value):
+        """Validate image file"""
+        if value:
+            return self._validate_image_file(value)
+        return value
+    
+    def validate_image_2(self, value):
+        """Validate image file"""
+        if value:
+            return self._validate_image_file(value)
+        return value
+    
+    def validate_image_3(self, value):
+        """Validate image file"""
+        if value:
+            return self._validate_image_file(value)
+        return value
+    
+    def _validate_image_file(self, value):
+        """Common validation for all image files"""
+        if value.size > 5 * 1024 * 1024:  # 5MB limit
+            raise serializers.ValidationError("Image file size must not exceed 5MB")
+        
+        # Check file extension
+        allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+        ext = value.name.split('.')[-1].lower()
+        if ext not in allowed_extensions:
+            raise serializers.ValidationError(f"Only {', '.join(allowed_extensions)} files are allowed")
+        
+        return value
+
+
+class UploadProductImageRequestSerializer(serializers.Serializer):
+    """Serializer for uploading product images
+    Authentication: JWT Token (SUPERADMIN only)
+    """
+    c_item_code = serializers.CharField(required=True, help_text="Item code")
+    image = serializers.ImageField(required=True, help_text="Product image file")
+    image_order = serializers.IntegerField(required=False, default=1, min_value=1, max_value=3, help_text="Image order (1-3)")
+    
+    def validate_c_item_code(self, value):
+        """Validate that item exists"""
+        try:
+            ItemMaster.objects.get(item_code=value)
+        except ItemMaster.DoesNotExist:
+            raise serializers.ValidationError(f"Item with code {value} does not exist")
+        return value
+    
+    def validate_image(self, value):
+        """Validate image file"""
+        if value.size > 5 * 1024 * 1024:  # 5MB limit
+            raise serializers.ValidationError("Image file size must not exceed 5MB")
+        
+        # Check file extension
+        allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+        ext = value.name.split('.')[-1].lower()
+        if ext not in allowed_extensions:
+            raise serializers.ValidationError(f"Only {', '.join(allowed_extensions)} files are allowed")
+        
+        return value
+
+
+class UpdateProductInfoResponseSerializer(serializers.Serializer):
+    """Response serializer for product info update"""
+    code = serializers.CharField()
+    message = serializers.CharField()
+    data = serializers.DictField()
 
 
 class SelectAddressSerializer(serializers.Serializer):

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from dreamspharmaapp.models import KYC
+from dreamspharmaapp.models import KYC, SalesOrder
 from .emails import send_kyc_approval_email, send_kyc_rejection_email
 
 User = get_user_model()
@@ -120,4 +120,77 @@ class RejectKYCSerializer(serializers.Serializer):
             print(f"Failed to send rejection email: {e}")
         
         return kyc
+
+
+class DashboardStatisticsSerializer(serializers.Serializer):
+    """Serializer for dashboard statistics"""
+    total_retailers = serializers.IntegerField(read_only=True)
+    pending_kyc = serializers.IntegerField(read_only=True)
+    total_orders = serializers.IntegerField(read_only=True)
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Serializer for changing password"""
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    
+    def validate_old_password(self, value):
+        """Validate that old password is not empty"""
+        if not value or value.strip() == '':
+            raise serializers.ValidationError("Old password cannot be empty")
+        return value
+    
+    def validate_new_password(self, value):
+        """Validate new password strength"""
+        if not value or value.strip() == '':
+            raise serializers.ValidationError("New password cannot be empty")
+        if len(value) < 6:
+            raise serializers.ValidationError("New password must be at least 6 characters long")
+        return value
+    
+    def validate(self, data):
+        """Validate that new password is different from old password"""
+        if data.get('old_password') == data.get('new_password'):
+            raise serializers.ValidationError("New password must be different from old password")
+        return data
+    
+    def save(self, user):
+        """Change the password for the user"""
+        old_password = self.validated_data['old_password']
+        new_password = self.validated_data['new_password']
+        
+        # Verify old password
+        if not user.check_password(old_password):
+            raise serializers.ValidationError("Old password is incorrect")
+        
+        # Set new password
+        user.set_password(new_password)
+        user.save()
+        return user
+
+
+class SuperAdminProfileSerializer(serializers.ModelSerializer):
+    """Serializer for super admin profile information"""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile_image', 'phone_number']
+        read_only_fields = ['id', 'username']
+
+
+class SuperAdminProfileImageSerializer(serializers.ModelSerializer):
+    """Serializer for uploading super admin profile image"""
+    profile_image = serializers.ImageField(required=True)
+    
+    class Meta:
+        model = User
+        fields = ['profile_image']
+    
+    def validate_profile_image(self, value):
+        """Validate profile image"""
+        if not value:
+            raise serializers.ValidationError("Image cannot be empty")
+        # Check file size (max 5MB)
+        if value.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError("Image size must not exceed 5MB")
+        return value
 

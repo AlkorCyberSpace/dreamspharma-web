@@ -33,10 +33,13 @@ urlpatterns = [
     path('auth/superadmin-change-password/', views.SuperAdminChangePasswordView.as_view(), name='superadmin-change-password'),
     
     # ==================== ERP INTEGRATION ENDPOINTS ====================
-    # Token Generation
+ 
     path('erp/ws_c2_services_generate_token', views.GenerateTokenView.as_view(), name='generate-token'),
     # Item Masters
     path('erp/ws_c2_services_get_master_data', views.GetItemMasterView.as_view(), name='get-item-master'),
+    # Product Info Update
+    path('erp/update_product_info/', views.UpdateProductInfoView.as_view(), name='update-product-info'),
+    path('erp/upload_product_image/', views.UploadProductImageView.as_view(), name='upload-product-image'),
     # Stock Fetch
     path('erp/ws_c2_services_fetch_stock', views.FetchStockView.as_view(), name='fetch-stock'),
     # Sales Order Creation
@@ -72,9 +75,7 @@ urlpatterns = [
     path('location/confirm-address/', views.ConfirmLocationAddressView.as_view(), name='confirm-location-address'),
     path('location/nearby-addresses/', views.NearbyAddressesView.as_view(), name='nearby-addresses'),
     
-    # ==================== CATEGORY & PRODUCT ENDPOINTS ====================
-    path('brands/', views.BrandsView.as_view(), name='brands'),
-    path('brand/products/', views.BrandProductsView.as_view(), name='brand-products'),
+    # ==================== PRODUCT ENDPOINTS ====================
     path('products/', views.AllProductsView.as_view(), name='all-products'),
     
 ]

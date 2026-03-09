@@ -20,7 +20,7 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, Brand, ProductInfo, Address
+from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address
 from .serializers import (
     CustomUserSerializer, UserRegistrationSerializer, KYCSerializer, 
     KYCSubmitSerializer, SuperAdminLoginSerializer, RetailerLoginSerializer,
@@ -32,9 +32,9 @@ from .serializers import (
     OrderStatusResponseSerializer, InvoiceForStatusSerializer,
     CartSerializer, CartItemSerializer, AddToCartSerializer, UpdateCartItemSerializer,
     WishlistSerializer, WishlistItemSerializer, AddToWishlistSerializer, MoveToCartSerializer,
-    BrandSerializer, ProductListSerializer, AddressListSerializer, CreateAddressSerializer,
+    ProductListSerializer, AddressListSerializer, CreateAddressSerializer,
     SelectAddressSerializer, DetectLocationSerializer, LocationAddressResponseSerializer,
-    ConfirmLocationAddressSerializer
+    ConfirmLocationAddressSerializer, UpdateProductInfoRequestSerializer, UploadProductImageRequestSerializer
 )
 from .geocoding import reverse_geocode, GeocodingException, validate_coordinates
 
@@ -1061,13 +1061,14 @@ class GenerateTokenView(APIView):
 
 class GetItemMasterView(APIView):
     """
-    Get item master details
-    GET: Fetch item details based on parameters in request body
+    Get item master details with product information including images, subheading, and description
+    GET: Fetch item details DIRECTLY from ERP test server (real-time data)
+    Enhanced with product images, subheading, and description from Django database
     """
     permission_classes = [AllowAny]
     
     def get(self, request):
-        serializer = FetchStockRequestSerializer(data=request.data)
+        serializer = FetchStockRequestSerializer(data=request.query_params)
         if serializer.is_valid():
             api_key = serializer.validated_data['apiKey']
             
@@ -1081,20 +1082,289 @@ class GetItemMasterView(APIView):
                     'message': 'Unauthorized - Invalid API key'
                 }, status=status.HTTP_401_UNAUTHORIZED)
             
-            # Get items from database
-            items = ItemMaster.objects.all()
-            item_serializer = ItemMasterSerializer(items, many=True)
+            try:
+                # FETCH DIRECTLY FROM ERP SERVER (configurable in settings.py)
+                erp_base_url = settings.ERP_BASE_URL
+                erp_server_url = f"{erp_base_url}/ws_c2_services_get_master_data"
+                
+                logger.info(f"[GET_ITEM_MASTER] Fetching from ERP: {erp_server_url}")
+                
+                erp_response = requests.get(erp_server_url, params={'apiKey': api_key}, timeout=10)
+                
+                if erp_response.status_code != 200:
+                    logger.error(f"ERP Server error: {erp_response.status_code} - {erp_response.text}")
+                    return Response({
+                        'code': '500',
+                        'type': 'getMasterData',
+                        'message': f'ERP Server error: {erp_response.text}'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                erp_data = erp_response.json()
+                items = erp_data.get('data', [])
+                
+                # Enhance each item with product info from Django database
+                for item in items:
+                    item_code = item.get('c_item_code')
+                    
+                    # Try to get ProductInfo (images, subheading, description) from database
+                    try:
+                        item_master = ItemMaster.objects.get(item_code=item_code)
+                        product_info = ProductInfo.objects.get(item=item_master)
+                        
+                        # Add enriched data
+                        item['subheading'] = product_info.subheading
+                        item['description'] = product_info.description
+                        
+                        # Add images
+                        images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
+                        item['images'] = [
+                            {
+                                'image': request.build_absolute_uri(img.image.url),
+                                'image_order': img.image_order
+                            }
+                            for img in images
+                        ]
+                    except (ItemMaster.DoesNotExist, ProductInfo.DoesNotExist):
+                        # Item exists in ERP but not in our product info database
+                        # That's okay - SUPERADMIN can add product info later
+                        item['subheading'] = ''
+                        item['description'] = ''
+                        item['images'] = []
+                
+                logger.info(f"[GET_ITEM_MASTER] Fetched {len(items)} items from ERP server with product enhancements")
+                
+                return Response({
+                    'code': '200',
+                    'type': 'getMasterData',
+                    'data': items,
+                    'message': f'Fetched {len(items)} items from ERP server'
+                }, status=status.HTTP_200_OK)
             
-            return Response({
-                'code': '200',
-                'type': 'getMasterData',
-                'data': item_serializer.data
-            }, status=status.HTTP_200_OK)
+            except requests.exceptions.ConnectionError:
+                return Response({
+                    'code': '503',
+                    'type': 'getMasterData',
+                    'message': 'ERP Server is not reachable. Make sure erp_test_server.py is running on port 44000'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as e:
+                logger.error(f"Error fetching from ERP server: {str(e)}")
+                return Response({
+                    'code': '500',
+                    'type': 'getMasterData',
+                    'message': f'Error: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response({
             'code': '400',
             'type': 'getMasterData',
             'message': 'Invalid parameters'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UpdateProductInfoView(APIView):
+    """
+    Update product information (subheading, description, and images)
+    POST: Update product info and upload images for an item
+    SUPERADMIN ONLY - Add product details through mobile app
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        # Check if user is SUPERADMIN
+        if getattr(request.user, 'role', None) != 'SUPERADMIN':
+            return Response({
+                'code': '403',
+                'type': 'updateProductInfo',
+                'message': 'Forbidden - Only SUPERADMIN can update product information'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = UpdateProductInfoRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            item_code = serializer.validated_data['c_item_code']
+            subheading = serializer.validated_data.get('subheading', '')
+            description = serializer.validated_data.get('description', '')
+            
+            # Get images if provided
+            images = {
+                1: serializer.validated_data.get('image_1'),
+                2: serializer.validated_data.get('image_2'),
+                3: serializer.validated_data.get('image_3'),
+            }
+            
+            try:
+                # Get the item
+                item = ItemMaster.objects.get(item_code=item_code)
+                
+                # Get or create ProductInfo
+                product_info, created = ProductInfo.objects.get_or_create(
+                    item=item
+                )
+                
+                # Update ProductInfo fields
+                product_info.subheading = subheading
+                product_info.description = description
+                product_info.save()
+                
+                # Audit log
+                logger.info(f"[PRODUCT_INFO_UPDATED] Item: {item_code} | Subheading: {subheading} | Description: {description} | Updated by: {request.user.username}")
+                
+                # Handle image uploads
+                uploaded_images = []
+                for image_order in [1, 2, 3]:
+                    image_file = images.get(image_order)
+                    if image_file:
+                        try:
+                            # Check if image with same order already exists
+                            existing_image = ProductImage.objects.filter(
+                                product_info=product_info,
+                                image_order=image_order
+                            ).first()
+                            
+                            if existing_image:
+                                # Update existing image
+                                existing_image.image = image_file
+                                existing_image.save()
+                                uploaded_images.append({
+                                    'image_order': image_order,
+                                    'status': 'updated'
+                                })
+                                logger.info(f"[PRODUCT_IMAGE_UPDATED] Item: {item_code} | Order: {image_order} | Updated by: {request.user.username}")
+                            else:
+                                # Create new image
+                                ProductImage.objects.create(
+                                    product_info=product_info,
+                                    image=image_file,
+                                    image_order=image_order
+                                )
+                                uploaded_images.append({
+                                    'image_order': image_order,
+                                    'status': 'uploaded'
+                                })
+                                logger.info(f"[PRODUCT_IMAGE_CREATED] Item: {item_code} | Order: {image_order} | Created by: {request.user.username}")
+                        except Exception as img_error:
+                            logger.error(f"Error uploading image {image_order}: {str(img_error)}")
+                            uploaded_images.append({
+                                'image_order': image_order,
+                                'status': 'error',
+                                'error': str(img_error)
+                            })
+                
+                return Response({
+                    'code': '200',
+                    'type': 'updateProductInfo',
+                    'message': 'Product info updated successfully',
+                    'data': {
+                        'c_item_code': item_code,
+                        'subheading': product_info.subheading,
+                        'description': product_info.description,
+                        'images': uploaded_images
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            except ItemMaster.DoesNotExist:
+                return Response({
+                    'code': '404',
+                    'type': 'updateProductInfo',
+                    'message': f'Item with code {item_code} not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            except Exception as e:
+                logger.error(f"Error updating product info: {str(e)}")
+                return Response({
+                    'code': '500',
+                    'type': 'updateProductInfo',
+                    'message': f'Error updating product info: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'code': '400',
+            'type': 'updateProductInfo',
+            'message': 'Invalid parameters',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UploadProductImageView(APIView):
+    """
+    Upload product images
+    POST: Upload image for a product
+    SUPERADMIN ONLY - Add product images through mobile app
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        # Check if user is SUPERADMIN
+        if getattr(request.user, 'role', None) != 'SUPERADMIN':
+            return Response({
+                'code': '403',
+                'type': 'uploadProductImage',
+                'message': 'Forbidden - Only SUPERADMIN can upload product images'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = UploadProductImageRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            item_code = serializer.validated_data['c_item_code']
+            image = serializer.validated_data['image']
+            image_order = serializer.validated_data.get('image_order', 1)
+            
+            try:
+                # Get the item
+                item = ItemMaster.objects.get(item_code=item_code)
+                
+                # Get or create ProductInfo
+                product_info, _ = ProductInfo.objects.get_or_create(item=item)
+                
+                # Check if image with same order already exists
+                existing_image = ProductImage.objects.filter(
+                    product_info=product_info,
+                    image_order=image_order
+                ).first()
+                
+                if existing_image:
+                    # Update existing image
+                    existing_image.image = image
+                    existing_image.save()
+                    action = 'updated'
+                    logger.info(f"[PRODUCT_IMAGE_UPDATED] Item: {item_code} | Order: {image_order} | Updated by: {request.user.username}")
+                else:
+                    # Create new image
+                    ProductImage.objects.create(
+                        product_info=product_info,
+                        image=image,
+                        image_order=image_order
+                    )
+                    action = 'uploaded'
+                    logger.info(f"[PRODUCT_IMAGE_CREATED] Item: {item_code} | Order: {image_order} | Created by: {request.user.username}")
+                
+                return Response({
+                    'code': '200',
+                    'type': 'uploadProductImage',
+                    'message': f'Product image {action} successfully',
+                    'data': {
+                        'c_item_code': item_code,
+                        'image_order': image_order,
+                        'status': action
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            except ItemMaster.DoesNotExist:
+                return Response({
+                    'code': '404',
+                    'type': 'uploadProductImage',
+                    'message': f'Item with code {item_code} not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            except Exception as e:
+                logger.error(f"Error uploading product image: {str(e)}")
+                return Response({
+                    'code': '500',
+                    'type': 'uploadProductImage',
+                    'message': f'Error uploading product image: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'code': '400',
+            'type': 'uploadProductImage',
+            'message': 'Invalid parameters',
+            'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -1957,116 +2227,13 @@ class MoveToCartView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-# ==================== BRAND VIEWS ====================
-
-class BrandsView(APIView):
-    """
-    Get all medicine brands for sidebar categorization
-    GET: Retrieve all active brands
-    """
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        try:
-            brands = Brand.objects.filter(is_active=True)
-            serializer = BrandSerializer(brands, many=True)
-            
-            return Response({
-                'success': True,
-                'message': 'Brands retrieved successfully',
-                'data': serializer.data
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({
-                'success': False,
-                'message': f'Error retrieving brands: {str(e)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-
-class BrandProductsView(APIView):
-    """
-    Get products by brand
-    GET: Retrieve products filtered by brand
-    Query Parameters:
-        - brand_id: Brand ID (required)
-    """
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        try:
-            brand_id = request.query_params.get('brand_id')
-            
-            if not brand_id:
-                return Response({
-                    'success': False,
-                    'message': 'brand_id is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Check if brand exists
-            try:
-                brand = Brand.objects.get(id=brand_id, is_active=True)
-            except Brand.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': 'Brand not found'
-                }, status=status.HTTP_404_NOT_FOUND)
-            
-            # Get products for this brand with product info
-            product_infos = ProductInfo.objects.filter(brand=brand).select_related('item')
-            
-            products = []
-            for product_info in product_infos:
-                item = product_info.item
-                mrp = float(item.mrp)
-                discount = float(item.std_disc)
-                discounted = mrp * (1 - discount / 100)
-                
-                product_image_url = None
-                if product_info.product_image:
-                    product_image_url = request.build_absolute_uri(product_info.product_image.url)
-                
-                products.append({
-                    'itemCode': item.item_code,
-                    'itemName': item.item_name,
-                    'brandName': brand.name,
-                    'productImage': product_image_url,
-                    'mrp': float(item.mrp),
-                    'discountPercentage': item.std_disc,
-                    'discountedPrice': round(discounted, 2),
-                    'description': product_info.description
-                })
-            
-            logo_url = None
-            if brand.logo:
-                logo_url = request.build_absolute_uri(brand.logo.url)
-            
-            return Response({
-                'success': True,
-                'message': 'Products retrieved successfully',
-                'data': {
-                    'brand': {
-                        'id': brand.id,
-                        'name': brand.name,
-                        'logo': logo_url,
-                        'description': brand.description
-                    },
-                    'products': products,
-                    'count': len(products)
-                }
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({
-                'success': False,
-                'message': f'Error retrieving products: {str(e)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+# ==================== PRODUCTS VIEW ====================
 
 class AllProductsView(APIView):
     """
-    Get all products with optional brand filter
-    GET: Retrieve all products with optional brand filter or search
+    Get all products with optional search
+    GET: Retrieve all products with optional search
     Query Parameters:
-        - brand_id: Filter by brand ID (optional)
         - search: Search by product name (optional)
     """
     permission_classes = [AllowAny]
@@ -2074,12 +2241,7 @@ class AllProductsView(APIView):
     def get(self, request):
         try:
             # Start with all product infos
-            product_infos = ProductInfo.objects.select_related('item', 'brand')
-            
-            # Filter by brand if provided
-            brand_id = request.query_params.get('brand_id')
-            if brand_id:
-                product_infos = product_infos.filter(brand_id=brand_id)
+            product_infos = ProductInfo.objects.select_related('item')
             
             # Search by product name if provided
             search = request.query_params.get('search')
@@ -2100,7 +2262,6 @@ class AllProductsView(APIView):
                 products.append({
                     'itemCode': item.item_code,
                     'itemName': item.item_name,
-                    'brandName': product_info.brand.name if product_info.brand else None,
                     'productImage': product_image_url,
                     'mrp': float(item.mrp),
                     'discountPercentage': item.std_disc,
