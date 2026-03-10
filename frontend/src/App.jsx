@@ -8,6 +8,7 @@ import Orders from "./components/Orders";
 import Retailers from "./pages/Retailers";
 import Refunds from "./pages/Refunds";
 import Reports from "./pages/Reports";
+import Products from "./pages/Products";
 
 function App() {
   return (
@@ -27,10 +28,10 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="orders" element={<Orders />} />
           <Route path="refunds" element={<Refunds />} />
-           <Route path="retailers" element={<Retailers />} />
-          {/* <Route path="products" element={<Products />} /> */}
+          <Route path="retailers" element={<Retailers />} />
+          <Route path="products" element={<Products />} />
           <Route path="reports" element={<Reports />} />
-        {/* <Route path="settings" element={<Settings />} /> */}
+          {/* <Route path="settings" element={<Settings />} /> */}
         </Route>
       </Routes>
     </BrowserRouter>

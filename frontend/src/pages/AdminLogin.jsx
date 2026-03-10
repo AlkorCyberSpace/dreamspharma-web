@@ -12,34 +12,34 @@ export default function AdminLogin() {
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setError(""); 
+    setError("");
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError("");
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  try {
-    const response = await loginAPI({
-      username: formData.username,
-      password: formData.password,
-    });
+    try {
+      const response = await loginAPI({
+        username: formData.username,
+        password: formData.password,
+      });
 
-    localStorage.setItem("access", response.data.access);
-    localStorage.setItem("refresh", response.data.refresh);
+      const { access, refresh } = response.data;
 
-    navigate("/dashboard");
-
-  } catch (error) {
-    console.log(error);
-    setError("Invalid username or password");
-  } finally {
-    setLoading(false);
-  }
-};
+      localStorage.setItem("access", access);
+      localStorage.setItem("refresh", refresh);
+      navigate("/dashboard");
+    } catch (error) {
+      console.log(error);
+      setError("Invalid username or password");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -50,7 +50,6 @@ export default function AdminLogin() {
         backgroundPosition: "center",
       }}
     >
-      {/* LEFT GLASS BOX */}
       <div
         className="ml-16 w-[400px] px-10 py-8 rounded-3xl 
         backdrop-blur-xl 
@@ -64,7 +63,6 @@ export default function AdminLogin() {
         <h1 className="text-5xl font-light text-white mb-8">Sign In</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* username */}
           <div>
             <label className="text-sm text-gray-300">username</label>
             <input
@@ -81,7 +79,6 @@ export default function AdminLogin() {
             />
           </div>
 
-          {/* Password */}
           <div className="relative">
             <div className="flex justify-between">
               <label className="text-sm text-gray-300">Password</label>
@@ -112,14 +109,12 @@ export default function AdminLogin() {
             </button>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">
               {error}
             </div>
           )}
 
-          {/* Button */}
           <div className="text-center pt-4">
             <button
               type="submit"
