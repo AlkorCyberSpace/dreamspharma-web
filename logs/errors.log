@@ -1033,3 +1033,6 @@ Traceback (most recent call last):
                        ^^^^^^^
 NameError: name 'api_key' is not defined
 [ERROR] 2026-03-16 00:37:11 log log_response:253 - Internal Server Error: /api/recommendations/popular/
+[ERROR] 2026-03-19 09:26:03 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-03-19 09:26:03 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[ERROR] 2026-03-19 09:26:03 erp_token_service initialize_erp_token:211 - [ERP_TOKEN] [FAILED] Failed to initialize ERP token
