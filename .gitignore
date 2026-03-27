@@ -1,0 +1,24 @@
+# Logs
+logs/
+*.log
+
+# Django / Python
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Media files (VERY IMPORTANT)
+media/
+
+# Env
+.env
+
+# Node / React
+node_modules/
+dist/
+build/
+
+# VS Code / OS
+.vscode/
+.idea/
+.DS_Store
