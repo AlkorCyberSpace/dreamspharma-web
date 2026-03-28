@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Search, Package, AlertTriangle, Archive, Eye, X, Edit, Upload } from "lucide-react";
 import SummaryCard from "../components/SummaryCard";
-import { getProductsAPI, updateProductInfoAPI } from "../services/allAPI";
+import { getProductsAPI, updateProductInfoAPI, getCategoriesAPI, assignBrandToProductAPI } from "../services/allAPI";
 
 
 export default function Products() {
     const [search, setSearch] = useState("");
-    const [categoryFilter, setCategoryFilter] = useState("All Categories");
+    const [categoryFilter, setCategoryFilter] = useState("All Brands");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
@@ -30,7 +30,60 @@ export default function Products() {
         image_3_preview: null,
     });
 
-    const fetchProducts = useCallback(async () => {
+    const [brands, setBrands] = useState([]);
+    const [selectedBrandId, setSelectedBrandId] = useState("");
+    const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
+
+    // useEffect(() => {
+    //     const fetchProducts = async () => {
+    //         setLoading(true);
+    //         try {
+    //             const response = await getProductsAPI();
+    //             if (response.data && response.data.data) {
+    //                 const mappedData = response.data.data.map((item) => ({
+    //                     id: item.c_item_code,
+    //                     name: item.itemName,
+    //                     category: item.brand_name || "not choose",
+    //                     mrp: item.mrp ? `₹${item.mrp}` : "N/A",
+    //                     stock: item.stockBalQty || 0,
+    //                     lowStock: (item.stockBalQty || 0) < 5,
+    //                     batch: item.batchNo,
+    //                     expiry: item.expiryDate,
+    //                     description: item.description,
+    //                     subheading: item.subheading,
+    //                     brand: item.brand_name,
+    //                     brandId: item.brand_id,
+    //                     brandLogo: item.brand_logo,
+    //                     images: item.images,
+    //                 }));
+
+    //                 setProductsData(mappedData);
+    //                 console.log(response.data.data);
+    //             }
+    //         } catch (error) {
+    //             console.error("Error fetching products:", error);
+    //         } finally {
+    //             setLoading(false);
+    //         }
+    //     };
+
+    //     const fetchBrands = async () => {
+    //         try {
+    //             const response = await getCategoriesAPI();
+    //             if (response.data && response.data.data) {
+    //                 setBrands(response.data.data);
+    //                 console.log(response.data.data);
+    //             }
+    //         } catch (error) {
+    //             console.error("Error fetching brands:", error);
+    //         }
+    //     };
+
+    //     fetchProducts();
+    //     fetchBrands();
+    // }, []);
+
+    const fetchProducts = async () => {
         setLoading(true);
         try {
             const response = await getProductsAPI();
@@ -38,45 +91,47 @@ export default function Products() {
                 const mappedData = response.data.data.map((item) => ({
                     id: item.c_item_code,
                     name: item.itemName,
-                    category: item.type_label || "General",
+                    category: item.brand_name || "not choose",
                     mrp: item.mrp ? `₹${item.mrp}` : "N/A",
-                    mrpRaw: item.mrp,
                     stock: item.stockBalQty || 0,
-                    warehouse: "Main Warehouse",
                     lowStock: (item.stockBalQty || 0) < 5,
                     batch: item.batchNo,
                     expiry: item.expiryDate,
-                    max_disc: item.max_disc,
-                    std_disc: item.std_disc,
                     description: item.description,
                     subheading: item.subheading,
                     brand: item.brand_name,
                     brandId: item.brand_id,
                     brandLogo: item.brand_logo,
                     images: item.images,
-                    qtyPerBox: item.itemQtyPerBox,
-                    cartStatus: item.cart_status,
-                    wishlistStatus: item.wishlist_status,
                 }));
-                setProductsData(mappedData);
-                console.log(response.data.data);
 
+                setProductsData(mappedData);
             }
         } catch (error) {
             console.error("Error fetching products:", error);
         } finally {
             setLoading(false);
         }
-    }, []);
-
+    };
+    const fetchBrands = async () => {
+        try {
+            const response = await getCategoriesAPI();
+            if (response.data && response.data.data) {
+                setBrands(response.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching brands:", error);
+        }
+    };
     useEffect(() => {
         fetchProducts();
-    }, [fetchProducts]);
-
+        fetchBrands();
+    }, []);
     const handleUpdateSubmit = async (e) => {
         e.preventDefault();
         setSavingProduct(true);
         try {
+            // Update common product info
             const formData = new FormData();
             formData.append("c_item_code", selectedProduct.id);
             formData.append("subheading", editFormState.subheading);
@@ -88,6 +143,15 @@ export default function Products() {
             if (editFormState.image_3) formData.append("image_3", editFormState.image_3);
 
             const res = await updateProductInfoAPI(formData);
+
+            // Update Brand if changed
+            if (selectedBrandId !== (selectedProduct.brandId || "")) {
+                await assignBrandToProductAPI({
+                    c_item_code: selectedProduct.id,
+                    brand_id: selectedBrandId
+                });
+            }
+
             if (res.status === 200) {
                 setIsModalOpen(false);
                 fetchProducts(); // Refresh list to get updated info
@@ -111,11 +175,9 @@ export default function Products() {
             }));
         }
     };
-    const categories = ["All Categories", "Analgesics", "Antibiotics", "Antihistamines", "Antacids", "Antidiabetics", "Cardiovascular"];
-
     const filteredProducts = productsData.filter((product) => {
         const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) || product.id.toLowerCase().includes(search.toLowerCase());
-        const matchesCategory = categoryFilter === "All Categories" || product.category === categoryFilter;
+        const matchesCategory = categoryFilter === "All Brands" || product.brand === categoryFilter;
         return matchesSearch && matchesCategory;
     });
 
@@ -141,6 +203,7 @@ export default function Products() {
         editFormState.subheading !== (selectedProduct.subheading || "") ||
         editFormState.description !== (selectedProduct.description || "") ||
         editFormState.type_label !== (selectedProduct.category || "") ||
+        selectedBrandId !== (selectedProduct.brandId || "") ||
         editFormState.image_1 !== null ||
         editFormState.image_2 !== null ||
         editFormState.image_3 !== null
@@ -192,14 +255,21 @@ export default function Products() {
                                 <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
 
                                 <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in zoom-in duration-200">
-                                    {categories.map((cat) => (
+                                    <button
+                                        onClick={() => handleCategoryChange("All Brands")}
+                                        className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors hover:bg-[#EEF1F5] ${categoryFilter === "All Brands" ? 'bg-[#EEF1F5] text-[#000000] font-semibold' : 'text-[#505050]'
+                                            }`}
+                                    >
+                                        All Brands
+                                    </button>
+                                    {brands.map((brand) => (
                                         <button
-                                            key={cat}
-                                            onClick={() => handleCategoryChange(cat)}
-                                            className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors hover:bg-[#EEF1F5] ${categoryFilter === cat ? 'bg-[#EEF1F5] text-[#000000] font-semibold' : 'text-[#505050]'
+                                            key={brand.id}
+                                            onClick={() => handleCategoryChange(brand.name)}
+                                            className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors hover:bg-[#EEF1F5] ${categoryFilter === brand.name ? 'bg-[#EEF1F5] text-[#000000] font-semibold' : 'text-[#505050]'
                                                 }`}
                                         >
-                                            {cat}
+                                            {brand.name}
                                         </button>
                                     ))}
                                 </div>
@@ -250,8 +320,9 @@ export default function Products() {
                         <thead className="bg-[#e7f1f4] text-[#505050] text-sm font-semibold uppercase tracking-wider sticky top-0 z-10">
                             <tr>
                                 <th className="px-6 py-3 font-medium text-center">SI NO</th>
+                                <th className="px-6 py-3 font-medium text-center">PRODUCT ID</th>
                                 <th className="px-6 font-medium">PRODUCT NAME</th>
-                                <th className="px-6 font-medium">CATEGORY</th>
+                                <th className="px-6 font-medium">BRAND NAME</th>
                                 <th className="px-6 font-medium">BATCH NO</th>
                                 <th className="px-6 font-medium">EXPIRY</th>
                                 <th className="px-6 font-medium">MRP</th>
@@ -282,6 +353,7 @@ export default function Products() {
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F7F9FB]"} hover:bg-[#EEF2F6] transition`}
                                     >
                                         <td className="px-6 py-2 text-[12px] font-bold text-gray-800 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                                        <td className="px-6 text-[13px] text-[#000000] font-medium">{product.id}</td>
                                         <td className="px-6 text-[13px] text-[#000000] font-medium">{product.name}</td>
                                         <td className="px-6 text-[13px] text-[#000000]">{product.category}</td>
                                         <td className="px-6 text-[13px] text-[#000000]">{product.batch || "—"}</td>
@@ -312,6 +384,7 @@ export default function Products() {
                                                         image_3: null,
                                                         image_3_preview: product.images?.[2]?.image || null,
                                                     });
+                                                    setSelectedBrandId(product.brandId || "");
                                                     setIsModalOpen(true);
                                                 }}
                                                 className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-[#127690]"
@@ -328,10 +401,7 @@ export default function Products() {
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white bg-opacity-50">
-                    <div className="text-sm text-gray-500 font-medium">
-                        Showing <span className="text-gray-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-gray-900">{Math.min(currentPage * itemsPerPage, filteredProducts.length)}</span> of <span className="text-gray-900">{filteredProducts.length}</span> results
-                    </div>
+                <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-center bg-white bg-opacity-50">
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -464,21 +534,82 @@ export default function Products() {
                                         </div>
                                     </div>
 
-                                    {/* Brand */}
+                                    {/* Brand Selection */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Brand</p>
-                                        <div className="flex items-center gap-2">
-                                            {selectedProduct.brandLogo ? (
-                                                <img src={selectedProduct.brandLogo} alt="Brand logo" className="w-8 h-8 rounded-lg object-contain border border-gray-200 bg-white p-0.5 shrink-0" />
-                                            ) : (
-                                                <div className="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center shrink-0">
-                                                    <Archive size={14} className="text-gray-400" />
-                                                </div>
+                                        <div className="relative">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsBrandDropdownOpen(!isBrandDropdownOpen)}
+                                                className="w-full flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg hover:border-[#127690] transition-colors text-left"
+                                            >
+                                                {brands.find(b => b.id === selectedBrandId) ? (
+                                                    <div className="flex items-center gap-2 flex-1">
+                                                        {brands.find(b => b.id === selectedBrandId).logo ? (
+                                                            <img src={brands.find(b => b.id === selectedBrandId).logo} alt="" className="w-8 h-8 rounded-lg object-contain border border-gray-100 p-0.5" />
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                                                <Archive size={14} className="text-gray-400" />
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-800">{brands.find(b => b.id === selectedBrandId)?.name || "Unknown Brand"}</p>
+                                                            <p className="text-[10px] text-gray-500 font-medium">Brand ID: {selectedBrandId}</p>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2 flex-1 py-1">
+                                                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                                            <Archive size={14} className="text-gray-400" />
+                                                        </div>
+                                                        <span className="text-sm text-gray-400 font-medium">Select Brand</span>
+                                                    </div>
+                                                )}
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                                    className={`text-gray-400 transition-transform ${isBrandDropdownOpen ? 'rotate-180' : ''}`}
+                                                >
+                                                    <path d="m6 9 6 6 6-6" />
+                                                </svg>
+                                            </button>
+
+                                            {isBrandDropdownOpen && (
+                                                <>
+                                                    <div className="fixed inset-0 z-40" onClick={() => setIsBrandDropdownOpen(false)} />
+                                                    <div className="absolute bottom-full left-0 mb-2 w-full max-h-60 overflow-y-auto bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                        <div className="px-3 pb-2 border-b border-gray-50 mb-1">
+                                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select a Brand</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => { setSelectedBrandId(""); setIsBrandDropdownOpen(false); }}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-500 italic"
+                                                        >
+                                                            No Brand
+                                                        </button>
+                                                        {brands.map((brand) => (
+                                                            <button
+                                                                key={brand.id}
+                                                                onClick={() => {
+                                                                    setSelectedBrandId(brand.id);
+                                                                    setIsBrandDropdownOpen(false);
+                                                                }}
+                                                                className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-blue-50 ${selectedBrandId === brand.id ? 'bg-blue-50 text-blue-700 font-semibold border-r-4 border-blue-600' : 'text-gray-700'}`}
+                                                            >
+                                                                {brand.logo ? (
+                                                                    <img src={brand.logo} alt="" className="w-8 h-8 rounded-lg object-contain border border-gray-100 bg-white p-0.5" />
+                                                                ) : (
+                                                                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                                                        <Archive size={14} className="text-gray-400" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex-1">
+                                                                    <p className="text-sm font-medium text-gray-800">{brand.name}</p>
+                                                                    <p className="text-[10px] text-gray-400">ID: {brand.id}</p>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </>
                                             )}
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-800">{selectedProduct.brand || "—"}</p>
-                                                <p className="text-[10px] text-gray-400">ID: {selectedProduct.brandId ?? "—"}</p>
-                                            </div>
                                         </div>
                                     </div>
 

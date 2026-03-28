@@ -127,3 +127,37 @@ export const updateProductInfoAPI = (data) => {
     },
   });
 };
+
+// ==================== CATEGORIES ENDPOINTS ====================
+
+export const getCategoriesAPI = () => {
+  return axiosInstance.get("superadmin/add-category/");
+};
+
+export const addCategoryAPI = (data) => {
+  return axiosInstance.post("superadmin/add-category/", data, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
+export const updateCategoryAPI = (id, data) => {
+  return axiosInstance.put(`superadmin/add-category/${id}/`, data, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
+export const deleteCategoryAPI = (id) => {
+  return axiosInstance.delete(`superadmin/add-category/${id}/`);
+};
+
+// ==================== BRANDS ENDPOINTS (Renamed from Category) ====================
+
+// SuperAdmin - Assign Brand to Product
+export const assignBrandToProductAPI = (data) => {
+  return axiosInstance.post("superadmin/assign-brand/", data);
+};
+
