@@ -1,7 +1,25 @@
 import React from 'react';
 import { Bell, LogOut, Menu } from "lucide-react";
+import { useNavigate } from 'react-router-dom';
+import { superAdminLogoutAPI } from '../services/allAPI';
 
 export default function Topbar({ onToggleSidebar }) {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      // Call the backend logout to clear session
+      await superAdminLogoutAPI();
+    } catch (error) {
+      console.error("Logout API failed:", error);
+    } finally {
+      // Always clear local storage and navigate to login
+      localStorage.removeItem("token");
+      localStorage.removeItem("superadminInfo");
+      navigate("/login");
+    }
+  };
+
   return (
     <div className="bg-[#EDEDED] mx-6 py-4 flex justify-between items-center">
       <div className="flex items-center gap-3">
@@ -45,7 +63,11 @@ export default function Topbar({ onToggleSidebar }) {
         </div>
 
         {/* Logout Icon */}
-        <LogOut className="text-gray-600 cursor-pointer" size={20} />
+        <LogOut
+          className="text-gray-600 cursor-pointer hover:text-red-500 transition-colors"
+          size={20}
+          onClick={handleLogout}
+        />
 
       </div>
     </div>

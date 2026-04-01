@@ -13,6 +13,8 @@ import Profile from "./pages/Profile";
 import OffersAndBanners from "./pages/OffersAndBanners";
 import AuditLogs from "./pages/AuditLogs";
 import Categories from "./pages/Categories";
+import CreditNotes from "./pages/CreditNotes";
+
 
 function App() {
   return (
@@ -31,6 +33,7 @@ function App() {
         <Route path="/" element={<DashboardLayout />}>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="credit-note" element={<CreditNotes />} />
           <Route path="refunds" element={<Refunds />} />
           <Route path="retailers" element={<Retailers />} />
           <Route path="products" element={<Products />} />

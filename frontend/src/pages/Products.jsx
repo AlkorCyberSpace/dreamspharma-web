@@ -34,55 +34,6 @@ export default function Products() {
     const [selectedBrandId, setSelectedBrandId] = useState("");
     const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
 
-    // useEffect(() => {
-    //     const fetchProducts = async () => {
-    //         setLoading(true);
-    //         try {
-    //             const response = await getProductsAPI();
-    //             if (response.data && response.data.data) {
-    //                 const mappedData = response.data.data.map((item) => ({
-    //                     id: item.c_item_code,
-    //                     name: item.itemName,
-    //                     category: item.brand_name || "not choose",
-    //                     mrp: item.mrp ? `₹${item.mrp}` : "N/A",
-    //                     stock: item.stockBalQty || 0,
-    //                     lowStock: (item.stockBalQty || 0) < 5,
-    //                     batch: item.batchNo,
-    //                     expiry: item.expiryDate,
-    //                     description: item.description,
-    //                     subheading: item.subheading,
-    //                     brand: item.brand_name,
-    //                     brandId: item.brand_id,
-    //                     brandLogo: item.brand_logo,
-    //                     images: item.images,
-    //                 }));
-
-    //                 setProductsData(mappedData);
-    //                 console.log(response.data.data);
-    //             }
-    //         } catch (error) {
-    //             console.error("Error fetching products:", error);
-    //         } finally {
-    //             setLoading(false);
-    //         }
-    //     };
-
-    //     const fetchBrands = async () => {
-    //         try {
-    //             const response = await getCategoriesAPI();
-    //             if (response.data && response.data.data) {
-    //                 setBrands(response.data.data);
-    //                 console.log(response.data.data);
-    //             }
-    //         } catch (error) {
-    //             console.error("Error fetching brands:", error);
-    //         }
-    //     };
-
-    //     fetchProducts();
-    //     fetchBrands();
-    // }, []);
-
     const fetchProducts = async () => {
         setLoading(true);
         try {
@@ -131,7 +82,6 @@ export default function Products() {
         e.preventDefault();
         setSavingProduct(true);
         try {
-            // Update common product info
             const formData = new FormData();
             formData.append("c_item_code", selectedProduct.id);
             formData.append("subheading", editFormState.subheading);
@@ -144,7 +94,6 @@ export default function Products() {
 
             const res = await updateProductInfoAPI(formData);
 
-            // Update Brand if changed
             if (selectedBrandId !== (selectedProduct.brandId || "")) {
                 await assignBrandToProductAPI({
                     c_item_code: selectedProduct.id,
@@ -154,7 +103,7 @@ export default function Products() {
 
             if (res.status === 200) {
                 setIsModalOpen(false);
-                fetchProducts(); // Refresh list to get updated info
+                fetchProducts();
             }
         } catch (err) {
             console.error("Failed to update product:", err);
@@ -181,7 +130,7 @@ export default function Products() {
         return matchesSearch && matchesCategory;
     });
 
-    // Pagination Logic
+    // Pagination 
     const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
     const paginatedProducts = filteredProducts.slice(
         (currentPage - 1) * itemsPerPage,
@@ -497,6 +446,7 @@ export default function Products() {
                                                             <input
                                                                 type="file"
                                                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                onChange={(e) => handleImageChange(e, fileKey)}
                                                             />
                                                         </div>
                                                     </div>

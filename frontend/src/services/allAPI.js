@@ -33,10 +33,8 @@ const onRefreshed = (token) => {
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const {
-      config,
-      response: { status },
-    } = error;
+    const status = error.response?.status;
+    const config = error.config;
     const originalRequest = config;
 
     if (status === 401 && !originalRequest._retry) {
@@ -62,12 +60,15 @@ axiosInstance.interceptors.response.use(
       }
 
       try {
-        const res = await axios.post(`${serverUrl}auth/token/refresh/`, {
+        const res = await axios.post(`${serverUrl}retailer-auth/token/refresh/`, {
           refresh: refresh,
         });
 
-        const newAccess = res.data.access;
+        const { access: newAccess, refresh: newRefresh } = res.data;
         localStorage.setItem("access", newAccess);
+        if (newRefresh) {
+          localStorage.setItem("refresh", newRefresh);
+        }
 
         onRefreshed(newAccess);
         isRefreshing = false;
@@ -91,7 +92,7 @@ axiosInstance.interceptors.response.use(
 export default axiosInstance;
 
 export const refreshTokenAPI = async (refresh) => {
-  return axios.post(`${serverUrl}auth/token/refresh/`, {
+  return axios.post(`${serverUrl}retailer-auth/token/refresh/`, {
     refresh: refresh,
   });
 };
@@ -102,6 +103,35 @@ export const loginAPI = (data) => {
 
 export const getRetailersAPI = () => {
   return axiosInstance.get("superadmin/retailers/");
+};
+
+// SuperAdmin - Get Profile Information
+export const getSuperAdminProfileAPI = () => {
+  return axiosInstance.get("superadmin/profile/");
+};
+
+// SuperAdmin - Update Profile Image
+export const updateSuperAdminProfileImageAPI = (data) => {
+  return axiosInstance.post("superadmin/profile/image/", data, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
+// SuperAdmin - Delete Profile Image
+export const deleteSuperAdminProfileImageAPI = () => {
+  return axiosInstance.delete("superadmin/profile/image/");
+};
+
+// SuperAdmin - Change Password
+export const changeSuperAdminPasswordAPI = (data) => {
+  return axiosInstance.post("superadmin/change-password/", data);
+};
+
+// SuperAdmin - Logout
+export const superAdminLogoutAPI = () => {
+  return axiosInstance.post("superadmin/logout/");
 };
 
 // SuperAdmin - Approve KYC
