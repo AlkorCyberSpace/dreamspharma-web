@@ -3,7 +3,8 @@ from django.contrib.auth import get_user_model, authenticate
 from .models import (
     KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
     SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
-    Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address
+    Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address,
+    Category, Offer
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -107,15 +108,19 @@ class RetailerLoginSerializer(serializers.Serializer):
         
         # Check if user is approved by admin or login enabled
         if user.status not in ['APPROVED', 'LOGIN_ENABLED']:
-            raise serializers.ValidationError(
-                f"Your account status is {user.get_status_display()}. Only APPROVED or LOGIN ENABLED accounts can login."
-            )
+            raise serializers.ValidationError({
+                'error': f"Your account status is {user.get_status_display()}. Only APPROVED or LOGIN ENABLED accounts can login.",
+                'user_id': user.id
+                
+            })
         
         # Check if user has submitted KYC
         if not hasattr(user, 'kyc'):
-            raise serializers.ValidationError(
-                "KYC not submitted. Please submit your KYC documents first."
-            )
+            raise serializers.ValidationError({
+                'error': 'KYC not submitted. Please submit your KYC documents first.',
+                'user_id': user.id
+                
+            })
         
         # Check if KYC is approved by admin
         if user.kyc.status != 'APPROVED':
@@ -419,14 +424,36 @@ class ItemMasterSerializer(serializers.ModelSerializer):
 
 
 class ProductListSerializer(serializers.Serializer):
-    """Simplified serializer for product listing"""
-    itemCode = serializers.CharField()
-    itemName = serializers.CharField()
-    productImage = serializers.CharField(allow_null=True)
-    mrp = serializers.DecimalField(max_digits=10, decimal_places=2)
-    discountPercentage = serializers.DecimalField(max_digits=10, decimal_places=2)
-    discountedPrice = serializers.DecimalField(max_digits=10, decimal_places=2)
-    description = serializers.CharField(allow_null=True)
+    """Serializer for product listing with all required fields"""
+    itemCode = serializers.CharField(source='item.item_code', read_only=True)
+    itemName = serializers.CharField(source='item.item_name', read_only=True)
+    mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
+    description = serializers.CharField(source='item.description', read_only=True, allow_null=True, default="")
+    images = ProductImageSerializer(many=True, read_only=True)
+    batchNo = serializers.CharField(source='batch_no', read_only=True, default="")
+    c_item_code = serializers.CharField(source='item.item_code', read_only=True, default="")
+    expiryDate = serializers.DateField(source='expiry_date', read_only=True, default=None)
+    itemQtyPerBox = serializers.IntegerField(source='item_qty_per_box', read_only=True, default=1)
+    max_disc = serializers.FloatField(read_only=True, default=0)
+    std_disc = serializers.FloatField(read_only=True, default=0)
+    stockBalQty = serializers.IntegerField(source='stock_bal_qty', read_only=True, default=0)
+    subheading = serializers.CharField(read_only=True, default="")
+    type_label = serializers.CharField(read_only=True, default="")
+    brand_id = serializers.IntegerField(read_only=True, default=None)
+    brand_name = serializers.CharField(read_only=True, default="")
+    brand_logo = serializers.CharField(read_only=True, default="")
+    cart_status = serializers.BooleanField(read_only=True, default=False)
+    wishlist_status = serializers.BooleanField(read_only=True, default=False)
+    discountPercentage = serializers.FloatField(source='discount_percentage', read_only=True, default=0)
+    discountedPrice = serializers.FloatField(source='discounted_price', read_only=True, default=0)
+
+    class Meta:
+        model = ProductInfo
+        fields = [
+            'itemCode', 'itemName', 'mrp', 'description', 'images', 'batchNo', 'c_item_code', 'expiryDate',
+            'itemQtyPerBox', 'max_disc', 'std_disc', 'stockBalQty', 'subheading', 'type_label', 'brand_id',
+            'brand_name', 'brand_logo', 'cart_status', 'wishlist_status', 'discountPercentage', 'discountedPrice'
+        ]
 
 
 class FetchStockRequestSerializer(serializers.Serializer):
@@ -457,19 +484,22 @@ class StockItemSerializer(serializers.ModelSerializer):
 
 
 class SalesOrderItemSerializer(serializers.ModelSerializer):
-    """Serializer for sales order items"""
+    """Serializer for sales order items with batch & expiry tracking for medicine recall management"""
     itemSeq = serializers.IntegerField(source='item_seq')
     itemcode = serializers.CharField(source='item_code')
+    itemName = serializers.CharField(source='item_name', required=False, allow_blank=True, allow_null=True, help_text="Product name for display")
+    batchNo = serializers.CharField(source='batch_no', required=False, allow_blank=True, allow_null=True, help_text="Medicine batch number for recall tracking")
+    expiryDate = serializers.DateField(source='expiry_date', required=False, allow_null=True, help_text="Medicine expiry date for tracking")
     totalLooseQty = serializers.IntegerField(source='total_loose_qty')
-    totalLooseSchQty = serializers.IntegerField(source='total_loose_sch_qty')
-    serviceQty = serializers.IntegerField(source='service_qty')
+    totalLooseSchQty = serializers.IntegerField(source='total_loose_sch_qty', required=False, default=0)
+    serviceQty = serializers.IntegerField(source='service_qty', required=False, default=0)
     saleRate = serializers.DecimalField(max_digits=10, decimal_places=3, source='sale_rate')
-    discPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='disc_per')
-    schDiscPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='sch_disc_per')
+    discPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='disc_per', required=False, default=0.00)
+    schDiscPer = serializers.DecimalField(max_digits=5, decimal_places=2, source='sch_disc_per', required=False, default=0.00)
     
     class Meta:
         model = SalesOrderItem
-        fields = ['itemSeq', 'itemcode', 'totalLooseQty', 'totalLooseSchQty', 'serviceQty', 'saleRate', 'discPer', 'schDiscPer']
+        fields = ['itemSeq', 'itemcode', 'itemName', 'batchNo', 'expiryDate', 'totalLooseQty', 'totalLooseSchQty', 'serviceQty', 'saleRate', 'discPer', 'schDiscPer']
 
 
 class CreateSalesOrderRequestSerializer(serializers.Serializer):
@@ -1310,12 +1340,21 @@ class ProductRecommendationSerializer(serializers.ModelSerializer):
     
     def get_cart_status(self, obj):
         """Check if product is in user's cart"""
-        request = self.context.get('request')
-        if request and request.user and request.user.is_authenticated:
+        # Priority 1: Use user from context (set by view with userId param)
+        user = self.context.get('cart_wishlist_user')
+        
+        # Priority 2: Fallback to request.user if available
+        if not user:
+            request = self.context.get('request')
+            if request and request.user and request.user.is_authenticated:
+                user = request.user
+        
+        # Check cart if user exists
+        if user:
             try:
                 from .models import CartItem
                 return CartItem.objects.filter(
-                    cart__user=request.user,
+                    cart__user=user,
                     product_info=obj.product_info
                 ).exists()
             except:
@@ -1324,12 +1363,21 @@ class ProductRecommendationSerializer(serializers.ModelSerializer):
     
     def get_wishlist_status(self, obj):
         """Check if product is in user's wishlist"""
-        request = self.context.get('request')
-        if request and request.user and request.user.is_authenticated:
+        # Priority 1: Use user from context (set by view with userId param)
+        user = self.context.get('cart_wishlist_user')
+        
+        # Priority 2: Fallback to request.user if available
+        if not user:
+            request = self.context.get('request')
+            if request and request.user and request.user.is_authenticated:
+                user = request.user
+        
+        # Check wishlist if user exists
+        if user:
             try:
                 from .models import WishlistItem
                 return WishlistItem.objects.filter(
-                    wishlist__user=request.user,
+                    wishlist__user=user,
                     product_info=obj.product_info
                 ).exists()
             except:
@@ -1382,3 +1430,430 @@ class TopSellingResponseSerializer(serializers.Serializer):
     period = serializers.CharField()  # 'weekly', 'monthly', 'all-time'
     totalCount = serializers.IntegerField()
     products = ProductRecommendationSerializer(many=True)
+
+# ==================== CATEGORY SERIALIZER ====================
+
+from .models import Category
+
+
+# Category product serializer with ERP enrichment support
+class CategoryProductWithERPSerializer(serializers.Serializer):
+    """
+    Serializer for products in a category with optional ERP enrichment
+    
+    Data Sources:
+    - Primary: ItemMaster + ProductInfo (database)
+    - Secondary: ERP (when apiKey provided in request context)
+    
+    Supports live data enrichment via context['api_key']
+    """
+    itemCode = serializers.CharField(source='item_code')
+    itemName = serializers.CharField(source='item_name')
+    mrp = serializers.DecimalField(max_digits=10, decimal_places=2)
+    description = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
+    batchNo = serializers.CharField(source='batch_no', allow_null=True)
+    c_item_code = serializers.CharField(source='item_code')
+    expiryDate = serializers.DateField(source='expiry_date', allow_null=True)
+    itemQtyPerBox = serializers.IntegerField(source='item_qty_per_box', allow_null=True)
+    max_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
+    std_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
+    stockBalQty = serializers.SerializerMethodField()
+    subheading = serializers.SerializerMethodField()
+    type_label = serializers.SerializerMethodField()
+    brand_id = serializers.SerializerMethodField()
+    brand_name = serializers.SerializerMethodField()
+    brand_logo = serializers.SerializerMethodField()
+    cart_status = serializers.SerializerMethodField()
+    wishlist_status = serializers.SerializerMethodField()
+    discountPercentage = serializers.FloatField(default=0.0)
+    discountedPrice = serializers.FloatField(default=0.0)
+    
+    def get_stockBalQty(self, obj):
+        """Get stock with priority: ERP enriched > Database > 0"""
+        # Priority 1: ERP enriched data (attached by view)
+        if hasattr(obj, 'erp_stock') and obj.erp_stock is not None:
+            return int(obj.erp_stock)
+        
+        # Priority 2: Database Stock model
+        try:
+            stock = Stock.objects.filter(item=obj).first()
+            if stock and stock.total_bal_ls_qty:
+                return stock.total_bal_ls_qty
+        except:
+            pass
+        
+        # Fallback: 0
+        return 0
+    
+    def get_description(self, obj):
+        """Get description from ProductInfo"""
+        try:
+            return obj.product_info.description or ""
+        except:
+            return ""
+    
+    def get_subheading(self, obj):
+        """Get subheading from ProductInfo"""
+        try:
+            return obj.product_info.subheading or ""
+        except:
+            return ""
+    
+    def get_type_label(self, obj):
+        """Get type_label from ProductInfo"""
+        try:
+            return obj.product_info.type_label or ""
+        except:
+            return ""
+    
+    def get_images(self, obj):
+        """Get ALL product images"""
+        try:
+            request = self.context.get('request')
+            images = obj.product_info.images.all().order_by('image_order')
+            result = []
+            for img in images:
+                if request:
+                    image_url = request.build_absolute_uri(img.image.url)
+                else:
+                    image_url = img.image.url
+                result.append({
+                    'image': image_url,
+                    'image_order': img.image_order
+                })
+            return result
+        except:
+            return []
+    
+    def get_brand_id(self, obj):
+        """Get category/brand ID"""
+        try:
+            return obj.product_info.category.id if obj.product_info.category else None
+        except:
+            return None
+    
+    def get_brand_name(self, obj):
+        """Get category/brand name"""
+        try:
+            return obj.product_info.category.name if obj.product_info.category else ""
+        except:
+            return ""
+    
+    def get_brand_logo(self, obj):
+        """Get category/brand icon"""
+        try:
+            request = self.context.get('request')
+            if obj.product_info.category and obj.product_info.category.icon:
+                if request:
+                    return request.build_absolute_uri(obj.product_info.category.icon.url)
+                return obj.product_info.category.icon.url
+            return ""
+        except:
+            return ""
+    
+    def get_cart_status(self, obj):
+        """Check if product is in user's cart"""
+        # Priority 1: Use user from context (set by view with userId param)
+        user = self.context.get('cart_wishlist_user')
+        
+        # Priority 2: Fallback to request.user if available
+        if not user:
+            request = self.context.get('request')
+            if request and request.user and request.user.is_authenticated:
+                user = request.user
+        
+        # Check cart if user exists
+        if user:
+            try:
+                return CartItem.objects.filter(
+                    cart__user=user,
+                    product_info=obj.product_info
+                ).exists()
+            except:
+                return False
+        return False
+    
+    def get_wishlist_status(self, obj):
+        """Check if product is in user's wishlist"""
+        # Priority 1: Use user from context (set by view with userId param)
+        user = self.context.get('cart_wishlist_user')
+        
+        # Priority 2: Fallback to request.user if available
+        if not user:
+            request = self.context.get('request')
+            if request and request.user and request.user.is_authenticated:
+                user = request.user
+        
+        # Check wishlist if user exists
+        if user:
+            try:
+                return WishlistItem.objects.filter(
+                    wishlist__user=user,
+                    product_info=obj.product_info
+                ).exists()
+            except:
+                return False
+        return False
+
+
+# Nested serializer for products under each category
+class CategoryWithProductsSerializer(serializers.ModelSerializer):
+    products = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'icon', 'is_active', 'products']
+    
+    def get_products(self, obj):
+        """Get category products as ItemMaster objects with ERP enrichment support"""
+        # Get all ProductInfo for this category
+        product_infos = obj.products.all()
+        
+        # Get related ItemMaster objects for each ProductInfo
+        items = []
+        erp_stock_map = self.context.get('erp_stock_map', {})
+        
+        for prod_info in product_infos:
+            try:
+                # Get the ItemMaster via the product_info's item field
+                if hasattr(prod_info, 'item') and prod_info.item:
+                    # Attach ProductInfo to ItemMaster for serializer access
+                    prod_info.item.product_info = prod_info
+                    
+                    # Attach ERP stock if available
+                    if erp_stock_map:
+                        prod_info.item.erp_stock = erp_stock_map.get(prod_info.item.item_code)
+                    
+                    items.append(prod_info.item)
+            except:
+                pass
+        
+        # Serialize with context (includes request and api_key for ERP enrichment)
+        serializer = CategoryProductWithERPSerializer(
+            items, 
+            many=True, 
+            context=self.context
+        )
+        return serializer.data
+
+# ==================== OFFER SERIALIZERS ====================
+
+class OfferSerializer(serializers.ModelSerializer):
+    """Serializer for Offer model - ListCreate operations"""
+    is_valid_now = serializers.SerializerMethodField()
+    placement_display = serializers.CharField(source='get_placement_display', read_only=True)
+    status_display = serializers.SerializerMethodField()
+    products_count = serializers.SerializerMethodField()
+    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Offer
+        fields = [
+            'offer_id', 'title', 'description', 'discount_percentage', 'valid_from', 'valid_to',
+            'placement', 'placement_display', 'category', 'category_name',
+            'status', 'status_display', 'banner_image', 'is_valid_now',
+            'products_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_is_valid_now(self, obj):
+        return obj.is_valid_now
+    
+    def get_status_display(self, obj):
+        return "Active" if obj.status else "Inactive"
+    
+    def get_products_count(self, obj):
+        return obj.products.count()
+
+
+class OfferCreateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for creating and updating offers"""
+    products = serializers.PrimaryKeyRelatedField(
+        queryset=ItemMaster.objects.all(),
+        many=True,
+        required=False
+    )
+    
+    class Meta:
+        model = Offer
+        fields = [
+            'offer_id', 'title', 'description', 'discount_percentage', 'valid_from', 'valid_to',
+            'placement', 'category', 'products', 'status', 'banner_image'
+        ]
+    
+    def to_internal_value(self, data):
+        """Handle form-data format - extract single values from lists"""
+        # Convert data to regular dict and extract single values from lists
+        data_copy = {}
+        for key, value in data.items():
+            # If it's a list with single item, extract it (except products)
+            if key != 'products' and isinstance(value, (list, tuple)):
+                data_copy[key] = value[0] if value else None
+            else:
+                data_copy[key] = value
+        
+        # Now handle products field
+        if 'products' in data_copy:
+            products = data_copy.get('products')
+            products_list = []
+            
+            # Case 1: Already a list (from form-data with multiple fields)
+            if isinstance(products, (list, tuple)):
+                for item in products:
+                    item_str = str(item).strip()
+                    # Handle if item itself is a stringified list
+                    if item_str.startswith('[') and item_str.endswith(']'):
+                        import ast
+                        try:
+                            parsed = ast.literal_eval(item_str)
+                            products_list.extend([str(p).strip() for p in parsed])
+                        except:
+                            products_list.append(item_str.strip('[]').strip())
+                    else:
+                        products_list.append(item_str)
+            
+            # Case 2: String format
+            elif isinstance(products, str):
+                item_str = products.strip().strip('"').strip("'")
+                
+                # Stringified list: ['I00003', 'I00017']
+                if item_str.startswith('[') and item_str.endswith(']'):
+                    import ast
+                    try:
+                        parsed = ast.literal_eval(item_str)
+                        products_list = [str(p).strip().strip('"').strip("'") for p in parsed]
+                    except:
+                        # Manual extraction
+                        inner = item_str.strip('[]').strip()
+                        products_list = [p.strip().strip('"').strip("'") for p in inner.split(',')]
+                # Comma-separated
+                elif ',' in item_str:
+                    products_list = [p.strip() for p in item_str.split(',')]
+                # Single product
+                else:
+                    products_list = [item_str] if item_str else []
+            
+            # Set cleaned products
+            if products_list:
+                data_copy['products'] = products_list
+        
+        return super().to_internal_value(data_copy)
+    
+    def validate(self, data):
+        """Validate dates"""
+        if data.get('valid_from') and data.get('valid_to'):
+            if data['valid_from'] > data['valid_to']:
+                raise serializers.ValidationError(
+                    {'valid_to': 'End date must be after start date'}
+                )
+        return data
+
+
+class OfferProductSerializer(serializers.Serializer):
+    """Serializer for products within an offer with discounted pricing"""
+    product_id = serializers.CharField(source='item_code')
+    product_name = serializers.CharField(source='item_name')
+    mrp = serializers.DecimalField(max_digits=10, decimal_places=2)
+    discount_percentage = serializers.SerializerMethodField()
+    discounted_price = serializers.SerializerMethodField()
+    batch_no = serializers.CharField()
+    expiry_date = serializers.DateField()
+    category = serializers.SerializerMethodField()
+    type_label = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
+    
+    def get_discount_percentage(self, obj):
+        """Get discount percentage from the offer context"""
+        request = self.context.get('request')
+        offer_discount = self.context.get('discount_percentage', 0)
+        return float(offer_discount)
+    
+    def get_discounted_price(self, obj):
+        """Calculate discounted price based on offer discount"""
+        offer_discount = self.context.get('discount_percentage', 0)
+        discount_amount = float(obj.mrp) * (float(offer_discount) / 100)
+        discounted_price = float(obj.mrp) - discount_amount
+        return round(discounted_price, 2)
+    
+    def get_category(self, obj):
+        """Get category name if product has one"""
+        try:
+            if hasattr(obj, 'product_info') and obj.product_info.category:
+                return obj.product_info.category.name
+            return None
+        except:
+            return None
+    
+    def get_type_label(self, obj):
+        """Get type label from ProductInfo if exists"""
+        try:
+            if hasattr(obj, 'product_info'):
+                return obj.product_info.type_label or ""
+            return ""
+        except:
+            return ""
+    
+    def get_images(self, obj):
+        """Get product images"""
+        try:
+            request = self.context.get('request')
+            if hasattr(obj, 'product_info'):
+                images = obj.product_info.images.all().order_by('image_order')[:3]
+                image_urls = []
+                for img in images:
+                    if request:
+                        image_url = request.build_absolute_uri(img.image.url)
+                    else:
+                        image_url = img.image.url
+                    image_urls.append({
+                        'image': image_url,
+                        'image_order': img.image_order
+                    })
+                return image_urls
+            return []
+        except:
+            return []
+
+
+class OfferListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing offers with products and discounted details"""
+    is_valid_now = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    placement_display = serializers.CharField(source='get_placement_display', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
+    products = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Offer
+        fields = [
+            'offer_id', 'title', 'discount_percentage', 'valid_from', 'valid_to', 'placement',
+            'placement_display', 'category_name', 'status', 'status_display',
+            'is_valid_now', 'banner_image', 'products'
+        ]
+    
+    def get_is_valid_now(self, obj):
+        return obj.is_valid_now
+    
+    def get_status_display(self, obj):
+        return "Active" if obj.status else "Inactive"
+    
+    def get_products(self, obj):
+        """Get products for this offer with discounted pricing"""
+        request = self.context.get('request')
+        products = obj.products.all()
+        
+        # If no specific products are selected, get all products from the category
+        if not products.exists() and obj.category:
+            products = ItemMaster.objects.filter(product_info__category=obj.category)
+        
+        # Limit to first 10 products for performance
+        products = products[:10]
+        
+        context = {
+            'request': request,
+            'discount_percentage': obj.discount_percentage
+        }
+        
+        serializer = OfferProductSerializer(products, many=True, context=context)
+        return serializer.data

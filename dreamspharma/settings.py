@@ -196,8 +196,8 @@ OTP_EXPIRY_TIME = 600  # 10 minutes in seconds
 EMAIL_HOST='smtp.gmail.com'
 EMAIL_USE_TLS=True
 EMAIL_PORT=587
-EMAIL_HOST_USER='sooryakr2004@gmail.com'
-EMAIL_HOST_PASSWORD='ofzo pvte mcen jhhb'
+EMAIL_HOST_USER='heysoorya1@gmail.com'
+EMAIL_HOST_PASSWORD='ibot dfts yoke orsn'
 DEFAULT_FROM_EMAIL='sooryakr2004@gmail.com'
 
 

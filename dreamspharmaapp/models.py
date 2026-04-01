@@ -611,3 +611,64 @@ class SearchHistory(models.Model):
     
     def __str__(self):
         return f"Search: '{self.query}' ({self.search_count} times)"
+
+class ProductView(models.Model):
+    """Track product views for recently viewed feature"""
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='product_views')
+    item = models.ForeignKey(ItemMaster, on_delete=models.CASCADE, related_name='views')
+    viewed_at = models.DateTimeField(auto_now=True, db_index=True)  # Updates each time viewed
+    
+    class Meta:
+        unique_together = ('user', 'item')  # One record per user per product
+        ordering = ['-viewed_at']  # Most recent first
+        indexes = [
+            models.Index(fields=['user', '-viewed_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} viewed {self.item.item_name}"
+
+
+# ==================== OFFER MODEL ====================
+
+class Offer(models.Model):
+    """Promotional offers and banners"""
+    PLACEMENT_CHOICES = (
+        ('homepage', 'Homepage Banner'),
+        ('category', 'Category Page'),
+    )
+    
+    offer_id = models.CharField(max_length=50, unique=True, primary_key=True)
+    title = models.CharField(max_length=255, help_text="Offer title")
+    description = models.TextField(blank=True, null=True, help_text="Detailed offer description")
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Discount percentage (0-100)")
+    placement = models.CharField(max_length=50, choices=PLACEMENT_CHOICES, default='homepage', help_text="Where offer appears")
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='offers', help_text="Category for category-specific offers")
+    products = models.ManyToManyField(ItemMaster, blank=True, related_name='offers', help_text="Specific products for this offer (leave empty for all in category)")
+    banner_image = models.ImageField(upload_to='offers/banners/', blank=True, null=True, help_text="Banner image for display")
+    status = models.BooleanField(default=True, help_text="Active/Inactive status")
+    valid_from = models.DateField(help_text="Offer start date")
+    valid_to = models.DateField(help_text="Offer end date")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def is_valid_now(self):
+        """Check if offer is currently valid"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        return self.status and self.valid_from <= today <= self.valid_to
+    
+    def get_placement_display(self):
+        """Get placement display text"""
+        return dict(self.PLACEMENT_CHOICES).get(self.placement, self.placement)
+    
+    def __str__(self):
+        return f"Offer {self.offer_id} - {self.title}"
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['valid_from', 'valid_to']),
+        ]

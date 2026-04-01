@@ -1,7 +1,12 @@
+# Related Products API (category-based)
+
+from rest_framework.decorators import api_view
+from .serializers import ProductListSerializer
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.generics import ListAPIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate, logout
 from django.shortcuts import get_object_or_404
@@ -21,7 +26,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
-from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address, Category
+from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address, Category, ProductView, SearchHistory
 from .serializers import (
     CustomUserSerializer, UserRegistrationSerializer, KYCSerializer, 
     KYCSubmitSerializer, SuperAdminLoginSerializer, RetailerLoginSerializer,
@@ -38,7 +43,7 @@ from .serializers import (
     SelectAddressSerializer, DetectLocationSerializer, LocationAddressResponseSerializer,
     ConfirmLocationAddressSerializer, UpdateProductInfoRequestSerializer, UploadProductImageRequestSerializer,
     ProductRecommendationSerializer, SimilarProductsResponseSerializer, 
-    FrequentlyBoughtTogetherResponseSerializer, TopSellingResponseSerializer
+    FrequentlyBoughtTogetherResponseSerializer, TopSellingResponseSerializer, CategoryWithProductsSerializer
 )
 from .geocoding import reverse_geocode, GeocodingException, validate_coordinates
 
@@ -1043,12 +1048,17 @@ class GetItemMasterView(APIView):
     GET: Fetch item details DIRECTLY from ERP test server (real-time data)
     Enhanced with product images, subheading, and description from Django database
     
+    URL Patterns:
+    - /api/erp/ws_c2_services_get_master_data/                (no user - no wishlist/cart status)
+    - /api/erp/ws_c2_services_get_master_data/<user_id>/      (with user - includes wishlist/cart status)
+    - /api/erp/ws_c2_services_get_master_data?userId=<id>     (query param - includes wishlist/cart status)
+    
     🎯 NEW: Token is now automatically generated in background!
     Frontend doesn't need to provide apiKey - backend handles it automatically
     """
     permission_classes = [AllowAny]
     
-    def get(self, request):
+    def get(self, request, user_id=None):
         try:
             # 🎯 Use auto-generated token ONLY - NO apiKey from request accepted
             from .erp_token_service import get_erp_token_for_request
@@ -1083,13 +1093,19 @@ class GetItemMasterView(APIView):
                 erp_data = erp_response.json()
                 items = erp_data.get('data', [])
                 
-                # Get user from query params (optional - for authenticated users wanting cart/wishlist status)
+                # Get user from URL param first, then query params, then authenticated user
                 user = None
-                user_id = request.query_params.get('userId')
-                if user_id:
+                actual_user_id = user_id
+                
+                if not actual_user_id:
+                    # Try query parameter
+                    actual_user_id = request.query_params.get('userId')
+                
+                if actual_user_id:
                     try:
-                        user = CustomUser.objects.get(id=user_id)
+                        user = CustomUser.objects.get(id=actual_user_id)
                     except CustomUser.DoesNotExist:
+                        logger.warning(f"[GET_ITEM_MASTER] User {actual_user_id} not found")
                         pass
                 
                 # Get cart/wishlist info for user
@@ -2733,7 +2749,7 @@ class SearchProductsView(APIView):
                     except:
                         pass
                 
-                # Get brand/category logo
+                # Get brand logo
                 brand_logo = ''
                 if product_info.category and product_info.category.icon:
                     brand_logo = request.build_absolute_uri(product_info.category.icon.url)
@@ -2759,7 +2775,7 @@ class SearchProductsView(APIView):
                     'wishlist_status': wishlist_status
                 })
             
-            logger.info(f"[SEARCH] Found {len(products)} products for query: '{query}' | Source: {'ERP' if api_key else 'Database'}")
+            logger.info(f"[SEARCH] Found {len(products)} products for query: '{query}' | Source: ERP (auto-token)")
             
             # Log search for popular search tracking
             try:
@@ -2777,13 +2793,26 @@ class SearchProductsView(APIView):
             except Exception as e:
                 logger.warning(f"[SEARCH_LOG_ERROR] Failed to log search: {str(e)}")
             
+            # ✅ Track product views for recently viewed feature
+            try:
+                if user_id:  # Only track if user_id provided
+                    for product_info in product_infos:
+                        ProductView.objects.update_or_create(
+                            user_id=user_id,
+                            item=product_info.item,
+                            defaults={'viewed_at': timezone.now()}
+                        )
+                    logger.info(f"[PRODUCT_VIEW] Tracked {len(product_infos)} product views for user {user_id}")
+            except Exception as e:
+                logger.warning(f"[PRODUCT_VIEW_ERROR] Failed to track product views: {str(e)}")
+            
             return Response({
                 'success': True,
                 'message': f'Found {len(products)} products',
                 'query': query,
                 'count': len(products),
                 'data': products,
-                'source': 'erp' if api_key else 'database'
+                'source': 'erp'
             }, status=status.HTTP_200_OK)
         
         except Exception as e:
@@ -3899,12 +3928,22 @@ class FrequentlyBoughtTogetherView(APIView):
     """
     permission_classes = [AllowAny]
     
-    def get(self, request):
+    def get(self, request, user_id):
         try:
             item_code = request.query_params.get('itemCode')
             limit = int(request.query_params.get('limit', 5))
             days = int(request.query_params.get('days', 90))
             # [UPDATED] Token now auto-generated - no need for apiKey from request
+            use_erp = True  # Always use ERP with auto-generated token
+            
+            # Check if user exists
+            try:
+                user = CustomUser.objects.get(id=user_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': f'User with id {user_id} not found'
+                }, status=status.HTTP_404_NOT_FOUND)
             
             if not item_code:
                 return Response({
@@ -3927,7 +3966,7 @@ class FrequentlyBoughtTogetherView(APIView):
                     'message': f'Product information not available for {item_code}'
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            # ✅ Step 2: Query database for co-purchased items
+            # ✅ Step 2: Query database for co-purchased items (filtered by this user)
             from django.utils import timezone
             from datetime import timedelta
             from django.db.models import Count
@@ -3935,6 +3974,7 @@ class FrequentlyBoughtTogetherView(APIView):
             start_date = timezone.now() - timedelta(days=days)
             
             orders_with_item = SalesOrder.objects.filter(
+                user_id=user_id,
                 items__item_code=item_code,
                 created_at__gte=start_date
             ).distinct()
@@ -4004,7 +4044,7 @@ class FrequentlyBoughtTogetherView(APIView):
                 context={'request': request}
             )
             
-            logger.info(f"[FREQUENTLY_BOUGHT] Found {len(products_data)} frequently bought items with {item_code} | Orders: {orders_with_item.count()} | Source: {'ERP' if api_key else 'database'}")
+            logger.info(f"[FREQUENTLY_BOUGHT] Found {len(products_data)} frequently bought items with {item_code} | Orders: {orders_with_item.count()} | Source: ERP (auto-token)")
             
             return Response({
                 'success': True,
@@ -4013,7 +4053,7 @@ class FrequentlyBoughtTogetherView(APIView):
                     'baseProductName': base_item.item_name,
                     'frequentlyBoughtWith': serializer.data,
                     'totalPurchaseCount': orders_with_item.count(),
-                    'source': 'erp' if api_key else 'database',
+                    'source': 'erp',
                     'lookbackDays': days,
                     'lastFetched': timezone.now().isoformat()
                 }
@@ -4054,6 +4094,7 @@ class TopSellingProductsView(APIView):
             limit = int(request.query_params.get('limit', 10))
             category_id = request.query_params.get('category')
             # [UPDATED] Token now auto-generated - no need for apiKey from request
+            use_erp = True  # Always use ERP with auto-generated token
             
             if period not in ['weekly', 'monthly', 'all-time']:
                 return Response({
@@ -4095,11 +4136,12 @@ class TopSellingProductsView(APIView):
             
             # Get the actual items
             top_item_codes = [item['item_code'] for item in sales_items]
-            top_items = ItemMaster.objects.filter(item_code__in=top_item_codes)
             
-            # Filter by category if provided
             if category_id:
+                top_items = ItemMaster.objects.filter(item_code__in=top_item_codes)
                 top_items = top_items.filter(product_info__category_id=category_id)
+            else:
+                top_items = ItemMaster.objects.filter(item_code__in=top_item_codes)
             
             # Sort by sales quantity
             item_qty_map = {item['item_code']: item['total_qty'] for item in sales_items}
@@ -4141,7 +4183,7 @@ class TopSellingProductsView(APIView):
                 context={'request': request}
             )
             
-            logger.info(f"[TOP_SELLING] Retrieved {len(products_data)} top selling products for period {period} | Source: {'ERP' if api_key else 'database'}")
+            logger.info(f"[TOP_SELLING] Retrieved {len(products_data)} top selling products for period {period} | Source: ERP (auto-token)")
             
             return Response({
                 'success': True,
@@ -4151,7 +4193,7 @@ class TopSellingProductsView(APIView):
                     'totalCount': len(products_data),
                     'products': serializer.data,
                     'message': f'Top selling products for {period}',
-                    'source': 'erp' if api_key else 'database',
+                    'source': 'erp',
                     'lastFetched': timezone.now().isoformat()
                 }
             }, status=status.HTTP_200_OK)
@@ -4192,6 +4234,7 @@ class PersonalizedRecommendationsView(APIView):
         try:
             limit = int(request.query_params.get('limit', 15))
             # [UPDATED] Token now auto-generated - no need for apiKey from request
+            use_erp = True  # Always use ERP with auto-generated token
             
             # Validate user exists
             try:
@@ -4211,11 +4254,19 @@ class PersonalizedRecommendationsView(APIView):
                 item__item_code__in=user_purchases
             ).values_list('category_id', flat=True).distinct()
             
-            # ✅ Step 2: Get user's search history (keywords they searched)
+            # ✅ Step 2: Get search history (popular searches - global if not tracked per-user)
             from .models import SearchHistory
+            # Try to get user-specific searches first, fallback to popular searches globally
             user_searches = SearchHistory.objects.filter(
                 user_id=user_id
             ).order_by('-search_count')[:5].values_list('query', flat=True)
+            
+            # If no user-specific searches found, use popular global searches (since searches may not track user_id)
+            if not user_searches:
+                user_searches = SearchHistory.objects.filter(
+                    query__isnull=False
+                ).order_by('-search_count')[:5].values_list('query', flat=True)
+                logger.info(f"[PERSONALIZED] No user-specific searches for user {user_id}, using popular global searches")
             
             search_keywords = list(user_searches) if user_searches else []
             logger.info(f"[PERSONALIZED] User {user_id} | Purchases: {len(purchased_products)} categories | Searches: {len(search_keywords)} keywords")
@@ -4229,13 +4280,17 @@ class PersonalizedRecommendationsView(APIView):
             
             # If user has purchase/search history, use personalized recommendations
             if purchased_products.exists() or search_keywords:
-                recommended_products = ProductInfo.objects.filter(
-                    category_id__in=purchased_products
-                ).exclude(
-                    item__item_code__in=user_purchases  # Exclude already purchased items
-                ).select_related('item', 'category')
                 
-                # Also search by keywords from search history
+                # Start with category-based recommendations (if user has purchase history)
+                if purchased_products.exists():
+                    recommended_products = ProductInfo.objects.filter(
+                        category_id__in=purchased_products
+                    ).exclude(
+                        item__item_code__in=user_purchases  # Exclude already purchased items
+                    ).select_related('item', 'category')
+                    logger.info(f"[PERSONALIZED] Found {recommended_products.count()} products by category")
+                
+                # Search by keywords from search history
                 if search_keywords:
                     keyword_query = Q()
                     for keyword in search_keywords:
@@ -4244,9 +4299,16 @@ class PersonalizedRecommendationsView(APIView):
                             Q(description__icontains=keyword) |
                             Q(category__name__icontains=keyword)
                         )
-                    recommended_products = recommended_products | ProductInfo.objects.filter(keyword_query).exclude(
+                    keyword_products = ProductInfo.objects.filter(keyword_query).exclude(
                         item__item_code__in=user_purchases
                     ).select_related('item', 'category')
+                    logger.info(f"[PERSONALIZED] Found {keyword_products.count()} products by keywords: {search_keywords}")
+                    
+                    # Combine results
+                    if recommended_products.exists():
+                        recommended_products = recommended_products | keyword_products
+                    else:
+                        recommended_products = keyword_products
                 
                 recommended_products = recommended_products.distinct()[:limit * 2]  # Get extra for ranking
             
@@ -4389,7 +4451,7 @@ class PopularProductsView(APIView):
             elif period == 'monthly':
                 start_date = now - timedelta(days=30)
             else:  # all-time
-                start_date = now - timedelta(days=365*10)
+                start_date = now - timedelta(days=365*10)  # 10 years
             
             # ✅ Step 2: Get popular search terms
             from .models import SearchHistory
@@ -4483,3 +4545,883 @@ class PopularProductsView(APIView):
                 'success': False,
                 'message': f'Error fetching popular products: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RecentlyViewedView(APIView):
+    """
+    Get recently viewed products for a user
+    GET: Fetch products recently viewed by this user in order (most recent first)
+    
+    Path Parameters:
+        - user_id: User to get recently viewed products for (required)
+    
+    Query Parameters:
+        - limit: Max number of products (default: 10)
+    
+    Example: /api/recommendations/recently-viewed/5/?limit=10
+    
+    Data Flow:
+    1. Get ProductView records for user
+    2. Order by most recently viewed
+    3. Limit to requested count
+    4. Fetch live ERP data for each
+    5. Return with fresh pricing/stock info
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, user_id):
+        try:
+            limit = int(request.query_params.get('limit', 10))
+            
+            # Check if user exists
+            try:
+                user = CustomUser.objects.get(id=user_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': f'User with id {user_id} not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # ✅ Step 1: Get recently viewed products for this user
+            from django.db.models import Max
+            
+            # ✅ Auto-cleanup: Keep only last 10 views, delete older ones
+            max_views = 10  # Configurable retention limit
+            all_views = ProductView.objects.filter(
+                user_id=user_id
+            ).order_by('-viewed_at')
+            
+            total_views = all_views.count()
+            if total_views > max_views:
+                # Get the 11th record onward and delete
+                views_to_delete = all_views[max_views:]
+                deleted_count = views_to_delete.count()
+                for view in views_to_delete:
+                    view.delete()
+                logger.info(f"[RECENTLY_VIEWED_CLEANUP] Deleted {deleted_count} old views for user {user_id} (kept {max_views})")
+            
+            # Now fetch for display
+            recently_viewed = ProductView.objects.filter(
+                user_id=user_id
+            ).select_related('item').order_by('-viewed_at')[:limit]
+            
+            if not recently_viewed.exists():
+                logger.info(f"[RECENTLY_VIEWED] No viewing history for user {user_id}")
+                return Response({
+                    'success': True,
+                    'data': {
+                        'userId': user_id,
+                        'userName': user.username,
+                        'recentlyViewed': [],
+                        'totalCount': 0,
+                        'source': 'database'
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            # Extract items
+            viewed_items = [pv.item for pv in recently_viewed]
+            
+            # ✅ Step 2: Fetch fresh data from ERP with auto-generated token
+            erp_items = fetch_all_items_from_erp()
+            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            
+            products_data = []
+            for product in viewed_items:
+                # Enrich with ERP data if available
+                erp_data = erp_map.get(product.item_code)
+                if erp_data:
+                    product.item_code = erp_data.get('c_item_code', product.item_code)
+                    product.item_name = erp_data.get('itemName', product.item_name)
+                    product.batch_no = erp_data.get('batchNo', product.batch_no)
+                    product.item_qty_per_box = erp_data.get('itemQtyPerBox', product.item_qty_per_box)
+                    product.mrp = float(erp_data.get('mrp', product.mrp))
+                    product.std_disc = float(erp_data.get('std_disc', product.std_disc))
+                    product.max_disc = float(erp_data.get('max_disc', product.max_disc))
+                    product.expiry_date = parse_date(erp_data.get('expiryDate', product.expiry_date))
+                    product.erp_stock = erp_data.get('stockBalQty', 0)
+                
+                products_data.append(product)
+            
+            # ✅ Step 3: Serialize results
+            serializer = ProductRecommendationSerializer(
+                products_data,
+                many=True,
+                context={'request': request}
+            )
+            
+            logger.info(f"[RECENTLY_VIEWED] Found {len(products_data)} recently viewed items for user {user_id} | Source: ERP (auto-token)")
+            
+            return Response({
+                'success': True,
+                'data': {
+                    'userId': user_id,
+                    'userName': user.username,
+                    'recentlyViewed': serializer.data,
+                    'totalCount': len(serializer.data),
+                    'source': 'erp',
+                    'lastFetched': timezone.now().isoformat()
+                }
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"[RECENTLY_VIEWED_ERROR] Error fetching recently viewed products: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f'Error fetching recently viewed products: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UserRecentActivityView(APIView):
+    """
+    Get all recent user activity in one API call
+    GET: Fetch user's recently viewed products, cart items, and wishlist items
+    
+    Path Parameters:
+        - user_id: User to get activity for (required)
+    
+    Query Parameters:
+        - limit: Max number of items per category (default: 10)
+        - viewed_limit: Specific limit for recently viewed (overrides limit)
+        - cart_limit: Specific limit for cart items (overrides limit)
+        - wishlist_limit: Specific limit for wishlist items (overrides limit)
+    
+    Example: /api/recommendations/user-activity/88/?limit=5
+    Response includes all three: recentlyViewed, recentlyCart, recentlyWishlist
+    
+    Data Flow:
+    1. Get recently viewed products
+    2. Get cart items
+    3. Get wishlist items
+    4. Fetch live ERP data for all
+    5. Return consolidated response with all activities
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, user_id):
+        try:
+            # Get limits from query params
+            limit = int(request.query_params.get('limit', 10))
+            viewed_limit = int(request.query_params.get('viewed_limit', limit))
+            cart_limit = int(request.query_params.get('cart_limit', limit))
+            wishlist_limit = int(request.query_params.get('wishlist_limit', limit))
+            
+            # Check if user exists
+            try:
+                user = CustomUser.objects.get(id=user_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': f'User with id {user_id} not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # ✅ Fetch ERP data once (reuse for all)
+            erp_items = fetch_all_items_from_erp()
+            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            
+            # ✅ Step 1: Get recently viewed products
+            recently_viewed_data = []
+            try:
+                # Auto-cleanup
+                all_views = ProductView.objects.filter(user_id=user_id).order_by('-viewed_at')
+                total_views = all_views.count()
+                if total_views > 10:
+                    views_to_delete = all_views[10:]
+                    for view in views_to_delete:
+                        view.delete()
+                
+                # Fetch for display
+                recently_viewed = ProductView.objects.filter(
+                    user_id=user_id
+                ).select_related('item').order_by('-viewed_at')[:viewed_limit]
+                
+                for pv in recently_viewed:
+                    item = pv.item
+                    erp_data = erp_map.get(item.item_code)
+                    if erp_data:
+                        item.mrp = float(erp_data.get('mrp', item.mrp))
+                        item.std_disc = float(erp_data.get('std_disc', item.std_disc))
+                        item.max_disc = float(erp_data.get('max_disc', item.max_disc))
+                        item.erp_stock = erp_data.get('stockBalQty', 0)
+                        item.batch_no = erp_data.get('batchNo', item.batch_no)
+                        item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
+                    
+                    # Get product info for additional details
+                    try:
+                        product_info = ProductInfo.objects.get(item=item)
+                        # Get images
+                        images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
+                        images_list = [{'image': request.build_absolute_uri(img.image.url), 'image_order': img.image_order} for img in images]
+                        
+                        # Check cart/wishlist status
+                        cart_status = CartItem.objects.filter(item=item, cart__user_id=user_id).exists() if user_id else False
+                        wishlist_status = WishlistItem.objects.filter(item=item, wishlist__user_id=user_id).exists() if user_id else False
+                    except ProductInfo.DoesNotExist:
+                        product_info = None
+                        images_list = []
+                        cart_status = False
+                        wishlist_status = False
+                    
+                    recently_viewed_data.append({
+                        'itemCode': item.item_code,
+                        'itemName': item.item_name,
+                        'batchNo': item.batch_no or '',
+                        'expiryDate': str(item.expiry_date) if item.expiry_date else None,
+                        'itemQtyPerBox': item.item_qty_per_box,
+                        'mrp': float(item.mrp),
+                        'std_disc': float(item.std_disc),
+                        'max_disc': float(item.max_disc),
+                        'stock': getattr(item, 'erp_stock', 0),
+                        'subheading': product_info.subheading if product_info else '',
+                        'description': product_info.description if product_info else '',
+                        'type_label': product_info.type_label if product_info else '',
+                        'brand_id': product_info.category.id if product_info and product_info.category else None,
+                        'brand_name': product_info.category.name if product_info and product_info.category else '',
+                        'brand_logo': request.build_absolute_uri(product_info.category.icon.url) if product_info and product_info.category and product_info.category.icon else '',
+                        'images': images_list,
+                        'cart_status': cart_status,
+                        'wishlist_status': wishlist_status,
+                        'viewedAt': pv.viewed_at.isoformat()
+                    })
+            except Exception as e:
+                logger.warning(f"[USER_ACTIVITY] Failed to fetch recently viewed: {str(e)}")
+            
+            # ✅ Step 2: Get recently added to cart
+            recently_cart_data = []
+            try:
+                cart = Cart.objects.get(user_id=user_id)
+                cart_items = CartItem.objects.filter(
+                    cart=cart
+                ).select_related('item').order_by('-created_at')[:cart_limit]
+                
+                for ci in cart_items:
+                    item = ci.item
+                    erp_data = erp_map.get(item.item_code)
+                    if erp_data:
+                        item.mrp = float(erp_data.get('mrp', item.mrp))
+                        item.std_disc = float(erp_data.get('std_disc', item.std_disc))
+                        item.max_disc = float(erp_data.get('max_disc', item.max_disc))
+                        item.erp_stock = erp_data.get('stockBalQty', 0)
+                        item.batch_no = erp_data.get('batchNo', item.batch_no)
+                        item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
+                    
+                    # Get product info for additional details
+                    try:
+                        product_info = ProductInfo.objects.get(item=item)
+                        # Get images
+                        images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
+                        images_list = [{'image': request.build_absolute_uri(img.image.url), 'image_order': img.image_order} for img in images]
+                        
+                        # Check wishlist status
+                        wishlist_status = WishlistItem.objects.filter(item=item, wishlist__user_id=user_id).exists()
+                    except ProductInfo.DoesNotExist:
+                        product_info = None
+                        images_list = []
+                        wishlist_status = False
+                    
+                    recently_cart_data.append({
+                        'cartItemId': ci.id,
+                        'itemCode': item.item_code,
+                        'itemName': item.item_name,
+                        'batchNo': item.batch_no or '',
+                        'expiryDate': str(item.expiry_date) if item.expiry_date else None,
+                        'itemQtyPerBox': item.item_qty_per_box,
+                        'mrp': float(item.mrp),
+                        'std_disc': float(item.std_disc),
+                        'max_disc': float(item.max_disc),
+                        'stock': getattr(item, 'erp_stock', 0),
+                        'subheading': product_info.subheading if product_info else '',
+                        'description': product_info.description if product_info else '',
+                        'type_label': product_info.type_label if product_info else '',
+                        'brand_id': product_info.category.id if product_info and product_info.category else None,
+                        'brand_name': product_info.category.name if product_info and product_info.category else '',
+                        'brand_logo': request.build_absolute_uri(product_info.category.icon.url) if product_info and product_info.category and product_info.category.icon else '',
+                        'images': images_list,
+                        'quantity': ci.quantity,
+                        'wishlist_status': wishlist_status,
+                        'addedAt': ci.created_at.isoformat()
+                    })
+            except Cart.DoesNotExist:
+                pass
+            except Exception as e:
+                logger.warning(f"[USER_ACTIVITY] Failed to fetch cart items: {str(e)}")
+            
+            # ✅ Step 3: Get recently added to wishlist
+            recently_wishlist_data = []
+            try:
+                wishlist = Wishlist.objects.get(user_id=user_id)
+                wishlist_items = WishlistItem.objects.filter(
+                    wishlist=wishlist
+                ).select_related('item').order_by('-created_at')[:wishlist_limit]
+                
+                for wi in wishlist_items:
+                    item = wi.item
+                    erp_data = erp_map.get(item.item_code)
+                    if erp_data:
+                        item.mrp = float(erp_data.get('mrp', item.mrp))
+                        item.std_disc = float(erp_data.get('std_disc', item.std_disc))
+                        item.max_disc = float(erp_data.get('max_disc', item.max_disc))
+                        item.erp_stock = erp_data.get('stockBalQty', 0)
+                        item.batch_no = erp_data.get('batchNo', item.batch_no)
+                        item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
+                    
+                    # Get product info for additional details
+                    try:
+                        product_info = ProductInfo.objects.get(item=item)
+                        # Get images
+                        images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
+                        images_list = [{'image': request.build_absolute_uri(img.image.url), 'image_order': img.image_order} for img in images]
+                        
+                        # Check cart status
+                        cart_status = CartItem.objects.filter(item=item, cart__user_id=user_id).exists()
+                    except ProductInfo.DoesNotExist:
+                        product_info = None
+                        images_list = []
+                        cart_status = False
+                    
+                    recently_wishlist_data.append({
+                        'wishlistItemId': wi.id,
+                        'itemCode': item.item_code,
+                        'itemName': item.item_name,
+                        'batchNo': item.batch_no or '',
+                        'expiryDate': str(item.expiry_date) if item.expiry_date else None,
+                        'itemQtyPerBox': item.item_qty_per_box,
+                        'mrp': float(item.mrp),
+                        'std_disc': float(item.std_disc),
+                        'max_disc': float(item.max_disc),
+                        'stock': getattr(item, 'erp_stock', 0),
+                        'subheading': product_info.subheading if product_info else '',
+                        'description': product_info.description if product_info else '',
+                        'type_label': product_info.type_label if product_info else '',
+                        'brand_id': product_info.category.id if product_info and product_info.category else None,
+                        'brand_name': product_info.category.name if product_info and product_info.category else '',
+                        'brand_logo': request.build_absolute_uri(product_info.category.icon.url) if product_info and product_info.category and product_info.category.icon else '',
+                        'images': images_list,
+                        'cart_status': cart_status,
+                        'addedAt': wi.created_at.isoformat()
+                    })
+            except Wishlist.DoesNotExist:
+                pass
+            except Exception as e:
+                logger.warning(f"[USER_ACTIVITY] Failed to fetch wishlist items: {str(e)}")
+            
+            logger.info(f"[USER_ACTIVITY] Fetched activity for user {user_id} | Views: {len(recently_viewed_data)}, Cart: {len(recently_cart_data)}, Wishlist: {len(recently_wishlist_data)}")
+            
+            return Response({
+                'success': True,
+                'data': {
+                    'userId': user_id,
+                    'userName': user.username,
+                    'recentlyViewed': {
+                        'items': recently_viewed_data,
+                        'count': len(recently_viewed_data)
+                    },
+                    'recentlyCart': {
+                        'items': recently_cart_data,
+                        'count': len(recently_cart_data),
+                        'totalQuantity': sum(item['quantity'] for item in recently_cart_data)
+                    },
+                    'recentlyWishlist': {
+                        'items': recently_wishlist_data,
+                        'count': len(recently_wishlist_data)
+                    },
+                    'summary': {
+                        'totalViewedProducts': len(recently_viewed_data),
+                        'totalCartItems': len(recently_cart_data),
+                        'totalWishlistItems': len(recently_wishlist_data)
+                    },
+                    'source': 'erp',
+                    'lastFetched': timezone.now().isoformat()
+                }
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"[USER_ACTIVITY_ERROR] Error fetching user activity: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f'Error fetching user activity: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RecentlyAddedToCartView(APIView):
+    """
+    Get recently added to cart products for a user
+    GET: Fetch products recently added to user's cart (most recent first)
+    
+    Path Parameters:
+        - user_id: User to get recently added to cart products for (required)
+    
+    Query Parameters:
+        - limit: Max number of products (default: 10)
+    
+    Example: /api/recommendations/recently-cart/5/?limit=10
+    
+    Data Flow:
+    1. Get cart items for user
+    2. Order by most recently added
+    3. Limit to requested count
+    4. Fetch live ERP data for each
+    5. Return with fresh pricing/stock info
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, user_id):
+        try:
+            limit = int(request.query_params.get('limit', 10))
+            
+            # Check if user exists
+            try:
+                user = CustomUser.objects.get(id=user_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': f'User with id {user_id} not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # ✅ Step 1: Get cart items for this user
+            try:
+                cart = Cart.objects.get(user_id=user_id)
+            except Cart.DoesNotExist:
+                return Response({
+                    'success': True,
+                    'data': {
+                        'userId': user_id,
+                        'userName': user.username,
+                        'recentlyAddedToCart': [],
+                        'totalCount': 0,
+                        'source': 'database'
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            cart_items = CartItem.objects.filter(
+                cart=cart
+            ).select_related('product_info', 'product_info__item').order_by('-created_at')[:limit]
+            
+            if not cart_items.exists():
+                return Response({
+                    'success': True,
+                    'data': {
+                        'userId': user_id,
+                        'userName': user.username,
+                        'recentlyAddedToCart': [],
+                        'totalCount': 0,
+                        'source': 'database'
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            # ✅ Step 2: Fetch fresh data from ERP with auto-generated token
+            erp_items = fetch_all_items_from_erp()
+            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            
+            products_data = []
+            for cart_item in cart_items:
+                product = cart_item.product_info
+                item = product.item
+                
+                # Enrich with ERP data if available
+                erp_data = erp_map.get(item.item_code)
+                if erp_data:
+                    item.item_code = erp_data.get('c_item_code', item.item_code)
+                    item.item_name = erp_data.get('itemName', item.item_name)
+                    item.batch_no = erp_data.get('batchNo', item.batch_no)
+                    item.item_qty_per_box = erp_data.get('itemQtyPerBox', item.item_qty_per_box)
+                    item.mrp = float(erp_data.get('mrp', item.mrp))
+                    item.std_disc = float(erp_data.get('std_disc', item.std_disc))
+                    item.max_disc = float(erp_data.get('max_disc', item.max_disc))
+                    item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
+                    item.erp_stock = erp_data.get('stockBalQty', 0)
+                
+                products_data.append({
+                    'cartItemId': cart_item.id,
+                    'product': item,
+                    'quantity': cart_item.quantity,
+                    'addedAt': cart_item.created_at.isoformat()
+                })
+            
+            # ✅ Step 3: Serialize results
+            serialized_products = []
+            for item_data in products_data:
+                item = item_data['product']
+                serialized_products.append({
+                    'cartItemId': item_data['cartItemId'],
+                    'itemCode': item.item_code,
+                    'itemName': item.item_name,
+                    'mrp': float(item.mrp),
+                    'discount': float(item.std_disc),
+                    'stock': getattr(item, 'erp_stock', 0),
+                    'quantity': item_data['quantity'],
+                    'addedAt': item_data['addedAt']
+                })
+            
+            logger.info(f"[RECENTLY_CART] Found {len(serialized_products)} recently added to cart items for user {user_id}")
+            
+            return Response({
+                'success': True,
+                'data': {
+                    'userId': user_id,
+                    'userName': user.username,
+                    'recentlyAddedToCart': serialized_products,
+                    'totalCount': len(serialized_products),
+                    'source': 'erp',
+                    'lastFetched': timezone.now().isoformat()
+                }
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"[RECENTLY_CART_ERROR] Error fetching recently added to cart: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f'Error fetching recently added to cart: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RecentlyAddedToWishlistView(APIView):
+    """
+    Get recently added to wishlist products for a user
+    GET: Fetch products recently added to user's wishlist (most recent first)
+    
+    Path Parameters:
+        - user_id: User to get recently added to wishlist products for (required)
+    
+    Query Parameters:
+        - limit: Max number of products (default: 10)
+    
+    Example: /api/recommendations/recently-wishlist/5/?limit=10
+    
+    Data Flow:
+    1. Get wishlist items for user
+    2. Order by most recently added
+    3. Limit to requested count
+    4. Fetch live ERP data for each
+    5. Return with fresh pricing/stock info
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, user_id):
+        try:
+            limit = int(request.query_params.get('limit', 10))
+            
+            # Check if user exists
+            try:
+                user = CustomUser.objects.get(id=user_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': f'User with id {user_id} not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # ✅ Step 1: Get wishlist items for this user
+            try:
+                wishlist = Wishlist.objects.get(user_id=user_id)
+            except Wishlist.DoesNotExist:
+                return Response({
+                    'success': True,
+                    'data': {
+                        'userId': user_id,
+                        'userName': user.username,
+                        'recentlyAddedToWishlist': [],
+                        'totalCount': 0,
+                        'source': 'database'
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            wishlist_items = WishlistItem.objects.filter(
+                wishlist=wishlist
+            ).select_related('product_info', 'product_info__item').order_by('-created_at')[:limit]
+            
+            if not wishlist_items.exists():
+                return Response({
+                    'success': True,
+                    'data': {
+                        'userId': user_id,
+                        'userName': user.username,
+                        'recentlyAddedToWishlist': [],
+                        'totalCount': 0,
+                        'source': 'database'
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            # ✅ Step 2: Fetch fresh data from ERP with auto-generated token
+            erp_items = fetch_all_items_from_erp()
+            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            
+            products_data = []
+            for wishlist_item in wishlist_items:
+                product = wishlist_item.product_info
+                item = product.item
+                
+                # Enrich with ERP data if available
+                erp_data = erp_map.get(item.item_code)
+                if erp_data:
+                    item.item_code = erp_data.get('c_item_code', item.item_code)
+                    item.item_name = erp_data.get('itemName', item.item_name)
+                    item.batch_no = erp_data.get('batchNo', item.batch_no)
+                    item.item_qty_per_box = erp_data.get('itemQtyPerBox', item.item_qty_per_box)
+                    item.mrp = float(erp_data.get('mrp', item.mrp))
+                    item.std_disc = float(erp_data.get('std_disc', item.std_disc))
+                    item.max_disc = float(erp_data.get('max_disc', item.max_disc))
+                    item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
+                    item.erp_stock = erp_data.get('stockBalQty', 0)
+                
+                products_data.append({
+                    'wishlistItemId': wishlist_item.id,
+                    'product': item,
+                    'addedAt': wishlist_item.created_at.isoformat()
+                })
+            
+            # ✅ Step 3: Serialize results
+            serialized_products = []
+            for item_data in products_data:
+                item = item_data['product']
+                serialized_products.append({
+                    'wishlistItemId': item_data['wishlistItemId'],
+                    'itemCode': item.item_code,
+                    'itemName': item.item_name,
+                    'mrp': float(item.mrp),
+                    'discount': float(item.std_disc),
+                    'stock': getattr(item, 'erp_stock', 0),
+                    'addedAt': item_data['addedAt']
+                })
+            
+            logger.info(f"[RECENTLY_WISHLIST] Found {len(serialized_products)} recently added to wishlist items for user {user_id}")
+            
+            return Response({
+                'success': True,
+                'data': {
+                    'userId': user_id,
+                    'userName': user.username,
+                    'recentlyAddedToWishlist': serialized_products,
+                    'totalCount': len(serialized_products),
+                    'source': 'erp',
+                    'lastFetched': timezone.now().isoformat()
+                }
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"[RECENTLY_WISHLIST_ERROR] Error fetching recently added to wishlist: {str(e)}", exc_info=True)
+            return Response({
+                'success': False,
+                'message': f'Error fetching recently added to wishlist: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class CategoryListView(ListAPIView):
+    queryset = Category.objects.filter(is_active=True)
+    serializer_class = CategoryWithProductsSerializer
+    permission_classes = [AllowAny]
+    
+    def get(self, request, *args, **kwargs):
+        """Validate user_id from URL path before processing request"""
+        user_id = self.kwargs.get('user_id')
+        
+        # If user_id is provided in URL path, validate it exists
+        if user_id:
+            try:
+                from .models import CustomUser
+                CustomUser.objects.get(id=user_id)
+                logger.info(f"[CATEGORIES] User ID {user_id} validated successfully")
+            except CustomUser.DoesNotExist:
+                logger.error(f"[CATEGORIES] User ID {user_id} not found")
+                return Response(
+                    {
+                        'code': '404',
+                        'type': 'categories',
+                        'message': f'User with ID {user_id} not found'
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Continue with normal GET processing
+        return super().get(request, *args, **kwargs)
+    
+    def get_serializer_context(self):
+        """Add ERP enrichment context with auto-generated or provided apiKey + User ID support"""
+        context = super().get_serializer_context()
+        
+        # ============ USER ID / AUTHENTICATION HANDLING ============
+        # Priority 1: Check if userId in URL path parameters
+        user_id = self.kwargs.get('user_id')
+        
+        # Priority 2: Check if userId provided via query params
+        if not user_id:
+            user_id = self.request.query_params.get('userId')
+        
+        user = None
+        
+        if user_id:
+            # Try to fetch user by provided user_id
+            try:
+                from .models import CustomUser
+                user = CustomUser.objects.get(id=user_id)
+                logger.info(f"[CATEGORIES] Using provided userId: {user_id}")
+            except CustomUser.DoesNotExist:
+                logger.warning(f"[CATEGORIES] User with ID {user_id} not found (query param fallback)")
+                user = None
+        elif self.request.user and self.request.user.is_authenticated:
+            # Priority 3: Use authenticated user
+            user = self.request.user
+            logger.info(f"[CATEGORIES] Using authenticated user: {user.id}")
+        
+        # Attach user to context for cart_status and wishlist_status checks
+        context['cart_wishlist_user'] = user
+        
+        # ============ ERP TOKEN & STOCK ENRICHMENT ============
+        # Priority 1: Check if apiKey provided via query params (manual override)
+        api_key = self.request.query_params.get('apiKey')
+        
+        # Priority 2: Auto-generate token if not provided
+        if not api_key:
+            try:
+                from .erp_token_service import get_erp_token_for_request
+                api_key = get_erp_token_for_request()
+                logger.info(f"[CATEGORIES] Using auto-generated ERP token")
+            except Exception as e:
+                logger.warning(f"[CATEGORIES] Failed to generate ERP token: {str(e)}")
+                api_key = None
+        else:
+            logger.info(f"[CATEGORIES] Using provided apiKey from query params")
+        
+        # Fetch ERP master data to enrich with stock quantities
+        if api_key:
+            try:
+                erp_base_url = settings.ERP_BASE_URL
+                erp_server_url = f"{erp_base_url}/ws_c2_services_get_master_data"
+                
+                logger.info(f"[CATEGORIES] Fetching ERP data from: {erp_server_url}")
+                
+                erp_response = requests.get(erp_server_url, params={'apiKey': api_key}, timeout=15)
+                
+                if erp_response.status_code == 200:
+                    erp_data = erp_response.json()
+                    items = erp_data.get('data', [])
+                    
+                    # Create mapping of item_code -> stockBalQty from ERP
+                    stock_map = {}
+                    for item in items:
+                        if item.get('c_item_code'):
+                            stock_map[item['c_item_code']] = item.get('stockBalQty', 0)
+                    
+                    context['erp_stock_map'] = stock_map
+                    logger.info(f"[CATEGORIES] [SUCCESS] Successfully enriched with {len(stock_map)} ERP items")
+                else:
+                    logger.error(f"[CATEGORIES] ERP Server error: {erp_response.status_code}")
+                    context['erp_stock_map'] = {}
+            except Exception as e:
+                logger.error(f"[CATEGORIES] [FAILED] Failed to fetch ERP data: {str(e)}")
+                context['erp_stock_map'] = {}
+        else:
+            logger.warning(f"[CATEGORIES] No API key available - using database stock only")
+            context['erp_stock_map'] = {}
+        
+        return context
+    
+
+
+@api_view(['GET'])
+def related_products(request, product_id, user_id):
+    """
+    Get related products by category (excluding the current product), enriched with ERP data if available
+    """
+    from .views import fetch_all_items_from_erp, parse_date
+    try:
+        product = ProductInfo.objects.get(pk=product_id)
+        related = ProductInfo.objects.filter(
+            category=product.category
+        ).exclude(pk=product.pk)[:10]
+
+        # ERP enrichment logic (same as search view)
+        erp_items = fetch_all_items_from_erp()
+        erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+
+        products = []
+        for product_info in related:
+            item = product_info.item
+            # Enrich with ERP data if available
+            erp_data = erp_map.get(item.item_code)
+            if erp_data:
+                item.item_code = erp_data.get('c_item_code', item.item_code)
+                item.item_name = erp_data.get('itemName', item.item_name)
+                item.batch_no = erp_data.get('batchNo', item.batch_no)
+                item.item_qty_per_box = erp_data.get('itemQtyPerBox', item.item_qty_per_box)
+                item.mrp = float(erp_data.get('mrp', item.mrp))
+                item.std_disc = float(erp_data.get('std_disc', item.std_disc))
+                item.max_disc = float(erp_data.get('max_disc', item.max_disc))
+                item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
+                item.erp_stock = erp_data.get('stockBalQty', 0)
+
+            mrp = float(item.mrp)
+            discount = float(item.std_disc)
+            discounted_price = mrp * (1 - discount / 100)
+
+            # Get all product images (ordered by image_order)
+            product_images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
+            images_list = [
+                {
+                    'image': request.build_absolute_uri(img.image.url),
+                    'image_order': img.image_order
+                }
+                for img in product_images
+            ]
+
+            # Get stock quantity (ERP first, then database)
+            stock_qty = 0
+            if hasattr(item, 'erp_stock') and item.erp_stock is not None:
+                stock_qty = item.erp_stock  # From ERP
+            else:
+                try:
+                    stock = Stock.objects.filter(item=item).first()
+                    if stock:
+                        stock_qty = stock.total_bal_ls_qty
+                except:
+                    stock_qty = 0
+
+            # Check if item is in user's cart/wishlist
+            cart_status = False
+            wishlist_status = False
+            if request.user.is_authenticated:
+                try:
+                    from .models import CartItem, WishlistItem
+                    cart_status = CartItem.objects.filter(
+                        cart__user=request.user,
+                        product_info=product_info
+                    ).exists()
+                    wishlist_status = WishlistItem.objects.filter(
+                        wishlist__user=request.user,
+                        product_info=product_info
+                    ).exists()
+                except:
+                    pass
+
+            # Get brand logo
+            brand_logo = ''
+            if product_info.category and product_info.category.icon:
+                brand_logo = request.build_absolute_uri(product_info.category.icon.url)
+
+            products.append({
+                'batchNo': item.batch_no or '',
+                'c_item_code': item.item_code,
+                'expiryDate': str(item.expiry_date) if item.expiry_date else None,
+                'itemName': item.item_name,
+                'itemQtyPerBox': item.item_qty_per_box,
+                'max_disc': float(item.max_disc),
+                'mrp': float(item.mrp),
+                'std_disc': float(item.std_disc),
+                'stockBalQty': stock_qty,
+                'subheading': product_info.subheading or '',
+                'description': product_info.description or '',
+                'type_label': product_info.type_label or '',
+                'brand_id': product_info.category.id if product_info.category else None,
+                'brand_name': product_info.category.name if product_info.category else '',
+                'brand_logo': brand_logo,
+                'images': images_list,
+                'cart_status': cart_status,
+                'wishlist_status': wishlist_status,
+                'discountPercentage': discount,
+                'discountedPrice': discounted_price
+            })
+
+        return Response({
+            'success': True,
+            'message': f'Found {len(products)} related products',
+            'count': len(products),
+            'data': products,
+            'source': 'erp' if erp_items else 'database'
+        }, status=200)
+    except ProductInfo.DoesNotExist:
+        return Response({"error": "Product not found"}, status=404)

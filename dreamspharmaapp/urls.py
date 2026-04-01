@@ -1,3 +1,6 @@
+# Related Products endpoint
+from django.urls import path
+from .views import related_products
 from django.urls import path
 from . import views
 
@@ -34,20 +37,21 @@ urlpatterns = [
     
     # ==================== ERP INTEGRATION ENDPOINTS ====================
  
-    path('erp/ws_c2_services_generate_token/', views.GenerateTokenView.as_view(), name='generate-token'),
+    path('erp/ws_c2_services_generate_token', views.GenerateTokenView.as_view(), name='generate-token'),
     # Item Masters
-    path('erp/ws_c2_services_get_master_data/', views.GetItemMasterView.as_view(), name='get-item-master'),
+    path('erp/ws_c2_services_get_master_data/<int:user_id>/', views.GetItemMasterView.as_view(), name='get-item-master'),
+    path('erp/ws_c2_services_get_master_data', views.GetItemMasterView.as_view(), name='get-item-master-no-user'),
     # Product Info Update
     path('erp/update_product_info/', views.UpdateProductInfoView.as_view(), name='update-product-info'),
     path('erp/upload_product_image/', views.UploadProductImageView.as_view(), name='upload-product-image'),
     # Stock Fetch
-    path('erp/ws_c2_services_fetch_stock/', views.FetchStockView.as_view(), name='fetch-stock'),
+    path('erp/ws_c2_services_fetch_stock', views.FetchStockView.as_view(), name='fetch-stock'),
     # Sales Order Creation
-    path('erp/ws_c2_services_create_sale_order/', views.CreateSalesOrderView.as_view(), name='create-sales-order'),
+    path('erp/ws_c2_services_create_sale_order', views.CreateSalesOrderView.as_view(), name='create-sales-order'),
     # Customer Creation
-    path('erp/ws_c2_services_gl_cust_creation/', views.CreateGLCustomerView.as_view(), name='create-gl-customer'),
+    path('erp/ws_c2_services_gl_cust_creation', views.CreateGLCustomerView.as_view(), name='create-gl-customer'),
     # Order Status
-    path('erp/ws_c2_services_get_orderstatus/', views.GetOrderStatusView.as_view(), name='get-order-status'),
+    path('erp/ws_c2_services_get_orderstatus', views.GetOrderStatusView.as_view(), name='get-order-status'),
     
     # ==================== CART ENDPOINTS ====================
     path('cart/<int:user_id>/', views.CartView.as_view(), name='cart'),
@@ -84,8 +88,16 @@ urlpatterns = [
     
     # ==================== RECOMMENDATION ENDPOINTS ====================
     path('recommendations/for-you/<int:user_id>/', views.PersonalizedRecommendationsView.as_view(), name='personalized-recommendations'),
-    path('recommendations/frequently-bought/', views.FrequentlyBoughtTogetherView.as_view(), name='frequently-bought-together'),
+    path('recommendations/frequently-bought/<int:user_id>/', views.FrequentlyBoughtTogetherView.as_view(), name='frequently-bought-together'),
     path('recommendations/top-selling/', views.TopSellingProductsView.as_view(), name='top-selling-products'),
     path('recommendations/popular/', views.PopularProductsView.as_view(), name='popular-products'),
+    path('recommendations/recently-viewed/<int:user_id>/', views.RecentlyViewedView.as_view(), name='recently-viewed'),
+    path('recommendations/user-activity/<int:user_id>/', views.UserRecentActivityView.as_view(), name='user-activity'),
     
+    # Category List for Retailers
+    path('categories/', views.CategoryListView.as_view(), name='category-list'),
+    path('categories/<int:user_id>/', views.CategoryListView.as_view(), name='category-list-with-user'),
+
+    # Related products (category-based, user-specific)
+    path('products/<str:product_id>/related/<int:user_id>/', views.related_products, name='related-products'),
 ]
