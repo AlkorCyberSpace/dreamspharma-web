@@ -39,6 +39,16 @@ class CustomUserAdmin(admin.ModelAdmin):
         )
     role_badge.short_description = 'Role'
 
+    def save_model(self, request, obj, form, change):
+        if change:
+            orig_obj = CustomUser.objects.get(pk=obj.pk)
+            if not orig_obj.is_kyc_approved and obj.is_kyc_approved:
+                if obj.status in ['PENDING_APPROVAL', 'KYC_SUBMITTED', 'REGISTERED']:
+                    obj.status = 'LOGIN_ENABLED'
+                    
+        super().save_model(request, obj, form, change)
+
+
 
 @admin.register(KYC)
 class KYCAdmin(admin.ModelAdmin):

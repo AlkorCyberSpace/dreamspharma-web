@@ -5425,3 +5425,60 @@ def related_products(request, product_id, user_id):
         }, status=200)
     except ProductInfo.DoesNotExist:
         return Response({"error": "Product not found"}, status=404)
+
+
+
+# ==================== PUSH NOTIFICATIONS ====================
+from .models import FCMDevice
+
+class RegisterDeviceTokenView(APIView):
+    """
+    Register FCM device token for push notifications
+    POST /api/notifications/register/
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, user_id=None):
+        token = request.data.get('token')
+        device_type = request.data.get('device_type', 'unknown')
+        user_id = user_id or request.data.get('user_id')
+        
+        if not token:
+            return Response({'error': 'Device token is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not user_id and not request.user.is_authenticated:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get user
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            user = request.user
+            
+        # check if token is already registered to another user and remove it
+        FCMDevice.objects.filter(registration_id=token).exclude(user=user).delete()
+        
+        device, created = FCMDevice.objects.update_or_create(
+            user=user,
+            registration_id=token,
+            defaults={
+                'device_type': device_type,
+                'is_active': True
+            }
+        )
+        
+        # Send Welcome Notification if this is their very first registered device
+        if created and user.fcm_devices.count() == 1:
+            from .services import send_push_notification
+            send_push_notification(
+                user=user,
+                title="Welcome to Dreams Pharma! \U0001f389",
+                body="Thank you for joining us. You will receive important updates here.",
+                data={"type": "welcome"}
+            )
+        
+        msg = "Token registered successfully" if created else "Token updated successfully"
+        return Response({'message': msg}, status=status.HTTP_200_OK)

@@ -672,3 +672,20 @@ class Offer(models.Model):
             models.Index(fields=['status', '-created_at']),
             models.Index(fields=['valid_from', 'valid_to']),
         ]
+
+
+
+class FCMDevice(models.Model):
+    """Stores Firebase Cloud Messaging tokens for user devices"""
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='fcm_devices')
+    registration_id = models.CharField(max_length=255, unique=True, help_text="Device registration token from Firebase")
+    device_type = models.CharField(max_length=50, blank=True, null=True, help_text="e.g., ios, android, web")
+    is_active = models.BooleanField(default=True, help_text="Is the token still active?")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+        
+    def __str__(self):
+        return f"FCM Device for {self.user.username} ({self.device_type or 'Unknown'})"        
