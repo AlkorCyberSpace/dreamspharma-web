@@ -529,3 +529,9 @@ NameError: name 'api_key' is not defined
 [ERROR] 2026-04-02 10:00:07 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
 [ERROR] 2026-04-02 10:00:07 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
 [ERROR] 2026-04-02 10:00:07 erp_token_service initialize_erp_token:211 - [ERP_TOKEN] [FAILED] Failed to initialize ERP token
+[ERROR] 2026-04-04 09:51:50 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-04-04 09:51:50 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[ERROR] 2026-04-04 09:51:50 erp_token_service initialize_erp_token:211 - [ERP_TOKEN] [FAILED] Failed to initialize ERP token
+[ERROR] 2026-04-04 09:54:05 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-04-04 09:54:05 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[ERROR] 2026-04-04 09:54:05 erp_token_service initialize_erp_token:211 - [ERP_TOKEN] [FAILED] Failed to initialize ERP token

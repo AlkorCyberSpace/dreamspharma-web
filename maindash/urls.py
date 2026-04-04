@@ -32,5 +32,15 @@ urlpatterns = [
     
     # SuperAdmin - Assign Brand to Product
     path('superadmin/assign-brand/', views.AssignBrandToProductView.as_view(), name='superadmin-assign-brand'),
+
+
+    # ==================== OFFERS & BANNERS ENDPOINTS ====================
+    # Offers Management (SuperAdmin)
+    path('offers/', views.OfferListCreateView.as_view(), name='offer-list-create'),
+    path('offers/<str:offer_id>/', views.OfferDetailView.as_view(), name='offer-detail'),
+    
+    # Public Endpoints - Homepage & Category Offers
+    path('offers/homepage/', views.HomePageOffersView.as_view(), name='homepage-offers'),
+    path('offers/category/<int:category_id>/', views.CategoryOffersView.as_view(), name='category-offers'),
 ]
    
