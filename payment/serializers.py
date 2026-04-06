@@ -41,7 +41,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             'status', 'customer_name', 'customer_email', 'customer_phone',
             'customer_address', 'customer_ip', 'customer_user_agent',
             'retry_count', 'merchant_reference_id', 'error_code', 'error_description',
-            'razorpay_fee', 'razorpay_tax', 'settlement_id', 'is_settled',
+            'razorpay_fee', 'razorpay_tax', 'settlement_id', 'settlement_date', 'is_settled',
+            'cod_collected', 'cod_collected_at', 'cod_collected_by',
             'created_at', 'updated_at', 'payment_completed_at', 'expiry_at',
             'logs', 'refunds'
         ]

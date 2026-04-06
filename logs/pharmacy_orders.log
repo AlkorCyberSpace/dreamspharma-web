@@ -62,3 +62,1342 @@
 [INFO] 2026-04-04 11:59:31 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
 [INFO] 2026-04-04 11:59:31 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
 [INFO] 2026-04-04 11:59:31 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:03:58 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:03:58 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:03:58 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:03:58 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:03:58 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:04:00 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:04:00 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:04:00 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:04:00 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:04:00 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:04:00 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:04:00 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:09:56 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:09:57 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:09:57 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:09:57 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:09:57 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:09:59 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:09:59 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:09:59 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:09:59 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:09:59 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:09:59 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:09:59 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:10:26 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:10:26 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:10:26 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:10:26 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:10:26 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:10:28 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:10:28 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:10:28 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:10:28 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:10:28 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:10:28 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:10:28 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:10:41 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:10:42 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:10:42 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:10:42 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:10:42 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:10:44 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:10:44 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:10:44 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:10:44 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:10:44 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:10:44 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:10:44 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:11:03 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:11:03 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:11:03 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:11:03 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:11:03 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:11:05 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:11:05 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:11:05 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:11:05 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:11:05 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:11:05 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:11:05 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:11:16 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:11:16 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:11:16 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:11:16 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:11:16 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:11:18 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:11:18 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:11:18 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:11:18 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:11:18 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:11:18 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:11:18 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:11:25 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:11:25 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:11:25 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:11:25 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:11:25 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:11:28 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:11:28 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:11:28 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:11:28 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:11:28 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:11:28 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:11:28 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:11:51 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:11:51 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:11:51 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:11:51 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:11:51 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:11:53 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:11:53 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:11:53 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:11:53 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:11:53 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:11:53 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:11:53 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:12:07 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:12:07 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:12:07 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:12:07 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:12:07 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:12:09 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:12:09 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:12:09 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:12:09 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:12:09 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:12:09 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:12:09 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:12:20 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 12:12:20 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 12:12:20 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 12:12:20 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 12:12:20 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 12:12:22 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 12:12:22 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 12:12:22 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 12:12:22 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 12:12:22 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 12:12:22 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 12:12:22 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 12:27:22 jobs sync_itemmaster_job:19 - [2026-04-04 06:57:22.968322+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 12:27:25 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 12:27:25 jobs sync_itemmaster_job:21 - [2026-04-04 06:57:25.682979+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 12:42:22 jobs sync_itemmaster_job:19 - [2026-04-04 07:12:22.938298+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 12:42:25 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 12:42:25 jobs sync_itemmaster_job:21 - [2026-04-04 07:12:25.264239+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 12:57:22 jobs sync_itemmaster_job:19 - [2026-04-04 07:27:22.911570+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 12:57:25 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 12:57:25 jobs sync_itemmaster_job:21 - [2026-04-04 07:27:25.141991+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 13:57:22 jobs sync_itemmaster_job:19 - [2026-04-04 08:27:22.953465+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 13:57:25 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 13:57:25 jobs sync_itemmaster_job:21 - [2026-04-04 08:27:25.283209+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 14:12:22 jobs sync_itemmaster_job:19 - [2026-04-04 08:42:22.903849+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 14:12:25 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 14:12:25 jobs sync_itemmaster_job:21 - [2026-04-04 08:42:25.110253+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 14:16:07 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 14:16:07 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 14:16:07 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 14:16:07 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 14:16:07 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 14:16:09 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 14:16:09 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 14:16:09 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 14:16:09 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 14:16:09 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 14:16:09 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 14:16:09 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 14:16:15 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 14:16:15 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 14:16:15 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 14:16:15 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 14:16:15 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 14:16:17 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 14:16:17 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 14:16:17 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 14:16:17 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 14:16:17 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 14:16:17 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 14:16:17 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 14:31:17 jobs sync_itemmaster_job:19 - [2026-04-04 09:01:17.931969+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 14:31:20 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 14:31:20 jobs sync_itemmaster_job:21 - [2026-04-04 09:01:20.548124+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 14:46:17 jobs sync_itemmaster_job:19 - [2026-04-04 09:16:17.848868+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 14:46:20 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 14:46:20 jobs sync_itemmaster_job:21 - [2026-04-04 09:16:20.108560+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 14:46:52 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 14:46:53 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 14:46:53 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 14:46:53 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 14:46:53 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 14:46:55 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 14:46:55 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 14:46:56 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 14:46:56 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 14:46:56 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 14:46:56 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 14:46:56 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 15:01:56 jobs sync_itemmaster_job:19 - [2026-04-04 09:31:56.518235+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 15:01:59 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 15:01:59 jobs sync_itemmaster_job:21 - [2026-04-04 09:31:59.477261+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 15:16:56 jobs sync_itemmaster_job:19 - [2026-04-04 09:46:56.460335+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 15:16:58 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 15:16:58 jobs sync_itemmaster_job:21 - [2026-04-04 09:46:58.947221+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 15:32:58 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 15:32:58 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 15:32:58 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 15:32:58 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 15:32:58 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 15:33:00 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 15:33:00 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 15:33:01 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 15:33:01 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 15:33:01 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 15:33:01 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 15:33:01 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 15:35:07 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 15:35:07 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 15:35:07 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 15:35:07 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 15:35:07 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 15:35:09 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 15:35:09 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 15:35:09 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 15:35:09 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 15:35:09 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 15:35:09 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 15:35:09 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 15:50:10 jobs sync_itemmaster_job:19 - [2026-04-04 10:20:10.065998+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 15:50:12 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 15:50:12 jobs sync_itemmaster_job:21 - [2026-04-04 10:20:12.811384+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 15:54:33 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 15:54:33 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 15:54:33 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 15:54:33 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 15:54:33 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 15:54:35 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 15:54:35 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 15:54:35 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 15:54:35 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 15:54:35 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 15:54:35 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 15:54:35 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 15:54:39 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 15:54:40 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 15:54:40 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 15:54:40 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 15:54:40 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 15:54:42 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 15:54:42 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 15:54:42 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 15:54:42 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 15:54:42 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 15:54:42 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 15:54:42 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 15:57:30 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-04 15:57:30 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-04 15:57:30 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-04 15:57:30 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-04 15:57:30 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-04 15:57:32 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-04 15:57:32 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-04 15:57:33 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-04 15:57:33 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-04 15:57:33 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-04 15:57:33 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-04 15:57:33 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-04 16:12:33 jobs sync_itemmaster_job:19 - [2026-04-04 10:42:33.307042+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 16:12:35 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 16:12:35 jobs sync_itemmaster_job:21 - [2026-04-04 10:42:35.726999+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 16:27:33 jobs sync_itemmaster_job:19 - [2026-04-04 10:57:33.352967+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 16:27:35 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 16:27:35 jobs sync_itemmaster_job:21 - [2026-04-04 10:57:35.654060+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 16:42:33 jobs sync_itemmaster_job:19 - [2026-04-04 11:12:33.321182+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 16:42:35 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 16:42:35 jobs sync_itemmaster_job:21 - [2026-04-04 11:12:35.523605+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-04 16:57:33 jobs sync_itemmaster_job:19 - [2026-04-04 11:27:33.332559+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-04 16:57:35 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-04 16:57:35 jobs sync_itemmaster_job:21 - [2026-04-04 11:27:35.576748+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 09:58:45 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 09:58:45 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 09:58:45 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 09:58:45 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 09:58:45 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 09:58:47 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 09:58:47 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 09:58:47 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 09:58:47 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 09:58:47 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 09:58:47 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 09:58:47 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:06:33 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:06:33 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:06:33 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:06:33 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:06:33 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:06:35 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:06:35 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:06:36 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:06:36 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:06:36 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:06:36 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:06:36 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:07:00 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:00 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:07:00 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:01 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:07:01 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:01 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:07:01 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:01 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:07:01 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:01 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:07:01 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:07:01 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:01 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:07:01 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:01 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:03 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:07:03 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:07:03 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:07:03 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:07:03 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:07:03 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 1, Wishlist: 1
+[INFO] 2026-04-06 10:07:48 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:48 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:07:48 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:48 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:48 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:48 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:07:48 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:07:48 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:07:48 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:48 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:07:48 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:48 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:07:48 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:07:48 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:48 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:07:50 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:07:50 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:07:50 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:07:50 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 1, Wishlist: 1
+[INFO] 2026-04-06 10:07:50 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:07:50 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:07:59 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:07:59 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:08:01 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:08:03 views post:2026 - [CART_ADD] User: 96 (praveen) | Item: I00003 | Qty: 1 | Batch: DOLN096 | Total Items in Cart: 1
+[INFO] 2026-04-06 10:08:03 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:08:06 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:08:44 views get:3328 - [ADDRESS_LIST] User 96 retrieved 1 addresses
+[INFO] 2026-04-06 10:08:44 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:36:35.831775+00:00)
+[INFO] 2026-04-06 10:08:44 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:08:46 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:09:15 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:09:15 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:09:15 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:09:15 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:09:15 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:09:17 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:09:17 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:09:17 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:09:17 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:09:17 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:09:17 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:09:17 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:10:04 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:10:04 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:10:04 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:10:04 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:10:04 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:10:06 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:10:06 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:10:06 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:10:06 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:10:06 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:10:06 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:10:06 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:15:37 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:15:37 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:15:37 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:15:37 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:15:37 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:15:39 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:15:39 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:15:39 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:15:39 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:15:39 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:15:39 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:15:39 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:19:08 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:19:09 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:19:09 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:19:09 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:19:09 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:19:11 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:19:11 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:19:11 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:19:11 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:19:11 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:19:11 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:19:11 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:19:19 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:19 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:19:19 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:19 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:19:19 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:19 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:19:19 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:19:19 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:19 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:19 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:19:19 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:19 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:19:19 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:19:19 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:19 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:21 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:19:21 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:19:21 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:19:21 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:19:21 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 1, Wishlist: 1
+[INFO] 2026-04-06 10:19:21 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:19:35 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:35 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:19:35 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:35 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:19:35 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:19:35 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:35 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:35 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:19:35 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:35 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:35 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:19:35 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:19:35 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:19:35 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:35 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:37 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:19:37 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:19:37 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 1, Wishlist: 1
+[INFO] 2026-04-06 10:19:37 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:19:38 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:19:38 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:19:38 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:47 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:48 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:49 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:51 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[WARNING] 2026-04-06 10:19:51 views post:1989 - User 96 tried to add unavailable item I00077 - Status: EXPIRED - Cannot Order
+[INFO] 2026-04-06 10:19:52 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[WARNING] 2026-04-06 10:19:53 views post:1989 - User 96 tried to add unavailable item I00099 - Status: Out of Stock
+[INFO] 2026-04-06 10:19:53 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:54 views post:2026 - [CART_ADD] User: 96 (praveen) | Item: 648538 | Qty: 1 | Batch: 3030 | Total Items in Cart: 2
+[INFO] 2026-04-06 10:19:54 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:55 views post:2026 - [CART_ADD] User: 96 (praveen) | Item: 513556 | Qty: 1 | Batch: PARA002 | Total Items in Cart: 2
+[INFO] 2026-04-06 10:19:55 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:56 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:57 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:57 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:19:57 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:57 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:57 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:57 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:19:57 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:19:57 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:57 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:19:57 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:19:57 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:57 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:19:57 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:19:57 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:57 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:19:57 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:58 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:19:59 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:19:59 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:19:59 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:19:59 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:19:59 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 10:19:59 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:19:59 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:20:01 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:20:32 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:20:32 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:20:32 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:20:32 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:20:32 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:20:32 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:20:32 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:20:32 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:20:32 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:20:32 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:20:32 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:20:32 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:20:32 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:20:32 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:20:32 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:20:34 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:20:34 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:20:34 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:20:34 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:20:34 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:20:34 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 10:25:36 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:25:36 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:25:36 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:25:36 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:25:36 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:25:36 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:25:36 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:25:36 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:25:36 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:25:36 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:25:36 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:25:37 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:25:37 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:25:37 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:25:37 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:25:38 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:25:38 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:25:38 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:25:39 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 10:25:39 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:25:39 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:26:01 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:26:01 views get:1074 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:26:01 views get:1081 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:26:02 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:26:02 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:26:02 views get:4352 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:26:02 views get:4355 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:26:02 views get:4388 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:26:02 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:26:02 views fetch_all_items_from_erp:3199 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:26:02 views get:5301 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:26:02 views get_serializer_context:5335 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:26:02 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T04:49:11.198947+00:00)
+[INFO] 2026-04-06 10:26:02 views get_serializer_context:5356 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:26:02 views get_serializer_context:5369 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:26:04 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:26:04 views get:1187 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:26:04 views get:4989 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 10:26:04 views fetch_all_items_from_erp:3210 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:26:04 views get_serializer_context:5384 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:26:04 views get:4470 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:31:50 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:31:50 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:31:50 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:31:50 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:31:50 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:31:52 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:31:52 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:31:52 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:31:52 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:31:52 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:31:52 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:31:52 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:38:16 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:38:17 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:38:17 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:38:17 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:38:17 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:38:19 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:38:19 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:38:19 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:38:19 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:38:19 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:38:19 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:38:19 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:38:33 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:38:33 views get:1079 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:38:33 views get:1086 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:38:33 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:38:33 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:38:33 views get:5306 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:38:33 views get_serializer_context:5340 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:38:33 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:38:33 views get_serializer_context:5361 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:38:33 views get_serializer_context:5374 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:38:33 views get:4357 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:38:33 views get:4360 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:38:33 views get:4393 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:38:33 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:38:33 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:38:35 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:38:35 views get_serializer_context:5389 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:38:35 views get:4994 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 10:38:35 views get:1192 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:38:35 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:38:35 views get:4475 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:39:06 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:39:06 views get:1079 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 10:39:06 views get:1086 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:39:06 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:39:06 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:39:06 views get:5306 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 10:39:06 views get_serializer_context:5340 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 10:39:06 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:39:06 views get_serializer_context:5361 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 10:39:06 views get_serializer_context:5374 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:39:06 views get:4357 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 10:39:06 views get:4360 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 10:39:06 views get:4393 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 10:39:06 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:08:19.147544+00:00)
+[INFO] 2026-04-06 10:39:06 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:39:08 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:39:08 views get_serializer_context:5389 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 10:39:08 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:39:08 views get:4475 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 10:39:08 views get:4994 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 10:39:08 views get:1192 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 10:44:18 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:44:19 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:44:19 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:44:19 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:44:19 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:44:21 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:44:21 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:44:21 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:44:21 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:44:21 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:44:21 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:44:21 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:46:58 views get:3333 - [ADDRESS_LIST] User 96 retrieved 1 addresses
+[INFO] 2026-04-06 10:46:58 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:14:21.169447+00:00)
+[INFO] 2026-04-06 10:46:58 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 10:47:01 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 10:49:15 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:49:15 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:49:15 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:49:15 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:49:15 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:49:17 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:49:17 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:49:17 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:49:17 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:49:17 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:49:17 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:49:17 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:49:38 views put:2258 - [WISHLIST_UPDATE] User: 96 (praveen) | WishlistItem: 39 | Quantity: 2
+[INFO] 2026-04-06 10:49:43 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:43 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:45 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:45 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:47 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:47 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:53 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:55 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:49:56 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:50:00 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:50:01 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:50:03 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:50:05 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:50:47 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:50:49 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:50:51 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:51:08 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:51:08 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:51:08 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:51:08 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:51:08 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:51:10 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:51:10 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:51:10 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:51:10 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:51:10 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:51:10 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:51:10 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:51:16 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:51:18 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:51:20 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:19:17.707986+00:00)
+[INFO] 2026-04-06 10:53:48 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:53:49 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:53:49 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:53:49 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:53:49 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:53:49 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:53:49 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:53:49 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:53:49 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:53:49 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:53:51 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:53:51 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:53:51 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:53:51 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:53:51 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:53:51 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:53:51 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:53:51 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:53:51 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:53:52 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:53:52 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:53:52 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:53:52 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:53:52 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:54:12 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:54:12 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:54:12 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:54:12 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:54:12 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:54:14 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:54:14 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:54:14 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:54:14 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:54:14 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:54:14 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:54:14 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:55:25 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:55:26 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:55:26 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:55:26 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:55:26 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:55:26 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:55:26 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:55:26 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:55:26 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:55:26 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:55:28 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:55:28 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:55:28 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:55:28 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:55:28 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:55:28 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:55:28 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:55:28 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:55:28 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:55:28 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:55:28 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:55:28 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:55:28 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:55:28 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 10:57:40 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 10:57:40 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 10:57:40 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 10:57:40 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 10:57:40 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 10:57:42 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 10:57:42 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 10:57:42 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 10:57:42 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 10:57:42 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 10:57:42 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 10:57:42 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 11:00:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:00:50 views get:1079 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 11:00:50 views get:1086 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:00:50 views get:5306 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 11:00:50 views get_serializer_context:5340 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 11:00:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:00:50 views get_serializer_context:5361 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 11:00:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:00:50 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:00:50 views get_serializer_context:5374 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:00:50 views get:4357 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 11:00:50 views get:4360 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 11:00:50 views get:4393 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 11:00:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:00:50 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:00:52 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:00:52 views get_serializer_context:5389 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 11:00:52 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:00:52 views get:4994 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 11:00:52 views get:4475 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 11:00:52 views get:1192 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 11:01:51 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:01:51 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:01:51 views get:3333 - [ADDRESS_LIST] User 96 retrieved 1 addresses
+[INFO] 2026-04-06 11:01:53 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:03:19 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:19 views get:1079 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 11:03:19 views get:1086 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:19 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:19 views get:5306 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 11:03:19 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:19 views get_serializer_context:5340 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 11:03:19 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:19 views get:4357 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 11:03:20 views get_serializer_context:5361 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 11:03:20 views get_serializer_context:5374 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:20 views get:4360 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 11:03:20 views get:4393 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 11:03:20 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:20 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:22 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:03:22 views get_serializer_context:5389 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 11:03:22 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:03:22 views get:4475 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 11:03:22 views get:4994 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 11:03:22 views get:1192 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 11:03:49 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:49 views get:1079 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 11:03:49 views get:1086 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:49 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:49 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:49 views get:5306 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 11:03:49 views get_serializer_context:5340 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 11:03:49 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:49 views get_serializer_context:5361 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 11:03:49 views get_serializer_context:5374 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:49 views get:4357 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 11:03:49 views get:4360 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 11:03:49 views get:4393 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 11:03:49 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:27:42.482483+00:00)
+[INFO] 2026-04-06 11:03:49 views fetch_all_items_from_erp:3204 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:03:51 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:03:51 views get_serializer_context:5389 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 11:03:52 views fetch_all_items_from_erp:3215 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:03:52 views get:4994 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 11:03:52 views get:4475 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 11:03:52 views get:1192 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 11:12:43 jobs sync_itemmaster_job:19 - [2026-04-06 05:42:43.150977+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 11:12:46 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 11:12:46 jobs sync_itemmaster_job:21 - [2026-04-06 05:42:46.455240+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 11:22:47 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 11:22:48 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 11:22:48 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 11:22:48 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 11:22:48 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 11:22:50 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 11:22:50 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 11:22:51 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 11:22:51 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 11:22:51 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 11:22:51 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 11:22:51 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 11:24:34 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:24:34 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 11:24:34 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:24:34 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 11:24:34 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:24:34 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 11:24:34 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:24:34 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:24:34 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 11:24:34 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:24:34 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 11:24:34 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 11:24:34 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 11:24:34 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:24:34 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:24:36 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:24:36 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 11:24:36 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:24:36 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 11:24:36 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 11:24:36 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 11:28:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:28:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:28:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:28:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[WARNING] 2026-04-06 11:28:29 views post:2007 - User 96 tried to add unavailable item I00099 - Status: Out of Stock
+[INFO] 2026-04-06 11:28:29 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:29:40 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:29:40 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 11:29:40 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:29:41 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 11:29:41 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:29:41 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:29:41 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 11:29:41 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:29:41 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 11:29:41 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:29:41 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 11:29:41 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 11:29:41 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 11:29:41 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:29:41 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:29:43 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 11:29:43 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:29:43 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:29:43 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 11:29:43 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 11:29:43 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 11:31:08 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:31:08 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 11:31:08 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:31:08 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:31:08 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:31:08 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 11:31:08 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 11:31:08 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 11:31:08 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:31:08 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 11:31:08 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:31:08 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 11:31:08 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 11:31:08 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:31:08 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:31:10 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:31:10 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 11:31:10 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:31:10 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 11:31:10 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 11:31:10 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 11:37:51 jobs sync_itemmaster_job:19 - [2026-04-06 06:07:51.254802+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 11:37:53 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 11:37:53 jobs sync_itemmaster_job:21 - [2026-04-06 06:07:53.540571+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 11:46:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:46:27 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 11:46:27 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:46:27 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 11:46:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:46:27 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:46:27 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 11:46:27 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 11:46:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:46:27 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 11:46:27 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:46:27 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 11:46:27 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 11:46:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 11:46:27 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 11:46:29 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:46:29 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 11:46:29 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 11:46:29 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 11:46:29 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 11:46:29 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 11:52:51 jobs sync_itemmaster_job:19 - [2026-04-06 06:22:51.282795+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 11:52:53 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 11:52:53 jobs sync_itemmaster_job:21 - [2026-04-06 06:22:53.498859+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 12:22:51 jobs sync_itemmaster_job:19 - [2026-04-06 06:52:51.269723+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 12:22:53 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 12:22:54 jobs sync_itemmaster_job:21 - [2026-04-06 06:52:54.003431+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 12:52:51 jobs sync_itemmaster_job:19 - [2026-04-06 07:22:51.269065+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 12:52:53 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 12:52:53 jobs sync_itemmaster_job:21 - [2026-04-06 07:22:53.568166+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 12:59:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 12:59:25 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 12:59:25 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 12:59:25 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 12:59:25 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 12:59:25 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 12:59:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 12:59:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 12:59:25 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 12:59:25 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 12:59:25 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 12:59:25 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 12:59:26 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 12:59:26 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 12:59:26 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 12:59:28 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 12:59:28 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 12:59:28 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 12:59:28 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 12:59:28 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 12:59:28 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 13:37:51 jobs sync_itemmaster_job:19 - [2026-04-06 08:07:51.212428+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 13:37:53 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 13:37:53 jobs sync_itemmaster_job:21 - [2026-04-06 08:07:53.469139+00:00] sync_itemmaster job completed successfully
+[ERROR] 2026-04-06 13:44:27 views post:5585 - Failed to send welcome notification: No module named 'firebase_admin'
+Traceback (most recent call last):
+  File "C:\Users\soorya\Desktop\Dreampharma\dreamspharma\dreamspharma\dreamspharmaapp\views.py", line 5577, in post
+    from .services import send_push_notification
+  File "C:\Users\soorya\Desktop\Dreampharma\dreamspharma\dreamspharma\dreamspharmaapp\services.py", line 3, in <module>
+    import firebase_admin
+ModuleNotFoundError: No module named 'firebase_admin'
+[INFO] 2026-04-06 13:44:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 13:44:27 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 13:44:27 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 13:44:27 views get:5319 - [CATEGORIES] User ID 101 validated successfully
+[INFO] 2026-04-06 13:44:27 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 101
+[INFO] 2026-04-06 13:44:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 13:44:27 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 13:44:27 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 13:44:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 13:44:27 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 13:44:27 views get:4370 - [PERSONALIZED] No user-specific searches for user 101, using popular global searches
+[INFO] 2026-04-06 13:44:27 views get:4373 - [PERSONALIZED] User 101 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 13:44:27 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 13:44:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T05:52:50.877565+00:00)
+[INFO] 2026-04-06 13:44:27 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 13:44:29 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 13:44:29 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 13:44:29 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 13:44:29 views get:5007 - [USER_ACTIVITY] Fetched activity for user 101 | Views: 0, Cart: 0, Wishlist: 0
+[INFO] 2026-04-06 13:44:29 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 101 | Source: personalized
+[INFO] 2026-04-06 13:44:29 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 14:09:00 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:09:01 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:09:01 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:09:01 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:09:01 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[ERROR] 2026-04-06 14:09:05 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-04-06 14:09:05 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[ERROR] 2026-04-06 14:09:05 erp_token_service initialize_erp_token:211 - [ERP_TOKEN] [FAILED] Failed to initialize ERP token
+[INFO] 2026-04-06 14:09:05 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:09:05 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:09:05 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:10:31 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:10:31 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:10:31 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:10:31 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:10:31 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[ERROR] 2026-04-06 14:10:35 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-04-06 14:10:35 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[ERROR] 2026-04-06 14:10:35 erp_token_service initialize_erp_token:211 - [ERP_TOKEN] [FAILED] Failed to initialize ERP token
+[INFO] 2026-04-06 14:10:35 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:10:35 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:10:35 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:14:03 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:14:03 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:14:03 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 14:14:03 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 14:14:03 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 14:14:03 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:14:03 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 14:14:03 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 14:14:03 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:03 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[ERROR] 2026-04-06 14:14:07 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-04-06 14:14:07 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[ERROR] 2026-04-06 14:14:07 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-04-06 14:14:07 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[WARNING] 2026-04-06 14:14:07 erp_token_service get_erp_token_for_request:182 - [ERP_TOKEN] [WARNING] Using fallback token from database (cache miss)
+[ERROR] 2026-04-06 14:14:07 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[INFO] 2026-04-06 14:14:07 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[ERROR] 2026-04-06 14:14:07 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[WARNING] 2026-04-06 14:14:07 erp_token_service get_erp_token_for_request:182 - [ERP_TOKEN] [WARNING] Using fallback token from database (cache miss)
+[INFO] 2026-04-06 14:14:07 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 14:14:07 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[ERROR] 2026-04-06 14:14:07 erp_token_service generate_erp_token_from_server:59 - [ERP_TOKEN] [FAILED] Connection error - Failed to reach ERP server at http://localhost:44000
+[ERROR] 2026-04-06 14:14:07 erp_token_service get_cached_erp_token:97 - [ERP_TOKEN] [FAILED] Failed to generate new token
+[WARNING] 2026-04-06 14:14:07 erp_token_service get_erp_token_for_request:182 - [ERP_TOKEN] [WARNING] Using fallback token from database (cache miss)
+[INFO] 2026-04-06 14:14:07 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[WARNING] 2026-04-06 14:14:07 erp_token_service get_erp_token_for_request:182 - [ERP_TOKEN] [WARNING] Using fallback token from database (cache miss)
+[INFO] 2026-04-06 14:14:07 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 14:14:07 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[ERROR] 2026-04-06 14:14:11 views fetch_all_items_from_erp:3235 - [ERP_ERROR] Failed to connect to ERP server
+[ERROR] 2026-04-06 14:14:11 views get_serializer_context:5407 - [CATEGORIES] [FAILED] Failed to fetch ERP data: HTTPConnectionPool(host='localhost', port=44000): Max retries exceeded with url: /ws_c2_services_get_master_data?apiKey=MDNDMDAwMDAxXjIwMjYtMDQtMDYgMTE6MjI%3D (Caused by NewConnectionError("HTTPConnection(host='localhost', port=44000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[ERROR] 2026-04-06 14:14:11 views fetch_all_items_from_erp:3235 - [ERP_ERROR] Failed to connect to ERP server
+[INFO] 2026-04-06 14:14:11 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 14:14:11 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 14:14:20 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:14:20 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 14:14:20 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 14:14:20 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 14:14:20 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 14:14:20 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 14:14:20 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:20 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:14:20 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:14:20 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:14:22 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:14:22 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:14:22 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 14:14:22 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:14:22 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:14:22 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:14:22 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 14:14:22 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:14:22 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:14:22 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:14:22 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:14:23 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:14:23 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:14:23 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:14:24 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 14:14:25 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 14:14:25 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 14:14:25 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 14:14:25 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 14:14:25 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 14:16:33 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:16:33 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:16:33 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:16:33 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:16:33 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:16:35 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:16:35 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:16:35 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:16:35 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:16:35 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:16:35 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:16:35 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:24:19 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:24:19 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:24:19 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:24:19 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:24:19 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:24:21 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:24:21 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:24:22 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:24:22 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:24:22 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:24:22 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:24:22 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:24:32 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:24:32 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:24:32 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:24:32 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:24:32 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:24:34 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:24:34 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:24:35 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:24:35 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:24:36 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:24:36 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:24:36 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:24:47 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:24:47 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:24:47 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:24:47 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:24:47 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:24:50 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:24:50 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:24:50 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:24:50 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:24:50 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:24:50 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:24:50 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:25:24 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:25:25 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:25:25 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:25:25 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:25:25 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:25:27 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:25:27 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:25:27 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:25:27 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:25:27 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:25:27 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:25:27 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:25:31 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:25:31 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:25:31 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:25:31 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:25:31 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:25:33 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:25:33 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:25:33 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:25:33 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:25:33 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:25:33 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:25:33 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:27:12 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:27:12 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:27:12 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:27:12 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:27:12 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:27:14 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:27:14 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:27:14 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:27:14 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:27:14 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:27:14 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:27:14 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:27:20 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:27:21 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:27:21 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:27:21 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:27:21 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:27:23 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:27:23 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:27:23 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:27:23 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:27:23 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:27:23 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:27:23 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:31:25 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:31:25 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:31:25 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:31:25 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:31:25 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:31:28 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:31:28 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:31:28 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:31:28 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:31:28 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:31:28 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:31:28 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:32:23 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:01:28.002031+00:00)
+[INFO] 2026-04-06 14:32:23 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 14:32:23 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:32:23 views get:5319 - [CATEGORIES] User ID 96 validated successfully
+[INFO] 2026-04-06 14:32:23 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:01:28.002031+00:00)
+[INFO] 2026-04-06 14:32:23 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:32:23 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 96
+[INFO] 2026-04-06 14:32:23 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:01:28.002031+00:00)
+[INFO] 2026-04-06 14:32:23 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 14:32:23 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:32:23 views get:4370 - [PERSONALIZED] No user-specific searches for user 96, using popular global searches
+[INFO] 2026-04-06 14:32:23 views get:4373 - [PERSONALIZED] User 96 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 14:32:23 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 14:32:23 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:01:28.002031+00:00)
+[INFO] 2026-04-06 14:32:23 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:32:25 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 14:32:25 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 14:32:25 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 14:32:25 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 14:32:25 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 96 | Source: personalized
+[INFO] 2026-04-06 14:32:25 views get:5007 - [USER_ACTIVITY] Fetched activity for user 96 | Views: 0, Cart: 3, Wishlist: 1
+[INFO] 2026-04-06 14:32:27 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:01:28.002031+00:00)
+[INFO] 2026-04-06 14:32:27 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 14:32:27 views get:3346 - [ADDRESS_LIST] User 96 retrieved 1 addresses
+[INFO] 2026-04-06 14:32:29 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 14:45:11 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:45:12 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:45:12 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:45:12 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:45:12 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:45:14 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:45:14 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:45:14 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:45:14 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:45:14 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:45:14 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:45:14 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 14:58:09 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 14:58:10 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 14:58:10 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 14:58:10 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 14:58:10 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 14:58:12 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 14:58:12 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 14:58:12 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 14:58:12 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 14:58:12 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 14:58:12 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 14:58:12 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 15:02:16 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 15:02:16 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 15:02:16 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 15:02:16 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 15:02:16 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 15:02:18 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 15:02:18 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 15:02:19 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 15:02:19 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 15:02:19 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 15:02:19 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 15:02:19 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 15:17:19 jobs sync_itemmaster_job:19 - [2026-04-06 09:47:19.228787+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 15:17:21 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 15:17:21 jobs sync_itemmaster_job:21 - [2026-04-06 09:47:21.753371+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 15:19:54 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:32:18.898703+00:00)
+[INFO] 2026-04-06 15:19:55 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 15:19:55 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:19:55 views get:5319 - [CATEGORIES] User ID 104 validated successfully
+[INFO] 2026-04-06 15:19:55 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:32:18.898703+00:00)
+[INFO] 2026-04-06 15:19:55 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:19:55 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 104
+[INFO] 2026-04-06 15:19:55 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:32:18.898703+00:00)
+[INFO] 2026-04-06 15:19:55 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 15:19:55 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:19:55 views get:4370 - [PERSONALIZED] No user-specific searches for user 104, using popular global searches
+[INFO] 2026-04-06 15:19:55 views get:4373 - [PERSONALIZED] User 104 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 15:19:55 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 15:19:55 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:32:18.898703+00:00)
+[INFO] 2026-04-06 15:19:55 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:19:57 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 15:19:57 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:19:57 views get:5007 - [USER_ACTIVITY] Fetched activity for user 104 | Views: 0, Cart: 0, Wishlist: 0
+[INFO] 2026-04-06 15:19:57 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:19:57 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 104 | Source: personalized
+[INFO] 2026-04-06 15:19:57 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 15:21:42 apps ready:31 - [ERP_TOKEN] Initializing ERP token on app startup...
+[INFO] 2026-04-06 15:21:43 erp_token_service initialize_erp_token:204 - [ERP_TOKEN] [INIT] Initializing ERP token service...
+[INFO] 2026-04-06 15:21:43 erp_token_service get_cached_erp_token:83 - [ERP_TOKEN] [NOTE] Token not found in cache or expired. Generating new token...
+[INFO] 2026-04-06 15:21:43 erp_token_service generate_erp_token_from_server:37 - [ERP_TOKEN] [REFRESH] Generating new token from ERP server...
+[INFO] 2026-04-06 15:21:43 erp_token_service generate_erp_token_from_server:38 - [ERP_TOKEN] Request URL: http://localhost:44000/ws_c2_services_generate_token
+[INFO] 2026-04-06 15:21:45 erp_token_service generate_erp_token_from_server:46 - [ERP_TOKEN] [SUCCESS] Token generated successfully!
+[INFO] 2026-04-06 15:21:45 erp_token_service get_cached_erp_token:94 - [ERP_TOKEN] [DB] Token cached for 24 hours
+[INFO] 2026-04-06 15:21:45 erp_token_service save_token_to_db:122 - [ERP_TOKEN] [DB] Updated token in database
+[INFO] 2026-04-06 15:21:45 erp_token_service initialize_erp_token:209 - [ERP_TOKEN] [SUCCESS] ERP token service initialized successfully
+[INFO] 2026-04-06 15:21:45 apps ready:72 - [OK] APScheduler started - Jobs scheduled:
+[INFO] 2026-04-06 15:21:45 apps ready:73 -   [OK] sync_itemmaster: every 15 minutes
+[INFO] 2026-04-06 15:21:45 apps ready:74 -   [OK] refresh_erp_token: every 23 hours
+[INFO] 2026-04-06 15:25:43 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:25:43 views get:3346 - [ADDRESS_LIST] User 105 retrieved 0 addresses
+[INFO] 2026-04-06 15:25:43 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:25:45 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:35:49 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:35:49 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 15:35:49 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:35:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:35:50 views get:5319 - [CATEGORIES] User ID 106 validated successfully
+[INFO] 2026-04-06 15:35:50 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:35:50 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 106
+[INFO] 2026-04-06 15:35:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:35:50 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 15:35:50 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:35:50 views get:4370 - [PERSONALIZED] No user-specific searches for user 106, using popular global searches
+[INFO] 2026-04-06 15:35:50 views get:4373 - [PERSONALIZED] User 106 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 15:35:50 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 15:35:50 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:35:50 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:35:52 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 15:35:52 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:35:52 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:35:52 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 106 | Source: personalized
+[INFO] 2026-04-06 15:35:52 views get:5007 - [USER_ACTIVITY] Fetched activity for user 106 | Views: 0, Cart: 0, Wishlist: 0
+[INFO] 2026-04-06 15:35:52 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 15:36:45 jobs sync_itemmaster_job:19 - [2026-04-06 10:06:45.824248+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 15:36:48 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 15:36:48 jobs sync_itemmaster_job:21 - [2026-04-06 10:06:48.047276+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 15:43:09 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:43:09 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 15:43:09 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:43:09 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:43:09 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:43:09 views get:5319 - [CATEGORIES] User ID 107 validated successfully
+[INFO] 2026-04-06 15:43:09 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 107
+[INFO] 2026-04-06 15:43:09 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:43:09 views get:4370 - [PERSONALIZED] No user-specific searches for user 107, using popular global searches
+[INFO] 2026-04-06 15:43:09 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 15:43:09 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:43:09 views get:4373 - [PERSONALIZED] User 107 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 15:43:09 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 15:43:09 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:43:09 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:43:11 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:43:11 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 15:43:11 views get:5007 - [USER_ACTIVITY] Fetched activity for user 107 | Views: 0, Cart: 0, Wishlist: 0
+[INFO] 2026-04-06 15:43:11 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:43:11 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 107 | Source: personalized
+[INFO] 2026-04-06 15:43:11 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 15:51:45 jobs sync_itemmaster_job:19 - [2026-04-06 10:21:45.827994+00:00] Starting sync_itemmaster job...
+[INFO] 2026-04-06 15:51:48 sync_itemmaster handle:86 - ItemMaster sync result: Created: 0, Updated: 8, Errors: 0
+[INFO] 2026-04-06 15:51:48 jobs sync_itemmaster_job:21 - [2026-04-06 10:21:48.134309+00:00] sync_itemmaster job completed successfully
+[INFO] 2026-04-06 15:52:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:52:25 views get:1092 - [GET_ITEM_MASTER] Using auto-generated token
+[INFO] 2026-04-06 15:52:25 views get:1099 - [GET_ITEM_MASTER] Fetching from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:52:25 views get:5319 - [CATEGORIES] User ID 108 validated successfully
+[INFO] 2026-04-06 15:52:25 views get_serializer_context:5353 - [CATEGORIES] Using provided userId: 108
+[INFO] 2026-04-06 15:52:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:52:25 views get_serializer_context:5374 - [CATEGORIES] Using auto-generated ERP token
+[INFO] 2026-04-06 15:52:25 views get_serializer_context:5387 - [CATEGORIES] Fetching ERP data from: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:52:25 views get:4370 - [PERSONALIZED] No user-specific searches for user 108, using popular global searches
+[INFO] 2026-04-06 15:52:25 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:52:25 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:52:25 views get:4373 - [PERSONALIZED] User 108 | Purchases: 0 categories | Searches: 5 keywords
+[INFO] 2026-04-06 15:52:26 views get:4406 - [PERSONALIZED] Found 4 products by keywords: ['paracetamol', 'para', 'pa', 'par', 'do']
+[INFO] 2026-04-06 15:52:26 erp_token_service get_cached_erp_token:79 - [ERP_TOKEN] [SUCCESS] Using cached token (valid until 2026-04-07T09:51:45.537766+00:00)
+[INFO] 2026-04-06 15:52:26 views fetch_all_items_from_erp:3217 - [ERP_FETCH_ALL] Fetching all items from ERP: http://localhost:44000/ws_c2_services_get_master_data
+[INFO] 2026-04-06 15:52:27 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:52:28 views get:5007 - [USER_ACTIVITY] Fetched activity for user 108 | Views: 0, Cart: 0, Wishlist: 0
+[INFO] 2026-04-06 15:52:28 views get:1205 - [GET_ITEM_MASTER] Fetched 8 items from ERP server with product enhancements
+[INFO] 2026-04-06 15:52:28 views get_serializer_context:5402 - [CATEGORIES] [SUCCESS] Successfully enriched with 8 ERP items
+[INFO] 2026-04-06 15:52:28 views fetch_all_items_from_erp:3228 - [ERP_FETCH_ALL] Successfully fetched 8 items from ERP
+[INFO] 2026-04-06 15:52:28 views get:4488 - [PERSONALIZED] Generated 4 recommendations for user 108 | Source: personalized

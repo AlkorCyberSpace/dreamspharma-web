@@ -42,5 +42,9 @@ urlpatterns = [
     # Public Endpoints - Homepage & Category Offers
     path('offers/homepage/', views.HomePageOffersView.as_view(), name='homepage-offers'),
     path('offers/category/<int:category_id>/', views.CategoryOffersView.as_view(), name='category-offers'),
+
+    # ==================== ADMIN NOTIFICATIONS ENDPOINTS ==================== # SuperAdmin - Notifications
+    path('superadmin/notifications/', views.AdminNotificationListView.as_view(), name='superadmin-notifications'),
+    path('superadmin/notifications/<int:notification_id>/mark-read/', views.AdminNotificationMarkReadView.as_view(), name='superadmin-notification-mark-read'),
 ]
    

@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model, logout
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from datetime import timedelta
 from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer
 from .serializers import (
     RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer, DashboardStatisticsSerializer, ChangePasswordSerializer, SuperAdminProfileSerializer, SuperAdminProfileImageSerializer, AddCategorySerializer
@@ -118,29 +119,83 @@ class RejectKYCView(APIView):
 
 class DashboardStatisticsView(APIView):
     """
-    API endpoint for superadmin to get dashboard statistics.
+    API endpoint for superadmin to get dashboard statistics with week-over-week comparisons.
     GET /api/superadmin/dashboard/statistics/ - Get dashboard statistics
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Get dashboard statistics for superadmin"""
+        """Get dashboard statistics for superadmin with week-over-week metrics"""
         # Check if user is a superadmin
         if request.user.role != 'SUPERADMIN':
             return Response({
                 'error': 'Only Super Admin can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Calculate statistics
+        # Current week metrics (last 7 days)
+        today = timezone.now().date()
+        week_start = today - timedelta(days=7)
+        prev_week_start = today - timedelta(days=14)
+        
+        # Total Retailers (all time vs last week)
         total_retailers = User.objects.filter(role='RETAILER').count()
+        retailers_last_week = User.objects.filter(
+            role='RETAILER',
+            created_at__gte=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
+        ).count()
+        retailers_prev_week = User.objects.filter(
+            role='RETAILER',
+            created_at__gte=timezone.make_aware(timezone.datetime.combine(prev_week_start, timezone.datetime.min.time())),
+            created_at__lt=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
+        ).count()
+        
+        # Calculate retailer change percentage
+        retailers_change = 0
+        if retailers_prev_week > 0:
+            retailers_change = ((retailers_last_week - retailers_prev_week) / retailers_prev_week) * 100
+        
+        # Pending KYC (all time vs last week)
         pending_kyc = KYC.objects.filter(status='PENDING').count()
+        pending_kyc_last_week = KYC.objects.filter(
+            status='PENDING',
+            submitted_at__gte=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
+        ).count()
+        pending_kyc_prev_week = KYC.objects.filter(
+            status='PENDING',
+            submitted_at__gte=timezone.make_aware(timezone.datetime.combine(prev_week_start, timezone.datetime.min.time())),
+            submitted_at__lt=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
+        ).count()
+        
+        # Calculate pending KYC change
+        # For pending KYC, showing the difference in absolute numbers
+        pending_kyc_change = pending_kyc_last_week - pending_kyc_prev_week
+        
+        # Total Orders metrics
         total_orders = SalesOrder.objects.count()
+        orders_last_week = SalesOrder.objects.filter(
+            created_at__gte=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
+        ).count()
+        orders_prev_week = SalesOrder.objects.filter(
+            created_at__gte=timezone.make_aware(timezone.datetime.combine(prev_week_start, timezone.datetime.min.time())),
+            created_at__lt=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
+        ).count()
+        
+        # Calculate orders change percentage
+        orders_change = 0
+        if orders_prev_week > 0:
+            orders_change = ((orders_last_week - orders_prev_week) / orders_prev_week) * 100
         
         # Prepare data
         stats_data = {
             'total_retailers': total_retailers,
+            'retailers_change_percentage': round(retailers_change, 2),
+            'retailers_change_text': f"+{round(retailers_change, 0)}% from last week" if retailers_change >= 0 else f"{round(retailers_change, 0)}% from last week",
             'pending_kyc': pending_kyc,
+            'pending_kyc_change': pending_kyc_change,
+            'pending_kyc_change_text': f"-{abs(pending_kyc_change)} from last week" if pending_kyc_change < 0 else f"+{pending_kyc_change} from last week",
             'total_orders': total_orders,
+            'orders_change_percentage': round(orders_change, 2),
+            'orders_change_text': f"+{round(orders_change, 0)}% from last week" if orders_change >= 0 else f"{round(orders_change, 0)}% from last week",
         }
         
         serializer = DashboardStatisticsSerializer(stats_data)
@@ -960,3 +1015,53 @@ class CategoryOffersView(APIView):
             'status': 'success',
             'data': serializer.data
         }, status=status.HTTP_200_OK)
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from .models import AdminNotification
+from .serializers import AdminNotificationSerializer
+
+class AdminNotificationListView(APIView):
+    """
+    List admin notifications
+    GET /api/superadmin/notifications/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Only Super Admin can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+        
+        unread_only = request.query_params.get('unread_only', 'false').lower() == 'true'
+        if unread_only:
+            notifications = AdminNotification.objects.filter(is_read=False)
+        else:
+            notifications = AdminNotification.objects.all()
+            
+        serializer = AdminNotificationSerializer(notifications, many=True)
+        return Response({
+            'status': 'success',
+            'unread_count': AdminNotification.objects.filter(is_read=False).count(),
+            'data': serializer.data
+        })
+
+class AdminNotificationMarkReadView(APIView):
+    """
+    Mark notification as read
+    POST /api/superadmin/notifications/<id>/mark-read/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, notification_id):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Only Super Admin can access this endpoint'}, status=status.HTTP_403_FORBIDDEN)
+            
+        try:
+            notification = AdminNotification.objects.get(id=notification_id)
+            notification.is_read = True
+            notification.save()
+            return Response({'status': 'success', 'message': 'Notification marked as read'})
+        except AdminNotification.DoesNotExist:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
