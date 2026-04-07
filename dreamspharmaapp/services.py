@@ -1,4 +1,5 @@
 import os
+import logging
 import firebase_admin
 from firebase_admin import credentials, messaging
 from django.conf import settings
@@ -24,32 +25,40 @@ def send_push_notification(user, title, body, data=None):
     """
     Send push notification to all active devices of a user
     """
-    if not firebase_admin._apps:
-        print("Firebase is not initialized. Cannot send notification.")
-        return {"error": "Firebase not initialized"}
-        
-    if data is None:
-        data = {}
-    
-    # Needs to be string dict for Firebase data payload
-    data_payload = {str(k): str(v) for k, v in data.items()}
-    
-    devices = user.fcm_devices.filter(is_active=True)
-    if not devices.exists():
-        return {"success": 0, "failure": 0, "errors": "No active devices found"}
-    
-    tokens = [device.registration_id for device in devices]
-    
-    message = messaging.MulticastMessage(
-        notification=messaging.Notification(
-            title=title,
-            body=body
-        ),
-        data=data_payload,
-        tokens=tokens,
-    )
-    
     try:
+        if not firebase_admin._apps:
+            logger = logging.getLogger(__name__)
+            logger.warning("Firebase is not initialized. Cannot send notification.")
+            return {"error": "Firebase not initialized"}
+            
+        if data is None:
+            data = {}
+        
+        # Needs to be string dict for Firebase data payload
+        data_payload = {str(k): str(v) for k, v in data.items()}
+        
+        # Refresh user to get latest related objects
+        from .models import CustomUser
+        user = CustomUser.objects.get(pk=user.pk)
+        
+        devices = user.fcm_devices.filter(is_active=True)
+        if not devices.exists():
+            return {"success": 0, "failure": 0}
+        
+        tokens = [device.registration_id for device in devices if device.registration_id]
+        
+        if not tokens:
+            return {"success": 0, "failure": 0}
+        
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(
+                title=title,
+                body=body
+            ),
+            data=data_payload,
+            tokens=tokens,
+        )
+        
         response = messaging.send_each_for_multicast(message)
         
         # Handle failed tokens (e.g. unregister them)
@@ -69,5 +78,7 @@ def send_push_notification(user, title, body, data=None):
             "failure": response.failure_count
         }
     except Exception as e:
-        print(f"Error sending push notification: {e}")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Error sending push notification: {e}")
         return {"error": str(e)}

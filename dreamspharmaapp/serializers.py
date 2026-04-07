@@ -531,7 +531,6 @@ class CreateSalesOrderRequestSerializer(serializers.Serializer):
     orderTotal = serializers.DecimalField(max_digits=12, decimal_places=2)
     orderDiscPer = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=0.00)
     refNo = serializers.IntegerField(required=False)
-    orderId = serializers.IntegerField()
     remark = serializers.CharField(required=False, allow_null=True)
     urgentFlag = serializers.IntegerField(required=False, default=0)
     ordConversionFlag = serializers.IntegerField(required=False, default=0)

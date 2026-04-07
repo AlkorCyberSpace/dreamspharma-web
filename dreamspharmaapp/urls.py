@@ -75,6 +75,10 @@ urlpatterns = [
     path('checkout/preview/', views.OrderConfirmationPreviewView.as_view(), name='checkout-preview'),
     path('checkout/address/', views.CheckoutWithAddressView.as_view(), name='checkout-with-address'),
     
+    # ==================== NOTIFICATIONS ENDPOINTS ====================
+    path('notifications/register/<int:user_id>/', views.RegisterDeviceTokenView.as_view(), name='register-device-token'),
+    path('notifications/register/', views.RegisterDeviceTokenView.as_view(), name='register-device-token-no-user'),
+    
     # ==================== GPS LOCATION DETECTION ENDPOINTS ====================
     # path('location/detect/<int:user_id>/', views.DetectCurrentLocationView.as_view(), name='detect-location'),
     # path('location/confirm-address/<int:user_id>/', views.ConfirmLocationAddressView.as_view(), name='confirm-location-address'),

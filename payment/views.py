@@ -5,7 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from django.db import transaction
+from django.db.models import Sum
 import hashlib
 import hmac
 from decimal import Decimal, InvalidOperation
@@ -203,6 +205,8 @@ class InitiatePaymentView(APIView):
                 'customer_phone': payment.customer_phone
             }, status=status.HTTP_201_CREATED)
         
+        except Http404:
+            raise
         except Exception as e:
             return Response(
                 {'error': str(e)},
@@ -310,6 +314,8 @@ class VerifyPaymentView(APIView):
                 'message': 'Payment verified successfully' if payment.status == 'SUCCESS' else 'Payment verification failed'
             }, status=status.HTTP_200_OK)
         
+        except Http404:
+            raise
         except Exception as e:
             return Response(
                 {'error': str(e)},
@@ -331,11 +337,17 @@ class PaymentStatusView(APIView):
             
             # Get payment by order_id or payment_id
             if order_id:
-                payment = get_object_or_404(
-                    Payment,
+                # Use filter + order_by to handle multiple payments per order (retries)
+                payment = Payment.objects.filter(
                     sales_order__order_id=order_id,
                     user=request.user
-                )
+                ).order_by('-created_at').first()
+                
+                if not payment:
+                    return Response(
+                        {'error': 'No payment found for this order'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
             else:
                 payment = get_object_or_404(
                     Payment,
@@ -345,6 +357,8 @@ class PaymentStatusView(APIView):
             serializer = PaymentSerializer(payment)
             return Response(serializer.data, status=status.HTTP_200_OK)
         
+        except Http404:
+            raise
         except Exception as e:
             return Response(
                 {'error': str(e)},
@@ -393,6 +407,20 @@ class InitiateRefundView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 refund_amount = amount_decimal
+            
+            # Check cumulative refunds to prevent over-refunding
+            existing_refunds_total = PaymentRefund.objects.filter(
+                payment=payment,
+                status__in=['INITIATED', 'PENDING', 'SUCCESS']
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            
+            remaining_refundable = payment.amount - existing_refunds_total
+            
+            if refund_amount > remaining_refundable:
+                return Response(
+                    {'error': f'Refund amount exceeds remaining refundable amount. Remaining: {remaining_refundable}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
             # Initiate refund via Razorpay
             razorpay_client = RazorpayClient()
@@ -451,6 +479,8 @@ class InitiateRefundView(APIView):
 
 class WebhookView(APIView):
     """Razorpay webhook handler"""
+    authentication_classes = []
+    permission_classes = []
     
     def post(self, request):
         try:
@@ -464,9 +494,9 @@ class WebhookView(APIView):
             payload = request.data
             event = payload.get('event')
             
-            # Log webhook
-            PaymentLog.objects.create(
-                payment=None,  # Will be set below if we find matching payment
+            # Create webhook log (will be linked to payment if found)
+            webhook_log = PaymentLog.objects.create(
+                payment=None,
                 operation='WEBHOOK',
                 request_data=payload,
                 success=True
@@ -486,6 +516,10 @@ class WebhookView(APIView):
                     payment.payment_completed_at = timezone.now()
                     payment.save()
                     
+                    # Link webhook log to payment
+                    webhook_log.payment = payment
+                    webhook_log.save()
+                    
                     # Update sales order
                     if payment.sales_order:
                         payment.sales_order.ord_conversion_flag = True
@@ -504,9 +538,15 @@ class WebhookView(APIView):
                     payment.error_code = payment_details.get('error_code')
                     payment.error_description = payment_details.get('error_description')
                     payment.save()
+                    
+                    # Link webhook log to payment
+                    webhook_log.payment = payment
+                    webhook_log.save()
             
             return Response({'status': 'ok'}, status=status.HTTP_200_OK)
         
+        except Http404:
+            raise
         except Exception as e:
             return Response(
                 {'error': str(e)},
@@ -600,6 +640,8 @@ class InitiateCODPaymentView(APIView):
                     'message': 'COD payment initiated. Payment will be collected at delivery.'
                 }, status=status.HTTP_201_CREATED)
         
+        except Http404:
+            raise
         except Exception as e:
             logger.error(f"[COD_ERROR] Error initiating COD: {str(e)}")
             return Response(
@@ -625,13 +667,19 @@ class ConfirmCODPaymentView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Get payment record
+            # Get payment record - allow staff/admin or the payment owner
             payment = get_object_or_404(
                 Payment,
                 payment_id=payment_id,
-                user=request.user,
                 payment_method='COD'
             )
+            
+            # Only staff/admin or the payment owner can confirm COD
+            if not request.user.is_staff and payment.user != request.user:
+                return Response(
+                    {'error': 'You do not have permission to confirm this payment'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             
             if payment.status == 'SUCCESS':
                 return Response(
@@ -652,6 +700,11 @@ class ConfirmCODPaymentView(APIView):
             payment.cod_collected_by = collected_by
             payment.payment_completed_at = timezone.now()
             payment.save()
+            
+            # Update sales order conversion flag
+            if payment.sales_order:
+                payment.sales_order.ord_conversion_flag = True
+                payment.sales_order.save()
             
             # Log the payment confirmation
             PaymentLog.objects.create(
@@ -675,11 +728,8 @@ class ConfirmCODPaymentView(APIView):
                 'collected_by': payment.cod_collected_by
             }, status=status.HTTP_200_OK)
         
-        except Payment.DoesNotExist:
-            return Response(
-                {'error': 'Payment record not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        except Http404:
+            raise
         except Exception as e:
             logger.error(f"[COD_CONFIRM_ERROR] Error confirming COD: {str(e)}")
             return Response(
