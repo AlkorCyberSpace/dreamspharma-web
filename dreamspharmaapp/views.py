@@ -3448,6 +3448,106 @@ class SetDefaultAddressView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class RetailerOrdersView(APIView):
+    """
+    Get all orders for a specific retailer mobile app
+    GET: Retrieve active and completed orders with product details
+    """
+    permission_classes = [AllowAny] # Or IsAuthenticated depending on mobile app auth
+    
+    def get(self, request, user_id):
+        try:
+            # Check if user exists
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'User not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+            
+        # Optional status filter: active or completed
+        filter_status = request.query_params.get('status', 'all').lower()
+        
+        # Fetch orders for this user using string representation of ID as stored
+        # Also prefetch items for efficiency
+        orders = SalesOrder.objects.filter(user_id=str(user.id)).prefetch_related(
+            'items'
+        ).order_by('-created_at')
+        
+        active_orders = []
+        completed_orders = []
+        
+        for order in orders:
+            # Determine if order is completed
+            # dc_conversion_flag = Dispatched/Delivered. Or we can check payment/order status.
+            # Assuming dc_conversion_flag=True means completed/delivered
+            is_completed = order.dc_conversion_flag
+            
+            # Fetch product info for items
+            items_data = []
+            for item in order.items.all():
+                # Attempt to find product info for images/subheading
+                image_url = None
+                subheading = ""
+                type_label = ""
+                
+                try:
+                    product_info = ProductInfo.objects.get(item__item_code=item.item_code)
+                    subheading = product_info.subheading or ""
+                    type_label = product_info.type_label or ""
+                    
+                    # Try to get the first image
+                    first_image = product_info.images.first()
+                    if first_image and first_image.image:
+                        image_url = request.build_absolute_uri(first_image.image.url)
+                except ProductInfo.DoesNotExist:
+                    pass
+                
+                items_data.append({
+                    'item_id': item.id,
+                    'item_code': item.item_code,
+                    'name': item.item_name or item.item_code,
+                    'subheading': subheading,
+                    'type_label': type_label,
+                    'image': image_url,
+                    'qty': item.total_loose_qty,
+                    'price': str(item.sale_rate),
+                    'total': str(item.item_total) if item.item_total else str(float(item.sale_rate) * item.total_loose_qty)
+                })
+                
+            order_data = {
+                'order_id': order.order_id,
+                'document_pk': order.document_pk,
+                'date': order.ord_date.strftime('%Y-%m-%d') if order.ord_date else '',
+                'total': str(order.order_total),
+                'status': 'Delivered' if is_completed else ('Dispatched' if order.dc_conversion_flag else 'In Delivery'),
+                'is_completed': is_completed,
+                'items': items_data
+            }
+            
+            if is_completed:
+                completed_orders.append(order_data)
+            else:
+                active_orders.append(order_data)
+                
+        # Return requested set
+        if filter_status == 'active':
+            result_data = active_orders
+        elif filter_status == 'completed':
+            result_data = completed_orders
+        else:
+            result_data = {
+                'active': active_orders,
+                'completed': completed_orders
+            }
+            
+        return Response({
+            'success': True,
+            'message': 'Orders retrieved successfully',
+            'data': result_data
+        }, status=status.HTTP_200_OK)
+
+
 class CheckoutWithAddressView(APIView):
     """Checkout with selected delivery address"""
     permission_classes = [IsAuthenticated]
