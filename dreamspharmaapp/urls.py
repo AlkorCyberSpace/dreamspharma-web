@@ -57,6 +57,9 @@ urlpatterns = [
     path('cart/add/<int:user_id>/', views.AddToCartView.as_view(), name='add-to-cart'),
     path('cart/item/<int:item_id>/', views.UpdateCartItemView.as_view(), name='update-cart-item'),
     
+    # ==================== ORDERS ENDPOINTS ====================
+    path('orders/<int:user_id>/', views.RetailerOrdersView.as_view(), name='retailer-orders'),
+    
     # ==================== WISHLIST ENDPOINTS ====================
     path('wishlist/', views.WishlistView.as_view(), name='wishlist'),
     path('wishlist/<int:user_id>/', views.WishlistView.as_view(), name='wishlist-by-user'),

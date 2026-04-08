@@ -146,7 +146,7 @@ export const rejectRetailerAPI = (userId, reason) => {
 
 // ERP - Get Master Data (Products)
 export const getProductsAPI = () => {
-  return axiosInstance.get("erp/ws_c2_services_get_master_data/");
+  return axiosInstance.get("erp/ws_c2_services_get_master_data");
 };
 
 // ERP - Update Product Info (SuperAdmin Only)
@@ -191,3 +191,56 @@ export const assignBrandToProductAPI = (data) => {
   return axiosInstance.post("superadmin/assign-brand/", data);
 };
 
+// ==================== ORDERS ENDPOINTS ====================
+
+// ERP - Create Sales Order
+export const createSalesOrderAPI = (data) => {
+  return axiosInstance.post("erp/ws_c2_services_create_sale_order", data);
+};
+
+// ==================== OFFERS ENDPOINTS ====================
+
+// Get all offers
+export const getOffersAPI = () => {
+  return axiosInstance.get("offers/");
+};
+
+// Add a new offer
+export const addOfferAPI = (data) => {
+  return axiosInstance.post("offers/", data, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
+// Get offer details
+export const getOfferDetailAPI = (id) => {
+  return axiosInstance.get(`offers/${id}/`);
+};
+
+// Update an offer
+export const updateOfferAPI = (id, data) => {
+  return axiosInstance.put(`offers/${id}/`, data, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
+
+// Delete an offer
+export const deleteOfferAPI = (id) => {
+  return axiosInstance.delete(`offers/${id}/`);
+};
+
+// ==================== ADMIN NOTIFICATIONS ENDPOINTS ====================
+
+// SuperAdmin - List Notifications
+export const getAdminNotificationsAPI = () => {
+  return axiosInstance.get("superadmin/notifications/");
+};
+
+// SuperAdmin - Mark Notification as Read
+export const markAdminNotificationReadAPI = (notificationId) => {
+  return axiosInstance.post(`superadmin/notifications/${notificationId}/mark-read/`);
+};

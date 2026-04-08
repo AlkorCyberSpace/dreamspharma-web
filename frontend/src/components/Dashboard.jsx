@@ -1,5 +1,8 @@
 import React from "react";
 import StatCard from "./StatCard";
+import DailyOrderVolume from "./charts/DailyOrderVolume";
+import RefundTrends from "./charts/RefundTrends";
+import OrdersByStatus from "./charts/OrdersByStatus";
 import {
     Users,
     AlertCircle,
@@ -11,10 +14,10 @@ import {
 
 const Dashboard = () => {
     return (
-        <div className="space-y-3">
+        <div className="space-y-6">
 
             {/* First Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard
                     variant="primary"
                     title="Total Retailers"
@@ -24,7 +27,6 @@ const Dashboard = () => {
                 />
 
                 <StatCard
-
                     variant="strong"
                     title="Pending KYC"
                     value="23"
@@ -42,7 +44,7 @@ const Dashboard = () => {
             </div>
 
             {/* Second Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard
                     variant="strong"
                     title="Orders in Dispatch"
@@ -66,6 +68,22 @@ const Dashboard = () => {
                     change="-2% from last week"
                     icon={RotateCcw}
                 />
+            </div>
+
+            {/* Charts Row - Styled with Blue Border like in the image */}
+            <div className="p-4 ">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* Main Chart Slot (2/3 width) */}
+                    <div className="lg:col-span-2">
+                        <DailyOrderVolume />
+                    </div>
+
+                    {/* Side Charts Slots (1/3 width) stacked vertically */}
+                    <div className="flex flex-col gap-4">
+                        <RefundTrends />
+                        <OrdersByStatus />
+                    </div>
+                </div>
             </div>
 
         </div>

@@ -1,19 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, LogOut, Menu } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
-import { superAdminLogoutAPI } from '../services/allAPI';
+import { superAdminLogoutAPI, getAdminNotificationsAPI, markAdminNotificationReadAPI } from '../services/allAPI';
+import NotificationModal from './NotificationModal';
 
 export default function Topbar({ onToggleSidebar }) {
   const navigate = useNavigate();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await getAdminNotificationsAPI();
+      if (response && response.data) {
+        // Adjust for backend response structure (it returns { data: [...] } based on maindash/views.py)
+        const fetchedNotifs = response.data.data || [];
+        setNotifications(fetchedNotifs);
+        const count = fetchedNotifs.filter(n => !n.is_read).length;
+        setUnreadCount(count);
+      }
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Poll for new notifications every minute
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkAsRead = async (id) => {
+    try {
+      await markAdminNotificationReadAPI(id);
+      // Optimistic update
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Failed to mark as read:", error);
+    }
+  };
 
   const handleLogout = async () => {
     try {
-      // Call the backend logout to clear session
       await superAdminLogoutAPI();
     } catch (error) {
       console.error("Logout API failed:", error);
     } finally {
-      // Always clear local storage and navigate to login
       localStorage.removeItem("token");
       localStorage.removeItem("superadminInfo");
       navigate("/login");
@@ -21,7 +56,7 @@ export default function Topbar({ onToggleSidebar }) {
   };
 
   return (
-    <div className="bg-[#EDEDED] mx-6 py-4 flex justify-between items-center">
+    <div className="bg-[#EDEDED] mx-6 py-4 flex justify-between items-center relative">
       <div className="flex items-center gap-3">
         {/* Hamburger – only on sm/md */}
         <button
@@ -45,20 +80,30 @@ export default function Topbar({ onToggleSidebar }) {
       {/* Right Section */}
       <div className="flex items-center gap-6">
 
-        {/* Notification Icon */}
-        <Bell className="text-gray-600 cursor-pointer" size={20} />
+        {/* Notification Icon Container */}
+        <div className="relative">
+          <Bell 
+            className="text-gray-600 cursor-pointer hover:text-blue-500 transition-colors" 
+            size={20} 
+            onClick={() => setIsModalOpen(true)}
+          />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-[#EDEDED] shadow-sm">
+              {unreadCount}
+            </span>
+          )}
+        </div>
 
         {/* Profile Section */}
         <div className="flex items-center gap-3">
-          {/* Name & Role */}
-          <div className="text-sm leading-tight hidden sm:block">
+          <div className="text-sm leading-tight hidden sm:block text-right">
             <p className="font-medium text-gray-700">John Carter</p>
-            <p className="text-xs text-gray-500">Super Admin</p>
+            <p className="text-xs text-gray-500 font-medium">Super Admin</p>
           </div>
           <img
             src="https://i.pravatar.cc/40"
             alt="Profile"
-            className="w-9 h-9 rounded-full object-cover"
+            className="w-9 h-9 rounded-full object-cover shadow-sm border border-gray-200"
           />
         </div>
 
@@ -70,6 +115,14 @@ export default function Topbar({ onToggleSidebar }) {
         />
 
       </div>
+
+      {/* Notification Modal */}
+      <NotificationModal 
+        isOpen={isModalOpen}
+        notifications={notifications}
+        onClose={() => setIsModalOpen(false)}
+        onMarkAsRead={handleMarkAsRead}
+      />
     </div>
   );
 }

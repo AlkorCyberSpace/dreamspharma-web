@@ -435,7 +435,10 @@ export default function Products() {
                                                                 }`}
                                                         >
                                                             {hasImage ? (
-                                                                <img src={hasImage} className="w-full h-full object-cover" />
+                                                                <img 
+                                                                    src={hasImage && typeof hasImage === 'string' && hasImage.startsWith('http') ? hasImage : `${mediaUrl}${hasImage}`} 
+                                                                    className="w-full h-full object-cover" 
+                                                                />
                                                             ) : (
                                                                 <Upload
                                                                     size={14}
