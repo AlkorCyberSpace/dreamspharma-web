@@ -5,16 +5,44 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model, logout
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from datetime import timedelta
 from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer
+from .models import AuditLog
 from .serializers import (
-    RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer, DashboardStatisticsSerializer, ChangePasswordSerializer, SuperAdminProfileSerializer, SuperAdminProfileImageSerializer, AddCategorySerializer
+    RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer,
+    DashboardStatisticsSerializer, ChangePasswordSerializer, SuperAdminProfileSerializer,
+    SuperAdminProfileImageSerializer, AddCategorySerializer, AuditLogSerializer
 )
 from dreamspharmaapp.serializers import OfferSerializer, OfferCreateUpdateSerializer, OfferListSerializer
 import logging
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Helper: write an audit log entry (silent – never breaks the calling view)
+# ---------------------------------------------------------------------------
+def log_audit(action, performed_by_user=None, target_entity='', details='', category='System'):
+    """
+    Create an AuditLog record.  Called inside every admin action.
+    `performed_by_user` may be a CustomUser instance or None (for system actions).
+    """
+    try:
+        if performed_by_user and performed_by_user.is_authenticated:
+            performed_by_label = performed_by_user.get_full_name() or performed_by_user.username
+        else:
+            performed_by_label = 'System'
+
+        AuditLog.objects.create(
+            action=action,
+            performed_by=performed_by_label,
+            performed_by_user=performed_by_user if (performed_by_user and performed_by_user.is_authenticated) else None,
+            target_entity=target_entity,
+            details=details,
+            category=category,
+        )
+    except Exception as exc:
+        logger.error(f"[AUDIT_LOG_FAILED] {exc}")
 
 
 class SuperAdminGetAllRetailersView(APIView):
@@ -72,7 +100,17 @@ class ApproveKYCView(APIView):
         if serializer.is_valid():
             kyc = serializer.save()
             kyc_serializer = RetailerKYCDetailSerializer(kyc)
-            
+
+            # ── Audit log ──
+            shop = getattr(kyc, 'shop_name', '') or ''
+            log_audit(
+                action='KYC Approved',
+                performed_by_user=request.user,
+                target_entity=f"{shop} (RET{str(user_id).zfill(3)})",
+                details='All documents verified and approved',
+                category='KYC',
+            )
+
             return Response({
                 'message': 'KYC approved successfully',
                 'kyc': kyc_serializer.data
@@ -105,7 +143,18 @@ class RejectKYCView(APIView):
         if serializer.is_valid():
             kyc = serializer.save()
             kyc_serializer = RetailerKYCDetailSerializer(kyc)
-            
+
+            # ── Audit log ──
+            shop = getattr(kyc, 'shop_name', '') or ''
+            reason = request.data.get('rejection_reason', 'No reason provided')
+            log_audit(
+                action='KYC Rejected',
+                performed_by_user=request.user,
+                target_entity=f"{shop} (RET{str(user_id).zfill(3)})",
+                details=f"{reason}",
+                category='KYC',
+            )
+
             return Response({
                 'message': 'KYC rejected successfully',
                 'kyc': kyc_serializer.data
@@ -119,83 +168,29 @@ class RejectKYCView(APIView):
 
 class DashboardStatisticsView(APIView):
     """
-    API endpoint for superadmin to get dashboard statistics with week-over-week comparisons.
+    API endpoint for superadmin to get dashboard statistics.
     GET /api/superadmin/dashboard/statistics/ - Get dashboard statistics
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Get dashboard statistics for superadmin with week-over-week metrics"""
+        """Get dashboard statistics for superadmin"""
         # Check if user is a superadmin
         if request.user.role != 'SUPERADMIN':
             return Response({
                 'error': 'Only Super Admin can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Current week metrics (last 7 days)
-        today = timezone.now().date()
-        week_start = today - timedelta(days=7)
-        prev_week_start = today - timedelta(days=14)
-        
-        # Total Retailers (all time vs last week)
+        # Calculate statistics
         total_retailers = User.objects.filter(role='RETAILER').count()
-        retailers_last_week = User.objects.filter(
-            role='RETAILER',
-            created_at__gte=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
-        ).count()
-        retailers_prev_week = User.objects.filter(
-            role='RETAILER',
-            created_at__gte=timezone.make_aware(timezone.datetime.combine(prev_week_start, timezone.datetime.min.time())),
-            created_at__lt=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
-        ).count()
-        
-        # Calculate retailer change percentage
-        retailers_change = 0
-        if retailers_prev_week > 0:
-            retailers_change = ((retailers_last_week - retailers_prev_week) / retailers_prev_week) * 100
-        
-        # Pending KYC (all time vs last week)
         pending_kyc = KYC.objects.filter(status='PENDING').count()
-        pending_kyc_last_week = KYC.objects.filter(
-            status='PENDING',
-            submitted_at__gte=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
-        ).count()
-        pending_kyc_prev_week = KYC.objects.filter(
-            status='PENDING',
-            submitted_at__gte=timezone.make_aware(timezone.datetime.combine(prev_week_start, timezone.datetime.min.time())),
-            submitted_at__lt=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
-        ).count()
-        
-        # Calculate pending KYC change
-        # For pending KYC, showing the difference in absolute numbers
-        pending_kyc_change = pending_kyc_last_week - pending_kyc_prev_week
-        
-        # Total Orders metrics
         total_orders = SalesOrder.objects.count()
-        orders_last_week = SalesOrder.objects.filter(
-            created_at__gte=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
-        ).count()
-        orders_prev_week = SalesOrder.objects.filter(
-            created_at__gte=timezone.make_aware(timezone.datetime.combine(prev_week_start, timezone.datetime.min.time())),
-            created_at__lt=timezone.make_aware(timezone.datetime.combine(week_start, timezone.datetime.min.time()))
-        ).count()
-        
-        # Calculate orders change percentage
-        orders_change = 0
-        if orders_prev_week > 0:
-            orders_change = ((orders_last_week - orders_prev_week) / orders_prev_week) * 100
         
         # Prepare data
         stats_data = {
             'total_retailers': total_retailers,
-            'retailers_change_percentage': round(retailers_change, 2),
-            'retailers_change_text': f"+{round(retailers_change, 0)}% from last week" if retailers_change >= 0 else f"{round(retailers_change, 0)}% from last week",
             'pending_kyc': pending_kyc,
-            'pending_kyc_change': pending_kyc_change,
-            'pending_kyc_change_text': f"-{abs(pending_kyc_change)} from last week" if pending_kyc_change < 0 else f"+{pending_kyc_change} from last week",
             'total_orders': total_orders,
-            'orders_change_percentage': round(orders_change, 2),
-            'orders_change_text': f"+{round(orders_change, 0)}% from last week" if orders_change >= 0 else f"{round(orders_change, 0)}% from last week",
         }
         
         serializer = DashboardStatisticsSerializer(stats_data)
@@ -416,7 +411,16 @@ class SuperAdminLogoutView(APIView):
             return Response({
                 'error': 'Only Super Admin can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
+        # ── Audit log ──
+        log_audit(
+            action='Admin Logout',
+            performed_by_user=request.user,
+            target_entity='System',
+            details=f'Super-admin {request.user.username} logged out',
+            category='System',
+        )
+
         logout(request)
         
         return Response({
@@ -515,7 +519,16 @@ class AddCategoryView(APIView):
                 category = serializer.save()
                 
                 logger.info(f"[CATEGORY_CREATED] Name: {category.name} | Created by: {request.user.username}")
-                
+
+                # ── Audit log ──
+                log_audit(
+                    action='Category Created',
+                    performed_by_user=request.user,
+                    target_entity=category.name,
+                    details=f'New category "{category.name}" created',
+                    category='Category',
+                )
+
                 return Response({
                     'code': '200',
                     'type': 'addCategory',
@@ -595,7 +608,16 @@ class AddCategoryView(APIView):
             category.save()
             
             logger.info(f"[CATEGORY_UPDATED] ID: {category_id} | Old Name: {old_name} | New Name: {name} | Updated by: {request.user.username}")
-            
+
+            # ── Audit log ──
+            log_audit(
+                action='Category Updated',
+                performed_by_user=request.user,
+                target_entity=name,
+                details=f'Category renamed from "{old_name}" to "{name}"' if old_name != name else f'Category "{name}" details updated',
+                category='Category',
+            )
+
             return Response({
                 'code': '200',
                 'type': 'updateCategory',
@@ -656,7 +678,16 @@ class AddCategoryView(APIView):
             category.delete()
             
             logger.info(f"[CATEGORY_DELETED] ID: {category_id} | Name: {category_name} | Deleted by: {request.user.username}")
-            
+
+            # ── Audit log ──
+            log_audit(
+                action='Category Deleted',
+                performed_by_user=request.user,
+                target_entity=category_name,
+                details=f'Category "{category_name}" permanently deleted',
+                category='Category',
+            )
+
             return Response({
                 'code': '200',
                 'type': 'deleteCategory',
@@ -857,6 +888,16 @@ class OfferListCreateView(APIView):
         serializer = OfferCreateUpdateSerializer(data=request.data)
         if serializer.is_valid():
             offer = serializer.save()
+
+            # ── Audit log ──
+            log_audit(
+                action='Offer Created',
+                performed_by_user=request.user,
+                target_entity=offer.offer_id,
+                details=f'Offer "{offer.title}" created (valid {offer.valid_from} – {offer.valid_to})',
+                category='Offer',
+            )
+
             return Response({
                 'status': 'success',
                 'message': 'Offer created successfully',
@@ -920,6 +961,16 @@ class OfferDetailView(APIView):
         serializer = OfferCreateUpdateSerializer(offer, data=request.data, partial=True)
         if serializer.is_valid():
             offer = serializer.save()
+
+            # ── Audit log ──
+            log_audit(
+                action='Offer Updated',
+                performed_by_user=request.user,
+                target_entity=offer.offer_id,
+                details=f'Offer "{offer.title}" updated',
+                category='Offer',
+            )
+
             return Response({
                 'status': 'success',
                 'message': 'Offer updated successfully',
@@ -948,7 +999,19 @@ class OfferDetailView(APIView):
                 'message': 'Offer not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
+        offer_title = offer.title
+        offer_id_val = offer.offer_id
         offer.delete()
+
+        # ── Audit log ──
+        log_audit(
+            action='Offer Deleted',
+            performed_by_user=request.user,
+            target_entity=offer_id_val,
+            details=f'Offer "{offer_title}" deleted',
+            category='Offer',
+        )
+
         return Response({
             'status': 'success',
             'message': 'Offer deleted successfully'
@@ -1016,6 +1079,76 @@ class CategoryOffersView(APIView):
             'data': serializer.data
         }, status=status.HTTP_200_OK)
 
+
+# ============================================================================
+# AUDIT LOG VIEWS
+# ============================================================================
+
+class AuditLogListView(APIView):
+    """
+    GET /api/superadmin/audit-logs/
+    Returns paginated audit logs for the admin dashboard.
+
+    Query params:
+      - category  : filter by category (KYC, ERP, Refund, System, Order, Category, Offer, Product)
+      - search    : search across action, performed_by, target_entity, details
+      - page      : page number (default 1)
+      - page_size : results per page (default 20, max 100)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'code': '403',
+                'type': 'auditLogs',
+                'message': 'Only Super Admin can view audit logs'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = AuditLog.objects.all()
+
+        # ── Filters ────────────────────────────────────────────────────────
+        category = request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category__iexact=category)
+
+        search = request.query_params.get('search', '').strip()
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(action__icontains=search)
+                | Q(performed_by__icontains=search)
+                | Q(target_entity__icontains=search)
+                | Q(details__icontains=search)
+            )
+
+        # ── Pagination ─────────────────────────────────────────────────────
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+            page_size = min(100, max(1, int(request.query_params.get('page_size', 20))))
+        except (ValueError, TypeError):
+            page = 1
+            page_size = 20
+
+        total = queryset.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        logs = queryset[start:end]
+
+        serializer = AuditLogSerializer(logs, many=True)
+
+        return Response({
+            'code': '200',
+            'type': 'auditLogs',
+            'message': f'Retrieved {len(serializer.data)} audit log(s)',
+            'pagination': {
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total + page_size - 1) // page_size,
+            },
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status

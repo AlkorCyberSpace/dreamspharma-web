@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from dreamspharmaapp.models import KYC, SalesOrder, Category
 from .emails import send_kyc_approval_email, send_kyc_rejection_email
+from .models import AuditLog
 
 User = get_user_model()
 
@@ -236,6 +237,21 @@ class AddCategorySerializer(serializers.ModelSerializer):
         return value
 
 
+class AuditLogSerializer(serializers.ModelSerializer):
+    """Serializer for AuditLog entries"""
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'log_id',
+            'action',
+            'performed_by',
+            'target_entity',
+            'details',
+            'category',
+            'created_at',
+        ]
+        read_only_fields = fields
 from rest_framework import serializers
 from .models import AdminNotification
 

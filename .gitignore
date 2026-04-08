@@ -1,26 +1,43 @@
+# ----------------------
 # Logs
+# ----------------------
 logs/
 *.log
 
-# Django / Python
+# ----------------------
+# Python / Django
+# ----------------------
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 db.sqlite3
 
-# Media files (VERY IMPORTANT)
+# ----------------------
+# Media (user uploads)
+# ----------------------
 media/
 
-# Env
+# ----------------------
+# Environment files
+# ----------------------
 .env
 
+# ----------------------
 # Node / React
+# ----------------------
 node_modules/
 dist/
 build/
 
-# VS Code / OS
+# ----------------------
+# IDE / OS
+# ----------------------
 .vscode/
 .idea/
 .DS_Store
 
+# ----------------------
+# Sensitive files
+# ----------------------
 firebase_credentials.json

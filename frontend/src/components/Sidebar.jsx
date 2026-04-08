@@ -20,7 +20,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, end: true },
     { name: "Retailers & KYC", path: "/retailers", icon: Users },
     { name: "Orders", path: "/orders", icon: ShoppingCart },
-    { name: "Refunds", path: "/refunds", icon: RefreshCcw },
+    // { name: "Refunds", path: "/refunds", icon: RefreshCcw },
     { name: "Credit Note", path: "/credit-note", icon: FileText },
     { name: "Products", path: "/products", icon: Package },
     { name: "Categories", path: "/categories", icon: Database },
