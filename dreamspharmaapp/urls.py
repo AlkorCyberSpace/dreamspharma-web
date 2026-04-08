@@ -103,4 +103,6 @@ urlpatterns = [
 
     # Related products (category-based, user-specific)
     path('products/<str:product_id>/related/<int:user_id>/', views.related_products, name='related-products'),
+    path('orders/<int:user_id>/', views.RetailerOrdersView.as_view(), name='retailer-orders'),
+    path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
 ]

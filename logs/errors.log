@@ -1113,3 +1113,12 @@ DETAIL:  Failing row contains (8, 03C000, 001, 00120260407052043912F54FB, , , , 
 DETAIL:  Failing row contains (9, 03C000, 001, 0012026040705204567A55A75, , , John Doe, , , t, 2026-04-07, 05:20:45.52977, , , , , , , , -, -, 0.00, 0.00, null, null, f, f, f, 0, , null, , 2026-04-07 05:20:45.530298+00, 2026-04-07 05:20:45.530308+00, 001, 26, 6, 1, null, 0.00, null).
 
 [ERROR] 2026-04-07 10:50:45 log log_response:253 - Internal Server Error: /api/erp/ws_c2_services_create_sale_order
+[ERROR] 2026-04-07 14:17:47 log log_response:253 - Internal Server Error: /api/payment/initiate/108/
+[ERROR] 2026-04-07 14:22:24 log log_response:253 - Internal Server Error: /api/payment/initiate/108/
+[ERROR] 2026-04-07 14:30:58 log log_response:253 - Internal Server Error: /api/payment/initiate/108/
+[ERROR] 2026-04-07 14:33:28 log log_response:253 - Internal Server Error: /api/payment/initiate/108/
+[ERROR] 2026-04-07 14:33:37 log log_response:253 - Internal Server Error: /api/payment/initiate/108/
+[ERROR] 2026-04-08 15:31:54 log log_response:253 - Internal Server Error: /api/erp/ws_c2_services_create_sale_order
+[ERROR] 2026-04-08 15:32:17 log log_response:253 - Internal Server Error: /api/erp/ws_c2_services_create_sale_order
+[ERROR] 2026-04-08 15:32:29 log log_response:253 - Internal Server Error: /api/erp/ws_c2_services_create_sale_order
+[ERROR] 2026-04-08 15:33:33 log log_response:253 - Internal Server Error: /api/erp/ws_c2_services_create_sale_order

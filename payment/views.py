@@ -23,10 +23,15 @@ from .serializers import PaymentSerializer, PaymentLogSerializer, PaymentRefundS
 
 logger = logging.getLogger(__name__)
 
-# Lazy import to avoid pkg_resources dependency issues
+# Lazy import razorpay to avoid pkg_resources issues
 def get_razorpay_client():
-    import razorpay
-    return razorpay
+    """Lazy load razorpay to avoid circular dependency with setuptools"""
+    try:
+        import razorpay
+        return razorpay
+    except ImportError as e:
+        logger.error(f"[RAZORPAY_IMPORT_ERROR] {str(e)}")
+        raise ImportError("Razorpay library not installed. Run: pip install razorpay") from e
 
 def get_client_ip(request):
     """Extract client IP from request"""
@@ -171,22 +176,32 @@ class InitiatePaymentView(APIView):
                 logger.info(f"[PAYMENT_INITIATED] Order {order_id} - Merchant Ref: {merchant_ref_id}")
             
             # Create Razorpay order
-            razorpay_client = RazorpayClient()
-            razorpay_order = razorpay_client.create_order(
-                amount=float(sales_order.order_total),
-                receipt=f"Order-{sales_order.order_id}",
-                notes={
-                    'order_id': sales_order.order_id,
-                    'user_id': str(user.id),
-                    'customer_name': sales_order.patient_name
-                }
-            )
-            
-            # Update payment with Razorpay order ID and expiry
-            payment.razorpay_order_id = razorpay_order['id']
-            payment.status = 'PENDING'
-            payment.expiry_at = timezone.now() + timezone.timedelta(minutes=15)  # Razorpay default expiry
-            payment.save()
+            try:
+                razorpay_client = RazorpayClient()
+                razorpay_order = razorpay_client.create_order(
+                    amount=float(sales_order.order_total),
+                    receipt=f"Order-{sales_order.order_id}",
+                    notes={
+                        'order_id': sales_order.order_id,
+                        'user_id': str(user.id),
+                        'customer_name': sales_order.patient_name
+                    }
+                )
+                
+                # Update payment with Razorpay order ID and expiry
+                payment.razorpay_order_id = razorpay_order['id']
+                payment.status = 'PENDING'
+                payment.expiry_at = timezone.now() + timezone.timedelta(minutes=15)  # Razorpay default expiry
+                payment.save()
+                logger.info(f"[RAZORPAY_ORDER_CREATED] Order ID: {razorpay_order['id']}")
+            except Exception as razorpay_error:
+                payment.status = 'FAILED'
+                payment.save()
+                logger.error(f"[RAZORPAY_ERROR] {str(razorpay_error)}", exc_info=True)
+                return Response(
+                    {'error': f'Razorpay API Error: {str(razorpay_error)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             
             # Log the request
             PaymentLog.objects.create(
