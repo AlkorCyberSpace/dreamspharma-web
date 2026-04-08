@@ -190,4 +190,3 @@ export const deleteCategoryAPI = (id) => {
 export const assignBrandToProductAPI = (data) => {
   return axiosInstance.post("superadmin/assign-brand/", data);
 };
-
