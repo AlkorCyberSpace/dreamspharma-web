@@ -620,19 +620,18 @@ def home():
     """
 
 
+import os
+
 if __name__ == '__main__':
+    # Render provides the port via an environment variable
+    # We default to 44000 for your local testing
+    port = int(os.environ.get("PORT", 44000))
+    
     print("=" * 60)
     print("ERP Test Server - Dream Pharma")
     print("=" * 60)
-    print(f"Starting server on http://localhost:44000")
-    print("")
-    print("Available endpoints:")
-    print("  POST /ws_c2_services_generate_token")
-    print("  GET  /ws_c2_services_get_master_data")
-    print("  GET  /ws_c2_services_fetch_stock")
-    print("  POST /ws_c2_services_create_sale_order")
-    print("  POST /ws_c2_services_gl_cust_creation")
-    print("  GET  /ws_c2_services_get_orderstatus")
+    print(f"Starting server on port: {port}")
     print("=" * 60)
     
-    app.run(host='0.0.0.0', port=44000, debug=True)
+    # We use 0.0.0.0 so it's accessible externally
+    app.run(host='0.0.0.0', port=port, debug=True)
