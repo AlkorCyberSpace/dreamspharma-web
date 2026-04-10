@@ -135,17 +135,16 @@ const Profile = () => {
   const handleCancel = () => {
     setCurrentPassword('');
     setNewPassword('');
-    // Optionally re-fetch profile to reset username/email if changed
     showToast("Changes discarded.", "info");
   };
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-5 bg-white  border-l-2 border-gray-100 rounded-tl-3xl">
+    <div className="h-full overflow-y-auto ml-2 mt-3 bg-white ">
       <div className="mb-10">
         <h1 className="text-xl font-semibold text-[#505050] tracking-tight">
           Profile Settings & Account Management
         </h1>
-        <p className="text-xs text-[#505050] opacity-70 mt-1">
+        <p className="text-xs text-[#505050] opacity-70">
           Manage your personal details and account preferences securely.
         </p>
       </div>
@@ -219,7 +218,7 @@ const Profile = () => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-5 py-3 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050]"
+              className="w-full px-5 py-2 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050]"
             />
           </div>
           <div className="space-y-2">
@@ -228,7 +227,7 @@ const Profile = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-5 py-3 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050]"
+              className="w-full px-5 py-2 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050]"
             />
           </div>
         </div>
@@ -245,7 +244,7 @@ const Profile = () => {
                   placeholder="Enter the current password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-5 py-3 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050] placeholder:text-gray-300 pr-12"
+                  className="w-full px-5 py-2 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050] placeholder:text-gray-300 pr-12"
                 />
                 <button
                   type="button"
@@ -264,7 +263,7 @@ const Profile = () => {
                   placeholder="Enter the new password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-5 py-3 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050] placeholder:text-gray-300 pr-12"
+                  className="w-full px-5 py-2 border border-gray-100 rounded-xl bg-gray-50/30 focus:bg-white focus:ring-1 focus:border-teal-100 outline-none transition-all text-[#505050] placeholder:text-gray-300 pr-12"
                 />
                 <button
                   type="button"
@@ -278,16 +277,16 @@ const Profile = () => {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4 border-t border-gray-50 mt-8">
+        <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4 border-t border-gray-50 mt-1">
           <button
             onClick={handleCancel}
-            className="px-10 py-3 border border-[#125B6C] text-[#125B6C] font-bold rounded-lg hover:bg-gray-50 transition-all uppercase tracking-wider text-sm min-w-[180px]"
+            className="px-6 py-3 border border-[#125B6C] text-[#125B6C] font-bold rounded-lg hover:bg-gray-50 transition-all uppercase tracking-wider text-sm min-w-[180px]"
           >
             CANCEL
           </button>
           <button
             onClick={handlePasswordUpdate}
-            className="px-10 py-3 bg-[#125B6C] text-white font-bold rounded-lg hover:bg-[#0e4856] transition-all uppercase tracking-wider text-sm min-w-[180px] shadow-lg shadow-teal-900/10"
+            className="px-6 py-3 bg-[#125B6C] text-white font-bold rounded-lg hover:bg-[#0e4856] transition-all uppercase tracking-wider text-sm min-w-[180px] shadow-lg shadow-teal-900/10"
           >
             Save
           </button>
@@ -314,13 +313,13 @@ const Profile = () => {
             <div className="flex gap-4 justify-center">
               <button
                 onClick={() => setConfirmModal({ ...confirmModal, show: false })}
-                className="px-6 py-3 text-sm font-bold text-[#505050] bg-gray-100 rounded-xl hover:bg-gray-200 transition-all flex-1 uppercase tracking-wider"
+                className="px-4 py-2 text-sm font-bold text-[#505050] bg-gray-100 rounded-xl hover:bg-gray-200 transition-all flex-1 uppercase tracking-wider"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmModal.onConfirm}
-                className="px-6 py-3 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-all flex-1 shadow-lg shadow-red-500/20 uppercase tracking-wider"
+                className="px-4 py-2 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-all flex-1 shadow-lg shadow-red-500/20 uppercase tracking-wider"
               >
                 Yes, Delete
               </button>

@@ -166,10 +166,10 @@ export default function Refunds() {
 
 
       {/* Table with Scroll */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
           <table className="min-w-[1000px] w-full text-left">
-            <thead className="bg-[#DCE4EA] text-gray-600 text-xs uppercase tracking-wide sticky top-0 z-10">
+            <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 text-center">SI NO</th>
                 <th className="px-6 py-4">Refund ID</th>
@@ -177,9 +177,9 @@ export default function Refunds() {
                 <th className="px-6">Retailer</th>
                 <th className="px-6">Amount</th>
                 <th className="px-6">Type</th>
-                <th className="px-6">Status</th>
+                <th className="px-6 text-center">Status</th>
                 <th className="px-6">Request Date</th>
-                <th className="px-6">Actions</th>
+                <th className="px-6 text-center">Actions</th>
               </tr>
             </thead>
 
@@ -191,11 +191,11 @@ export default function Refunds() {
                     } hover:bg-[#EEF2F6] transition`}
                 >
                   <td className="px-6 py-4 font-bold text-center">{index + 1}</td>
-                  <td className="px-6 py-4 font-semibold">{item.id}</td>
-                  <td className="px-6">{item.orderId}</td>
-                  <td className="px-6">{item.retailer}</td>
-                  <td className="px-6 font-medium">₹ {item.amount}</td>
-                  <td className="px-6">{item.type}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-[#127690]">{item.id}</td>
+                  <td className="px-6 text-sm text-gray-500 font-medium">{item.orderId}</td>
+                  <td className="px-6 text-sm text-gray-600 font-medium">{item.retailer}</td>
+                  <td className="px-6 text-sm text-gray-900 font-bold">₹ {item.amount}</td>
+                  <td className="px-6 text-sm text-gray-600 font-medium">{item.type}</td>
                   <td className="px-6">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusStyle(
@@ -206,8 +206,8 @@ export default function Refunds() {
                     </span>
                   </td>
                   <td className="px-6">{item.date}</td>
-                  <td className="px-6">
-                    <button className="text-teal-600 hover:text-teal-800">
+                  <td className="px-6 text-center">
+                    <button className="text-[#127690] hover:text-[#116278] transition-colors">
                       <Eye size={18} />
                     </button>
                   </td>

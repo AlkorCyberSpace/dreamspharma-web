@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Search, ChevronDown, ShieldCheck, Download } from "lucide-react";
+import { getAuditLogsAPI } from "../services/allAPI";
 
 const auditData = [
     {
@@ -118,6 +119,33 @@ const categoryStyle = (cat) => {
 export default function AuditLogs() {
     const [search, setSearch] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All");
+    const [auditData, setAuditData] = useState([]);
+
+    useEffect(() => {
+    const fetchAuditLogs = async () => {
+        try {
+            const response = await getAuditLogsAPI();
+
+            if (response && response.data) {
+                const formatted = response.data.data.map((log) => ({
+                    id: log.log_id,
+                    action: log.action,
+                    performedBy: log.performed_by,
+                    targetEntity: log.target_entity,
+                    details: log.details,
+                    category: log.category,
+                    timestamp: log.created_at,
+                }));
+
+                setAuditData(formatted);
+            }
+        } catch (error) {
+            console.error("Failed to fetch audit logs:", error);
+        }
+    };
+
+    fetchAuditLogs();
+}, []);
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase();
@@ -132,28 +160,26 @@ export default function AuditLogs() {
                 categoryFilter === "All" || item.category === categoryFilter;
             return matchSearch && matchCat;
         });
-    }, [search, categoryFilter]);
-
-    const handleExportCSV = () => {
-        const headers = ["Log ID", "Action", "Performed By", "Target Entity", "Details", "Category", "Timestamp"];
-        const rows = filtered.map((r) => [
-            r.id, r.action, r.performedBy, r.targetEntity,
-            `"${r.details}"`, r.category, r.timestamp,
-        ]);
-        const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "audit_logs.csv";
-        a.click();
-        URL.revokeObjectURL(url);
-    };
+}, [search, categoryFilter, auditData]); 
+    // const handleExportCSV = () => {
+    //     const headers = ["Log ID", "Action", "Performed By", "Target Entity", "Details", "Category", "Timestamp"];
+    //     const rows = filtered.map((r) => [
+    //         r.id, r.action, r.performedBy, r.targetEntity,
+    //         `"${r.details}"`, r.category, r.timestamp,
+    //     ]);
+    //     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+    //     const blob = new Blob([csv], { type: "text/csv" });
+    //     const url = URL.createObjectURL(blob);
+    //     const a = document.createElement("a");
+    //     a.href = url;
+    //     a.download = "audit_logs.csv";
+    //     a.click();
+    //     URL.revokeObjectURL(url);
+    // };
 
     return (
-        <div className="ml-5 mt-5 border-l-2 border-gray-100">
-            {/* ── Header ── */}
-            <div className="mb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="ml-2 mt-3 ">
+            <div className="mb-7 flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-xl font-semibold text-[#505050] tracking-tight">
                         Audit Logs &amp; System Tracking
@@ -163,25 +189,23 @@ export default function AuditLogs() {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-3 flex-wrap">
-                    {/* Search */}
-                    <div className="flex items-center bg-white border border-[#E5E7EB] rounded-xl px-3 py-1.5 shadow-sm focus-within:shadow-lg transition-all">
-                        <Search size={16} className="text-[#9EA2A7] shrink-0" />
+                <div className="flex items-center bg-white border border-[#E5E7EB] rounded-xl px-2 py-1.5 shadow-sm w-full lg:max-w-xl transition-all focus-within:shadow-lg">
+                    <div className="flex items-center flex-1 px-2">
+                        <Search size={18} className="text-[#9EA2A7] shrink-0" />
                         <input
                             type="text"
                             placeholder="Search by shop name or owner..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="ml-2 w-52 bg-transparent outline-none text-sm text-[#505050] placeholder:text-[#9EA2A7]"
+                            className="w-full bg-transparent outline-none px-3 text-sm text-[#505050] placeholder:text-[#9EA2A7]"
                         />
                     </div>
 
-                    {/* Category Filter */}
-                    <div className="relative">
+                    <div className="relative min-w-[140px]">
                         <select
                             value={categoryFilter}
                             onChange={(e) => setCategoryFilter(e.target.value)}
-                            className="appearance-none bg-white border border-[#E5E7EB] rounded-xl px-4 py-2 pr-8 text-sm text-[#505050] font-medium focus:outline-none focus:ring-2 focus:ring-teal-400 cursor-pointer"
+                            className="appearance-none w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-1.5 pr-10 text-sm text-[#505050] font-medium focus:outline-none cursor-pointer"
                         >
                             {CATEGORIES.map((c) => (
                                 <option key={c} value={c}>
@@ -190,35 +214,26 @@ export default function AuditLogs() {
                             ))}
                         </select>
                         <ChevronDown
-                            size={14}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                            size={16}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9EA2A7] pointer-events-none"
                         />
                     </div>
-
-                    {/* Export Button */}
-                    <button
-                        onClick={handleExportCSV}
-                        className="flex items-center gap-2 bg-white border border-[#E5E7EB] hover:bg-gray-50 text-[#505050] text-sm font-medium px-4 py-2 rounded-xl shadow-sm transition-colors"
-                    >
-                        <Download size={15} />
-                        Export CSV
-                    </button>
                 </div>
             </div>          
 
             {/* ── Table ── */}
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col mb-5">
                 <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
                     <table className="min-w-[900px] w-full text-left">
-                        <thead className="bg-[#DCE4EA] text-gray-600 text-xs uppercase tracking-wide sticky top-0 z-10">
+                        <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
-                                <th className="px-6 py-4">Log ID</th>
-                                <th className="px-6">Action</th>
-                                <th className="px-6">Performed By</th>
-                                <th className="px-6">Target Entity</th>
-                                <th className="px-6">Details</th>
-                                <th className="px-6">Category</th>
-                                <th className="px-6">Timestamp</th>
+                                <th className="px-5 py-4">Log ID</th>
+                                <th className="px-5">Action</th>
+                                <th className="px-5">Performed By</th>
+                                <th className="px-5">Target Entity</th>
+                                <th className="px-5">Details</th>
+                                <th className="px-5">Category</th>
+                                <th className="px-5">Timestamp</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm text-gray-700">
@@ -235,7 +250,7 @@ export default function AuditLogs() {
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
                                             } hover:bg-[#EEF2F6] transition`}
                                     >
-                                        <td className="px-6 py-3.5 font-semibold text-[#127690] whitespace-nowrap">
+                                        <td className="px-5 py-2.5 font-semibold text-[#127690] whitespace-nowrap">
                                             {item.id}
                                         </td>
                                         <td className="px-6 font-medium whitespace-nowrap">{item.action}</td>
@@ -254,7 +269,7 @@ export default function AuditLogs() {
                                             </span>
                                         </td>
                                         <td className="px-6 text-gray-400 text-xs whitespace-nowrap">
-                                            {item.timestamp}
+                                            {new Date(item.timestamp).toLocaleString()}
                                         </td>
                                     </tr>
                                 ))
@@ -264,10 +279,10 @@ export default function AuditLogs() {
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-400 flex items-center justify-between">
+                <div className="px-6 py-3  text-xs text-gray-400 flex items-center justify-between">
                     <span>
-                        Showing <span className="font-medium text-gray-600">{filtered.length}</span> of{" "}
-                        <span className="font-medium text-gray-600">{auditData.length}</span> entries
+                        {/* Showing <span className="font-medium text-gray-600">{filtered.length}</span> of{" "} */}
+                        {/* <span className="font-medium text-gray-600">{auditData.length}</span> entries */}
                     </span>
                     <span>Logs are retained for 90 days.</span>
                 </div>

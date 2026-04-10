@@ -178,7 +178,7 @@ const Orders = () => {
   };
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col font-sans border-l-2 border-gray-100 ml-5 mt-5">
+    <div className="h-screen overflow-hidden flex flex-col font-sans ml-2 mt-3">
       <style>
         {`
           .custom-scrollbar::-webkit-scrollbar {
@@ -200,19 +200,21 @@ const Orders = () => {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0">
         <div>
-          <h1 className="text-xl font-semibold text-gray-700">Order Management</h1>
+          <h1 className="text-xl font-semibold text-[#505050]">Order Management</h1>
           <p className="text-sm text-gray-500 ">Monitor and track all retailer orders with ERP sync status</p>
         </div>
 
         <div className="flex items-center bg-white border border-[#E5E7EB] rounded-xl px-2.5 py-1.5 shadow-sm w-full lg:max-w-xl transition-all focus-within:shadow-lg">
-          <Search size={18} className="text-[#9EA2A7] ml-2 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search by shop name or owner..."
-            className="w-full pl-9 pr-4 py-1  border-none rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm transition-all"
-          />
+          <div className="flex items-center flex-1 px-2">
+            <Search size={18} className="text-[#9EA2A7] shrink-0" />
+            <input
+              type="text"
+              placeholder="Search by shop name or owner..."
+              className="w-full bg-transparent outline-none px-3 text-sm text-[#505050] placeholder:text-[#9EA2A7]"
+            />
+          </div>
           <div className="relative min-w-[140px]">
-            <select className="appearance-none w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-2 pr-10 text-sm text-[#505050] font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer transition-colors">
+            <select className="appearance-none w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-1.5 pr-10 text-sm text-[#505050] font-medium focus:outline-none cursor-pointer">
               <option>All Status</option>
               <option>Delivered</option>
               <option>Dispatched</option>
@@ -226,41 +228,41 @@ const Orders = () => {
       </div>
 
       {/* Table Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col mb-5">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col mb-5">
         <div className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-[#1276901A] text-[#505050] uppercase text-[11px] font-bold tracking-wider">
+              <tr className="bg-[#DCE4EA] text-gray-500 uppercase text-[11px] font-bold tracking-wider">
                 <th className="px-6 py-4">Order ID</th>
-                <th className="px-6 py-4">Retailer</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Items</th>
-                <th className="px-6 py-4 text-center">Total Value</th>
-                <th className="px-6 py-4">Payment</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4">ERP Ref</th>
-                <th className="px-6 py-4 text-center">Actions</th>
+                <th className="px-6">Retailer</th>
+                <th className="px-6">Date</th>
+                <th className="px-6">Items</th>
+                <th className="px-6 text-center">Total Value</th>
+                <th className="px-6">Payment</th>
+                <th className="px-6 text-center">Status</th>
+                <th className="px-6">ERP Ref</th>
+                <th className="px-6 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {orders.map((order, index) => (
-                <tr key={index} className={`transition-colors hover:bg-[#EEF2F6] ${index % 2 === 0 ? "bg-white" : "bg-[#F7F9FB]"}`}>
-                  <td className="px-6 py-3 text-md font-bold text-gray-800">{order.id}</td>
-                  <td className="px-6 py-3 text-md text-gray-600 font-medium">{order.retailer}</td>
-                  <td className="px-6 py-3 text-md text-gray-500 whitespace-nowrap">{order.date}</td>
-                  <td className="px-6 py-3 text-md text-gray-600">{order.items}</td>
-                  <td className="px-6 py-3 text-md text-gray-600 text-center">{order.total}</td>
-                  <td className="px-6 py-3 text-md text-gray-600">{order.payment}</td>
-                  <td className="px-6 py-3 text-center">
-                    <span className={`px-3 py-1 rounded-full text-[13px] font-bold inline-block min-w-[85px] ${getStatusStyles(order.status)}`}>
+                <tr key={index} className={`transition-colors hover:bg-[#EEF2F6] ${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"}`}>
+                  <td className="px-3 py-3 text-sm font-semibold text-[#127690]">{order.id}</td>
+                  <td className="px-6 text-sm text-gray-600 font-medium">{order.retailer}</td>
+                  <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{order.date}</td>
+                  <td className="px-6 text-sm text-gray-600 font-semibold">{order.items}</td>
+                  <td className="px-6 text-sm text-gray-600 text-center font-semibold">{order.total}</td>
+                  <td className="px-6 text-sm text-gray-600 font-medium">{order.payment}</td>
+                  <td className="px-6 text-center">
+                    <span className={`px-3 py-1 rounded-full text-[12px] font-bold inline-block min-w-[85px] ${getStatusStyles(order.status)}`}>
                       {order.status}
                     </span>
                   </td>
-                  <td className="px-6 py-3  text-md text-gray-500">{order.erpRef}</td>
-                  <td className="px-6 py-3 text-center">
+                  <td className="px-6 text-sm text-gray-500 font-medium">{order.erpRef}</td>
+                  <td className="px-6 text-center">
                     <button
                       onClick={() => setSelectedOrder(order)}
-                      className="text-teal-500 hover:text-teal-600 "
+                      className="text-[#127690] hover:text-teal-600 transition-colors"
                     >
                       <Eye size={20} />
                     </button>
