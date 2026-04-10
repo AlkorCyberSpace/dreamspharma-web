@@ -36,6 +36,9 @@ urlpatterns = [
     # ==================== AUDIT LOGS ====================
     path('superadmin/audit-logs/', views.AuditLogListView.as_view(), name='superadmin-audit-logs'),
 
+    # ==================== ORDER MANAGEMENT ====================
+    path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
+
     # ==================== OFFERS & BANNERS ENDPOINTS ====================
     # Offers Management (SuperAdmin)
     path('offers/', views.OfferListCreateView.as_view(), name='offer-list-create'),

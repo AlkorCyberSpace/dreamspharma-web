@@ -5,12 +5,15 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model, logout
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer
-from .models import AuditLog
+from django.db.models import Sum, Count, Q
+from datetime import timedelta
+from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem
+from .models import AuditLog, AdminNotification
 from .serializers import (
     RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer,
     DashboardStatisticsSerializer, ChangePasswordSerializer, SuperAdminProfileSerializer,
-    SuperAdminProfileImageSerializer, AddCategorySerializer, AuditLogSerializer
+    SuperAdminProfileImageSerializer, AddCategorySerializer, AuditLogSerializer,
+    AdminNotificationSerializer
 )
 from dreamspharmaapp.serializers import OfferSerializer, OfferCreateUpdateSerializer, OfferListSerializer
 import logging
@@ -175,27 +178,106 @@ class DashboardStatisticsView(APIView):
 
     def get(self, request):
         """Get dashboard statistics for superadmin"""
-        # Check if user is a superadmin
         if request.user.role != 'SUPERADMIN':
             return Response({
                 'error': 'Only Super Admin can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Calculate statistics
-        total_retailers = User.objects.filter(role='RETAILER').count()
-        pending_kyc = KYC.objects.filter(status='PENDING').count()
-        total_orders = SalesOrder.objects.count()
+        now = timezone.now()
+        last_7_days = now - timedelta(days=7)
+        prev_7_days = now - timedelta(days=14)
+
+        # 1. Total Retailers (Approved Only as requested)
+        total_retailers = User.objects.filter(role='RETAILER', is_kyc_approved=True).count()
+        prev_retailers = User.objects.filter(role='RETAILER', is_kyc_approved=True, created_at__lt=last_7_days).count()
         
-        # Prepare data
+        # 2. Pending KYC
+        pending_kyc = KYC.objects.filter(status='PENDING').count()
+        prev_pending_kyc = KYC.objects.filter(status='PENDING', submitted_at__lt=last_7_days).count()
+        
+        # 3. Total Orders
+        total_orders = SalesOrder.objects.count()
+        prev_total_orders = SalesOrder.objects.filter(created_at__lt=last_7_days).count()
+        curr_week_orders = SalesOrder.objects.filter(created_at__gte=last_7_days).count()
+        prev_week_orders = SalesOrder.objects.filter(created_at__gte=prev_7_days, created_at__lt=last_7_days).count()
+        
+        # 4. Orders in Dispatch (Invoice exists but not Delivered)
+        orders_in_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False).distinct().count()
+        prev_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False, created_at__lt=last_7_days).distinct().count()
+
+        # 5. Top Selling Product
+        top_product_entry = SalesOrderItem.objects.filter(created_at__gte=last_7_days).values(
+            'item_code', 'item_name'
+        ).annotate(total_qty=Sum('total_loose_qty')).order_by('-total_qty').first()
+        
+        top_selling_product = top_product_entry['item_name'] if top_product_entry else "N/A"
+        
+        # Calculate Percentages
+        def calc_pct(curr, prev):
+            if prev == 0: return 100.0 if curr > 0 else 0.0
+            return round(((curr - prev) / prev) * 100, 1)
+
+        def get_trend_text(curr, prev):
+            diff = curr - prev
+            return f"{'+' if diff >= 0 else ''}{diff} from last week"
+
+        # Preparing stats payload
         stats_data = {
             'total_retailers': total_retailers,
+            'retailers_change_percentage': calc_pct(total_retailers, prev_retailers),
+            'retailers_change_text': get_trend_text(total_retailers, prev_retailers),
+            
             'pending_kyc': pending_kyc,
+            'pending_kyc_change': pending_kyc - prev_pending_kyc,
+            'pending_kyc_change_text': f"{pending_kyc - prev_pending_kyc} from last week",
+            
             'total_orders': total_orders,
+            'orders_change_percentage': calc_pct(curr_week_orders, prev_week_orders),
+            'orders_change_text': get_trend_text(curr_week_orders, prev_week_orders),
+
+            'orders_in_dispatch': orders_in_dispatch,
+            'dispatch_change_percentage': calc_pct(orders_in_dispatch, prev_dispatch),
+            'dispatch_change_text': get_trend_text(orders_in_dispatch, prev_dispatch),
+
+            'top_selling_product': top_selling_product,
+            'top_selling_change_percentage': 12.5, # Placeholder or specific logic
+
+            # Daily Order Volume Graph (Last 7 days)
+            'daily_order_volume': [],
+            
+            # Orders by Status Pie Chart
+            'orders_by_status': []
+        }
+
+        # Populate Daily Order Volume
+        for i in range(6, -1, -1):
+            date = (now - timedelta(days=i)).date()
+            count = SalesOrder.objects.filter(ord_date=date).count()
+            stats_data['daily_order_volume'].append({
+                'date': date.strftime('%b %d'),
+                'orders': count
+            })
+
+        # Populate Status Distribution
+        status_counts = {
+            'Pending': SalesOrder.objects.filter(ord_conversion_flag=False).count(),
+            'Confirmed': SalesOrder.objects.filter(ord_conversion_flag=True, invoices__isnull=True).count(),
+            'Dispatched': SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False).distinct().count(),
+            'Delivered': SalesOrder.objects.filter(dc_conversion_flag=True).count(),
         }
         
+        total_stat_orders = sum(status_counts.values())
+        for status_label, count in status_counts.items():
+            pct = round((count / total_stat_orders * 100), 1) if total_stat_orders > 0 else 0
+            stats_data['orders_by_status'].append({
+                'status': status_label,
+                'count': count,
+                'percentage': pct
+            })
+
         serializer = DashboardStatisticsSerializer(stats_data)
-        
         return Response({
+            'success': True,
             'message': 'Dashboard statistics fetched successfully',
             'statistics': serializer.data
         }, status=status.HTTP_200_OK)
@@ -1149,12 +1231,129 @@ class AuditLogListView(APIView):
             },
             'data': serializer.data
         }, status=status.HTTP_200_OK)
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from .models import AdminNotification
-from .serializers import AdminNotificationSerializer
+
+
+# ==================== ORDER MANAGEMENT VIEWS ====================
+
+class SuperAdminOrdersView(APIView):
+    """
+    API endpoint for superadmin to get all orders with items and payment info.
+    GET /api/superadmin/orders/ - Get all orders with their line items
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get all orders with items and payment details"""
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Query params for filtering
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search', '').strip()
+
+        orders = SalesOrder.objects.prefetch_related(
+            'items', 'payments'
+        ).order_by('-created_at')
+
+        # Filter by conversion status (maps to frontend status labels)
+        if status_filter:
+            status_map = {
+                'Confirmed': {'ord_conversion_flag': True, 'dc_conversion_flag': False},
+                'Dispatched': {'dc_conversion_flag': True},
+                'Pending': {'ord_conversion_flag': False, 'dc_conversion_flag': False},
+            }
+            if status_filter in status_map:
+                orders = orders.filter(**status_map[status_filter])
+
+        # Search by order_id, patient_name, or cust_name
+        if search:
+            from django.db.models import Q
+            orders = orders.filter(
+                Q(order_id__icontains=search) |
+                Q(patient_name__icontains=search) |
+                Q(cust_name__icontains=search)
+            )
+
+        results = []
+        for order in orders:
+            # Determine order status
+            payment = order.payments.first()
+            payment_method = payment.get_payment_method_display() if payment else 'COD'
+            payment_status = payment.status if payment else 'PENDING'
+
+            if payment and payment.status == 'FAILED':
+                order_status = 'Cancelled'
+            elif order.dc_conversion_flag:
+                order_status = 'Delivered'  # Matches Figma
+            elif order.ord_conversion_flag:
+                order_status = 'Confirmed'
+            else:
+                order_status = 'Pending'
+
+            # Build items list for modal
+            items_data = []
+            for item in order.items.all():
+                items_data.append({
+                    'name': item.item_name or item.item_code,
+                    'item_code': item.item_code,
+                    'qty': item.total_loose_qty,
+                    'mrp': float(item.sale_rate),
+                    'total': float(item.item_total) if item.item_total else float(item.sale_rate) * item.total_loose_qty,
+                    'batch_no': item.batch_no,
+                })
+
+            # Build timeline
+            timeline = []
+            timeline.append({
+                'label': 'Created',
+                'date': order.created_at.strftime('%Y-%m-%d %I:%M %p') if order.created_at else '',
+                'status': 'completed'
+            })
+            if order.ord_conversion_flag:
+                timeline.append({
+                    'label': 'Confirmed',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
+            if order.dc_conversion_flag:
+                timeline.append({
+                    'label': 'Dispatched',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
+                
+            retailer_id = order.store_id if order.store_id else 'RET001' # Fallback for display
+            if order.user_id and order.user_id.isdigit():
+                try:
+                    retailer_user = get_user_model().objects.get(id=int(order.user_id))
+                    if hasattr(retailer_user, 'kyc') and retailer_user.kyc.user_id:
+                        retailer_id = retailer_user.kyc.user_id
+                except:
+                    pass
+
+            results.append({
+                'id': order.order_id,
+                'retailer_id': retailer_id,
+                'retailer': order.cust_name or order.patient_name,
+                'date': order.ord_date.strftime('%Y - %m - %d') if order.ord_date else '', # Figma format
+                'items': order.items.count(),
+                'total': str(order.order_total),
+                'payment': payment_method,
+                'payment_status': payment_status,
+                'status': order_status,
+                'erpRef': order.document_pk or f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else '',
+                'detailedTimeline': timeline,
+                'detailedItems': items_data,
+            })
+
+        return Response({
+            'message': f'Found {len(results)} order(s)',
+            'count': len(results),
+            'results': results
+        }, status=status.HTTP_200_OK)
+
 
 class AdminNotificationListView(APIView):
     """

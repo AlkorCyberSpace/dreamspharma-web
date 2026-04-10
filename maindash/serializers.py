@@ -125,6 +125,7 @@ class RejectKYCSerializer(serializers.Serializer):
 
 class DashboardStatisticsSerializer(serializers.Serializer):
     """Serializer for dashboard statistics with week-over-week comparisons"""
+    # KPI Cards
     total_retailers = serializers.IntegerField(read_only=True)
     retailers_change_percentage = serializers.FloatField(read_only=True)
     retailers_change_text = serializers.CharField(read_only=True)
@@ -136,6 +137,19 @@ class DashboardStatisticsSerializer(serializers.Serializer):
     total_orders = serializers.IntegerField(read_only=True)
     orders_change_percentage = serializers.FloatField(read_only=True)
     orders_change_text = serializers.CharField(read_only=True)
+
+    orders_in_dispatch = serializers.IntegerField(read_only=True)
+    dispatch_change_percentage = serializers.FloatField(read_only=True)
+    dispatch_change_text = serializers.CharField(read_only=True)
+
+    top_selling_product = serializers.CharField(read_only=True)
+    top_selling_change_percentage = serializers.FloatField(read_only=True)
+
+    # Graph Data
+    daily_order_volume = serializers.ListField(child=serializers.DictField(), read_only=True)
+    
+    # Pie Chart Data
+    orders_by_status = serializers.ListField(child=serializers.DictField(), read_only=True)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
