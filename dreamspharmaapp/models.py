@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator, FileExtensionValidator
+from django.utils import timezone
 import random
 import string
 import uuid
@@ -694,4 +695,63 @@ class FCMDevice(models.Model):
         ordering = ['-updated_at']
         
     def __str__(self):
-        return f"FCM Device for {self.user.username} ({self.device_type or 'Unknown'})"        
+        return f"FCM Device for {self.user.username} ({self.device_type or 'Unknown'})"
+
+
+class RetailerNotification(models.Model):
+    """Retailer notifications for new offers/discounts added by admins"""
+    
+    NOTIFICATION_TYPES = (
+        ('OFFER', 'Offer/Discount'),
+        ('BANNER', 'Banner'),
+        ('PROMOTION', 'Promotion'),
+        ('SYSTEM', 'System'),
+    )
+    
+    PRIORITY_CHOICES = (
+        ('LOW', 'Low'),
+        ('MEDIUM', 'Medium'),
+        ('HIGH', 'High'),
+        ('URGENT', 'Urgent'),
+    )
+    
+    notification_id = models.CharField(max_length=50, unique=True, editable=False, default=uuid.uuid4)
+    retailer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications', limit_choices_to={'role': 'RETAILER'})
+    
+    # Notification details
+    title = models.CharField(max_length=255, help_text="Notification title (e.g., offer name)")
+    message = models.TextField(help_text="Notification message/description")
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, default='OFFER', help_text="Type of notification")
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='MEDIUM', help_text="Notification priority")
+    
+    # Related offer
+    offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
+    
+    # Status
+    is_read = models.BooleanField(default=False, help_text="Has retailer seen this notification?")
+    
+    # Icon URL for frontend display
+    icon_url = models.CharField(max_length=255, blank=True, null=True, help_text="Icon URL for notification display")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['retailer', '-created_at']),
+            models.Index(fields=['retailer', 'is_read']),
+        ]
+        verbose_name = 'Retailer Notification'
+        verbose_name_plural = 'Retailer Notifications'
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at'])
+    
+    def __str__(self):
+        return f"Notification: {self.title} → {self.retailer.username}"

@@ -897,6 +897,13 @@ class OfferListCreateView(APIView):
                 details=f'Offer "{offer.title}" created (valid {offer.valid_from} – {offer.valid_to})',
                 category='Offer',
             )
+            
+            # ── Send notifications to all retailers ──
+            try:
+                from dreamspharmaapp.notification_views import send_offer_notification_to_all_retailers
+                notification_result = send_offer_notification_to_all_retailers(offer)
+            except Exception as e:
+                notification_result = {'success': False, 'message': str(e)}
 
             return Response({
                 'status': 'success',
@@ -970,6 +977,13 @@ class OfferDetailView(APIView):
                 details=f'Offer "{offer.title}" updated',
                 category='Offer',
             )
+            
+            # ── Send notifications to all retailers ──
+            try:
+                from dreamspharmaapp.notification_views import send_offer_notification_to_all_retailers
+                notification_result = send_offer_notification_to_all_retailers(offer)
+            except Exception as e:
+                notification_result = {'success': False, 'message': str(e)}
 
             return Response({
                 'status': 'success',

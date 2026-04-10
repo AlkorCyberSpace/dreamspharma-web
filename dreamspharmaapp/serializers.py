@@ -4,7 +4,7 @@ from .models import (
     KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
     SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
     Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address,
-    Category, Offer
+    Category, Offer, RetailerNotification
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -1909,3 +1909,46 @@ class OfferListSerializer(serializers.ModelSerializer):
         
         serializer = OfferProductSerializer(products, many=True, context=context)
         return serializer.data
+
+
+# ==================== RETAILER NOTIFICATIONS ====================
+
+class RetailerNotificationSerializer(serializers.ModelSerializer):
+    """Serializer for retailer notifications - full details"""
+    offer_title = serializers.CharField(source='offer.title', read_only=True, allow_null=True)
+    offer_discount = serializers.DecimalField(source='offer.discount_percentage', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    offer_image = serializers.CharField(source='offer.offer_image', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = RetailerNotification
+        fields = [
+            'notification_id', 'title', 'message', 'is_read', 'icon_url', 
+            'offer', 'offer_title', 'offer_discount', 'offer_image',
+            'created_at', 'read_at'
+        ]
+        read_only_fields = ['notification_id', 'created_at', 'read_at']
+
+
+class RetailerNotificationListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing notifications"""
+    offer_title = serializers.CharField(source='offer.title', read_only=True, allow_null=True)
+    offer_discount = serializers.DecimalField(source='offer.discount_percentage', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    
+    class Meta:
+        model = RetailerNotification
+        fields = [
+            'notification_id', 'title', 'message', 'is_read', 'icon_url',
+            'offer_title', 'offer_discount', 'created_at'
+        ]
+
+
+class RetailerNotificationCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating notifications (admin use)"""
+    
+    class Meta:
+        model = RetailerNotification
+        fields = ['title', 'message', 'offer', 'icon_url']
+    
+    def create(self, validated_data):
+        return RetailerNotification.objects.create(**validated_data)
+

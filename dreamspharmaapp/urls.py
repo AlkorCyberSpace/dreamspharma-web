@@ -3,6 +3,11 @@ from django.urls import path
 from .views import related_products
 from django.urls import path
 from . import views
+from .notification_views import (
+    RetailerNotificationsListView,
+    RetailerNotificationDetailView,
+    RetailerNotificationCountView
+)
 
 urlpatterns = [
     # SuperAdmin Authentication
@@ -108,4 +113,9 @@ urlpatterns = [
     path('products/<str:product_id>/related/<int:user_id>/', views.related_products, name='related-products'),
     path('orders/<int:user_id>/', views.RetailerOrdersView.as_view(), name='retailer-orders'),
     path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
+    
+    # ==================== RETAILER NOTIFICATIONS ENDPOINTS ====================
+    path('retailer-notifications/count/', RetailerNotificationCountView.as_view(), name='retailer-notification-count'),
+    path('retailer-notifications/<str:notification_id>/', RetailerNotificationDetailView.as_view(), name='retailer-notification-detail'),
+    path('retailer-notifications/', RetailerNotificationsListView.as_view(), name='retailer-notifications-list'),
 ]
