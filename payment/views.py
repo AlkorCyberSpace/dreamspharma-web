@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from django.conf import settings
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -13,6 +13,9 @@ import hmac
 from decimal import Decimal, InvalidOperation
 import uuid
 import logging
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 from .models import Payment, PaymentLog, PaymentRefund
 from dreamspharmaapp.models import SalesOrder
@@ -20,10 +23,15 @@ from .serializers import PaymentSerializer, PaymentLogSerializer, PaymentRefundS
 
 logger = logging.getLogger(__name__)
 
-# Lazy import to avoid pkg_resources dependency issues
+# Lazy import razorpay to avoid pkg_resources issues
 def get_razorpay_client():
-    import razorpay
-    return razorpay
+    """Lazy load razorpay to avoid circular dependency with setuptools"""
+    try:
+        import razorpay
+        return razorpay
+    except ImportError as e:
+        logger.error(f"[RAZORPAY_IMPORT_ERROR] {str(e)}")
+        raise ImportError("Razorpay library not installed. Run: pip install razorpay") from e
 
 def get_client_ip(request):
     """Extract client IP from request"""
@@ -106,10 +114,11 @@ class RazorpayClient:
 
 class InitiatePaymentView(APIView):
     """Initiate payment for an order"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
-    def post(self, request):
+    def post(self, request, user_id):
         try:
+            user = get_object_or_404(User, id=user_id)
             order_id = request.data.get('order_id')
             if not order_id:
                 return Response(
@@ -151,7 +160,7 @@ class InitiatePaymentView(APIView):
                 # Create new payment record
                 merchant_ref_id = f"MER-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
                 payment = Payment.objects.create(
-                    user=request.user,
+                    user=user,
                     sales_order=sales_order,
                     amount=sales_order.order_total,
                     customer_name=sales_order.patient_name,
@@ -167,22 +176,32 @@ class InitiatePaymentView(APIView):
                 logger.info(f"[PAYMENT_INITIATED] Order {order_id} - Merchant Ref: {merchant_ref_id}")
             
             # Create Razorpay order
-            razorpay_client = RazorpayClient()
-            razorpay_order = razorpay_client.create_order(
-                amount=float(sales_order.order_total),
-                receipt=f"Order-{sales_order.order_id}",
-                notes={
-                    'order_id': sales_order.order_id,
-                    'user_id': str(request.user.id),
-                    'customer_name': sales_order.patient_name
-                }
-            )
-            
-            # Update payment with Razorpay order ID and expiry
-            payment.razorpay_order_id = razorpay_order['id']
-            payment.status = 'PENDING'
-            payment.expiry_at = timezone.now() + timezone.timedelta(minutes=15)  # Razorpay default expiry
-            payment.save()
+            try:
+                razorpay_client = RazorpayClient()
+                razorpay_order = razorpay_client.create_order(
+                    amount=float(sales_order.order_total),
+                    receipt=f"Order-{sales_order.order_id}",
+                    notes={
+                        'order_id': sales_order.order_id,
+                        'user_id': str(user.id),
+                        'customer_name': sales_order.patient_name
+                    }
+                )
+                
+                # Update payment with Razorpay order ID and expiry
+                payment.razorpay_order_id = razorpay_order['id']
+                payment.status = 'PENDING'
+                payment.expiry_at = timezone.now() + timezone.timedelta(minutes=15)  # Razorpay default expiry
+                payment.save()
+                logger.info(f"[RAZORPAY_ORDER_CREATED] Order ID: {razorpay_order['id']}")
+            except Exception as razorpay_error:
+                payment.status = 'FAILED'
+                payment.save()
+                logger.error(f"[RAZORPAY_ERROR] {str(razorpay_error)}", exc_info=True)
+                return Response(
+                    {'error': f'Razorpay API Error: {str(razorpay_error)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             
             # Log the request
             PaymentLog.objects.create(
@@ -216,11 +235,12 @@ class InitiatePaymentView(APIView):
 
 class VerifyPaymentView(APIView):
     """Verify payment signature and complete payment"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     @transaction.atomic
-    def post(self, request):
+    def post(self, request, user_id):
         try:
+            user = get_object_or_404(User, id=user_id)
             payment_id = request.data.get('payment_id')
             razorpay_order_id = request.data.get('razorpay_order_id')
             razorpay_payment_id = request.data.get('razorpay_payment_id')
@@ -237,7 +257,7 @@ class VerifyPaymentView(APIView):
             payment = get_object_or_404(
                 Payment,
                 payment_id=payment_id,
-                user=request.user
+                user=user
             )
             
             # Verify signature
@@ -325,13 +345,14 @@ class VerifyPaymentView(APIView):
 
 class PaymentStatusView(APIView):
     """Get payment status"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
-    def get(self, request, order_id=None, payment_id=None):
+    def get(self, request, user_id, order_id=None, payment_id=None):
         try:
+            user = get_object_or_404(User, id=user_id)
             if not order_id and not payment_id:
                 # Get all payments for user
-                payments = Payment.objects.filter(user=request.user)
+                payments = Payment.objects.filter(user=user)
                 serializer = PaymentSerializer(payments, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             
@@ -340,7 +361,7 @@ class PaymentStatusView(APIView):
                 # Use filter + order_by to handle multiple payments per order (retries)
                 payment = Payment.objects.filter(
                     sales_order__order_id=order_id,
-                    user=request.user
+                    user=user
                 ).order_by('-created_at').first()
                 
                 if not payment:
@@ -352,7 +373,7 @@ class PaymentStatusView(APIView):
                 payment = get_object_or_404(
                     Payment,
                     payment_id=payment_id,
-                    user=request.user
+                    user=user
                 )
             serializer = PaymentSerializer(payment)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -368,11 +389,12 @@ class PaymentStatusView(APIView):
 
 class InitiateRefundView(APIView):
     """Initiate refund for a payment"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     @transaction.atomic
-    def post(self, request):
+    def post(self, request, user_id):
         try:
+            user = get_object_or_404(User, id=user_id)
             payment_id = request.data.get('payment_id')
             amount = request.data.get('amount')
             reason = request.data.get('reason', 'Customer requested refund')
@@ -386,7 +408,7 @@ class InitiateRefundView(APIView):
             payment = get_object_or_404(
                 Payment,
                 payment_id=payment_id,
-                user=request.user,
+                user=user,
                 status='SUCCESS'
             )
             
@@ -442,7 +464,7 @@ class InitiateRefundView(APIView):
                 razorpay_refund_id=razorpay_refund.get('id'),
                 refund_type=refund_type,
                 status='INITIATED',
-                initiated_by=str(request.user.id),
+                initiated_by=str(user.id),
                 response_notes=razorpay_refund
             )
             
@@ -556,11 +578,12 @@ class WebhookView(APIView):
 
 class InitiateCODPaymentView(APIView):
     """Initiate Cash on Delivery payment for an order"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
-    def post(self, request):
+    def post(self, request, user_id):
         """Create COD payment record"""
         try:
+            user = get_object_or_404(User, id=user_id)
             order_id = request.data.get('order_id')
             if not order_id:
                 return Response(
@@ -600,7 +623,7 @@ class InitiateCODPaymentView(APIView):
             # Create COD payment record
             with transaction.atomic():
                 payment = Payment.objects.create(
-                    user=request.user,
+                    user=user,
                     sales_order=sales_order,
                     amount=sales_order.order_total,
                     payment_method='COD',
@@ -652,12 +675,13 @@ class InitiateCODPaymentView(APIView):
 
 class ConfirmCODPaymentView(APIView):
     """Confirm COD payment collection (called after delivery)"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     
     @transaction.atomic
-    def post(self, request):
+    def post(self, request, user_id):
         """Mark COD payment as collected"""
         try:
+            user = get_object_or_404(User, id=user_id)
             payment_id = request.data.get('payment_id')
             collected_by = request.data.get('collected_by', 'Delivery Agent')
             
@@ -675,7 +699,7 @@ class ConfirmCODPaymentView(APIView):
             )
             
             # Only staff/admin or the payment owner can confirm COD
-            if not request.user.is_staff and payment.user != request.user:
+            if user.role != 'SUPERADMIN' and payment.user != user:
                 return Response(
                     {'error': 'You do not have permission to confirm this payment'},
                     status=status.HTTP_403_FORBIDDEN

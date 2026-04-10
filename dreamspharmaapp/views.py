@@ -325,7 +325,14 @@ class RetailerLoginView(APIView):
         
         return Response({
             'message': 'Email and password verified. OTP sent to your email.',
-            'email': user.email
+            'email': user.email,
+            'otp_expires_in': 60,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'phone_number': user.phone_number,
+            },
         }, status=status.HTTP_200_OK)
 
 
@@ -1222,7 +1229,10 @@ class GetItemMasterView(APIView):
                     'code': '200',
                     'type': 'getMasterData',
                     'data': items,
-                    'message': f'Fetched {len(items)} items from ERP server'
+                    'message': f'Fetched {len(items)} items from ERP server',
+                    'c2Code': settings.ERP_C2_CODE,
+                    'storeId': settings.ERP_STORE_ID,
+                    'prodCode': settings.ERP_PROD_CODE
                 }, status=status.HTTP_200_OK)
             
             except requests.exceptions.ConnectionError:
@@ -1570,6 +1580,19 @@ class CreateSalesOrderView(APIView):
     def post(self, request):
         serializer = CreateSalesOrderRequestSerializer(data=request.data)
         if serializer.is_valid():
+            # Get payment mode from request
+            payment_mode = serializer.validated_data.get('paymentMode', 'COD')
+            
+            # Validate payment mode
+            if payment_mode not in ['COD', 'RAZORPAY']:
+                return Response({
+                    'code': '400',
+                    'type': 'SaleOrderCreate',
+                    'message': f'Invalid payment mode: {payment_mode}. Must be "COD" or "RAZORPAY"'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            logger.info(f"[CREATE_SALES_ORDER] Payment Mode: {payment_mode}")
+            
             # 🎯 Use auto-generated token from background service
             from .erp_token_service import get_erp_token_for_request
             api_key = get_erp_token_for_request()
@@ -1586,7 +1609,8 @@ class CreateSalesOrderView(APIView):
                     # ✅ AUTO-GENERATE UNIQUE ORDER ID (Always - Backend Responsibility)
                     # Format: {storeId}{YYYYMMDD}{HHMMSS}{UUID}
                     # Example: 001202604051430AB12CD34
-                    store_id = serializer.validated_data['storeId'].zfill(3)  # Pad to 3 digits
+                    store_id_val = serializer.validated_data.get('storeId') or settings.ERP_STORE_ID
+                    store_id = str(store_id_val).zfill(3)  # Pad to 3 digits
                     date_str = timezone.now().strftime('%Y%m%d')
                     time_str = timezone.now().strftime('%H%M%S')
                     unique_suffix = str(uuid.uuid4())[:8].upper()
@@ -1597,27 +1621,27 @@ class CreateSalesOrderView(APIView):
                     from django.db import IntegrityError
                     try:
                         sales_order = SalesOrder.objects.create(
-                            c2_code=serializer.validated_data['c2Code'],
-                            store_id=serializer.validated_data['storeId'],
+                            c2_code=serializer.validated_data.get('c2Code') or settings.ERP_C2_CODE,
+                            store_id=store_id_val,
                             order_id=order_id,
-                            ip_no=serializer.validated_data['ipNo'],
-                            mobile_no=serializer.validated_data['mobileNo'],
-                            patient_name=serializer.validated_data['patientName'],
-                            patient_address=serializer.validated_data['patientAddress'],
-                            patient_email=serializer.validated_data['patientEmail'],
-                            counter_sale=bool(serializer.validated_data['counterSale']),
-                            ord_date=serializer.validated_data['ordDate'],
-                            ord_time=serializer.validated_data['ordTime'],
-                            user_id=serializer.validated_data['userId'],
-                            cust_code=serializer.validated_data['actCode'],
-                            cust_name=serializer.validated_data['actName'],
+                            ip_no=serializer.validated_data.get('ipNo') or '',
+                            mobile_no=serializer.validated_data.get('mobileNo') or '',
+                            patient_name=serializer.validated_data.get('patientName') or '',
+                            patient_address=serializer.validated_data.get('patientAddress') or '',
+                            patient_email=serializer.validated_data.get('patientEmail') or '',
+                            counter_sale=bool(serializer.validated_data.get('counterSale', 0)),
+                            ord_date=serializer.validated_data.get('ordDate') or timezone.now().date(),
+                            ord_time=serializer.validated_data.get('ordTime') or timezone.now().time(),
+                            user_id=serializer.validated_data.get('userId') or '',
+                            cust_code=serializer.validated_data.get('actCode') or '',
+                            cust_name=serializer.validated_data.get('actName') or '',
                             dr_code=serializer.validated_data.get('drCode', ''),
                             dr_name=serializer.validated_data.get('drName', ''),
                             dr_address=serializer.validated_data.get('drAddress', ''),
                             dr_reg_no=serializer.validated_data.get('drRegNo', ''),
                             dr_office_code=serializer.validated_data.get('drOfficeCode', '-'),
                             dman_code=serializer.validated_data.get('dmanCode', '-'),
-                            order_total=serializer.validated_data['orderTotal'],
+                            order_total=serializer.validated_data.get('orderTotal') or 0.00,
                             order_disc_per=serializer.validated_data.get('orderDiscPer', 0),
                             ref_no=serializer.validated_data.get('refNo'),
                             remark=serializer.validated_data.get('remark'),
@@ -1625,14 +1649,14 @@ class CreateSalesOrderView(APIView):
                             ord_conversion_flag=bool(serializer.validated_data.get('ordConversionFlag', 0)),
                             dc_conversion_flag=bool(serializer.validated_data.get('dcConversionFlag', 0)),
                             ord_ref_no=serializer.validated_data.get('ordRefNo', 0),
-                            sys_name=serializer.validated_data['sysName'],
-                            sys_ip=serializer.validated_data['sysIp'],
-                            sys_user=serializer.validated_data['sysUser'],
-                            br_code=serializer.validated_data['storeId'],
+                            sys_name=serializer.validated_data.get('sysName') or '',
+                            sys_ip=serializer.validated_data.get('sysIp') or '',
+                            sys_user=serializer.validated_data.get('sysUser') or '',
+                            br_code=store_id_val,
                             tran_year=str(timezone.now().year % 100),
                             tran_prefix='6',
                             tran_srno='1',
-                            bill_total=serializer.validated_data['orderTotal']
+                            bill_total=serializer.validated_data.get('orderTotal') or 0.00
                         )
                     except IntegrityError as e:
                         # ✅ FIX #5: Handle duplicate order ID (race condition - extremely rare)
@@ -1645,27 +1669,27 @@ class CreateSalesOrderView(APIView):
                         
                         try:
                             sales_order = SalesOrder.objects.create(
-                                c2_code=serializer.validated_data['c2Code'],
-                                store_id=serializer.validated_data['storeId'],
+                                c2_code=serializer.validated_data.get('c2Code') or settings.ERP_C2_CODE,
+                                store_id=store_id_val,
                                 order_id=order_id_retry,
-                                ip_no=serializer.validated_data['ipNo'],
-                                mobile_no=serializer.validated_data['mobileNo'],
-                                patient_name=serializer.validated_data['patientName'],
-                                patient_address=serializer.validated_data['patientAddress'],
-                                patient_email=serializer.validated_data['patientEmail'],
-                                counter_sale=bool(serializer.validated_data['counterSale']),
-                                ord_date=serializer.validated_data['ordDate'],
-                                ord_time=serializer.validated_data['ordTime'],
-                                user_id=serializer.validated_data['userId'],
-                                cust_code=serializer.validated_data['actCode'],
-                                cust_name=serializer.validated_data['actName'],
+                                ip_no=serializer.validated_data.get('ipNo') or '',
+                                mobile_no=serializer.validated_data.get('mobileNo') or '',
+                                patient_name=serializer.validated_data.get('patientName') or '',
+                                patient_address=serializer.validated_data.get('patientAddress') or '',
+                                patient_email=serializer.validated_data.get('patientEmail') or '',
+                                counter_sale=bool(serializer.validated_data.get('counterSale', 0)),
+                                ord_date=serializer.validated_data.get('ordDate') or timezone.now().date(),
+                                ord_time=serializer.validated_data.get('ordTime') or timezone.now().time(),
+                                user_id=serializer.validated_data.get('userId') or '',
+                                cust_code=serializer.validated_data.get('actCode') or '',
+                                cust_name=serializer.validated_data.get('actName') or '',
                                 dr_code=serializer.validated_data.get('drCode', ''),
                                 dr_name=serializer.validated_data.get('drName', ''),
                                 dr_address=serializer.validated_data.get('drAddress', ''),
                                 dr_reg_no=serializer.validated_data.get('drRegNo', ''),
                                 dr_office_code=serializer.validated_data.get('drOfficeCode', '-'),
                                 dman_code=serializer.validated_data.get('dmanCode', '-'),
-                                order_total=serializer.validated_data['orderTotal'],
+                                order_total=serializer.validated_data.get('orderTotal') or 0.00,
                                 order_disc_per=serializer.validated_data.get('orderDiscPer', 0),
                                 ref_no=serializer.validated_data.get('refNo'),
                                 remark=serializer.validated_data.get('remark'),
@@ -1673,14 +1697,14 @@ class CreateSalesOrderView(APIView):
                                 ord_conversion_flag=bool(serializer.validated_data.get('ordConversionFlag', 0)),
                                 dc_conversion_flag=bool(serializer.validated_data.get('dcConversionFlag', 0)),
                                 ord_ref_no=serializer.validated_data.get('ordRefNo', 0),
-                                sys_name=serializer.validated_data['sysName'],
-                                sys_ip=serializer.validated_data['sysIp'],
-                                sys_user=serializer.validated_data['sysUser'],
-                                br_code=serializer.validated_data['storeId'],
+                                sys_name=serializer.validated_data.get('sysName') or '',
+                                sys_ip=serializer.validated_data.get('sysIp') or '',
+                                sys_user=serializer.validated_data.get('sysUser') or '',
+                                br_code=store_id_val,
                                 tran_year=str(timezone.now().year % 100),
                                 tran_prefix='6',
                                 tran_srno='1',
-                                bill_total=serializer.validated_data['orderTotal']
+                                bill_total=serializer.validated_data.get('orderTotal') or 0.00
                             )
                             order_id = order_id_retry  # Update for logging
                         except IntegrityError as e2:
@@ -1692,21 +1716,26 @@ class CreateSalesOrderView(APIView):
                             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                     
                     # Create line items with batch and expiry tracking
-                    material_info = serializer.validated_data['materialInfo']
-                    for item in material_info:
+                    material_info = serializer.validated_data.get('materialInfo') or []
+                    # ✅ FIX #6: Auto-increment item_seq if not provided to avoid unique constraint violation
+                    for idx, item in enumerate(material_info):
+                        item_seq = item.get('itemSeq')
+                        if item_seq is None:
+                            # Auto-generate unique sequence number starting from 1
+                            item_seq = idx + 1
                         SalesOrderItem.objects.create(
                             sales_order=sales_order,
-                            item_seq=item['item_seq'],
-                            item_code=item['item_code'],
-                            item_name=item.get('item_name', ''),
-                            batch_no=item.get('batch_no'),  # ✅ FIX #2: Track batch for recalls
-                            expiry_date=item.get('expiry_date'),  # ✅ FIX #2: Track expiry for recalls
-                            total_loose_qty=item['total_loose_qty'],
-                            total_loose_sch_qty=item.get('total_loose_sch_qty', 0),
-                            service_qty=item.get('service_qty', 0),
-                            sale_rate=item['sale_rate'],
-                            disc_per=item.get('disc_per', 0),
-                            sch_disc_per=item.get('sch_disc_per', 0)
+                            item_seq=item_seq,
+                            item_code=item.get('itemcode') or '',
+                            item_name=item.get('itemName', ''),
+                            batch_no=item.get('batchNo'),  # ✅ FIX #2: Track batch for recalls
+                            expiry_date=item.get('expiryDate'),  # ✅ FIX #2: Track expiry for recalls
+                            total_loose_qty=item.get('totalLooseQty', 0),
+                            total_loose_sch_qty=item.get('totalLooseSchQty', 0),
+                            service_qty=item.get('serviceQty', 0),
+                            sale_rate=item.get('saleRate', 0),
+                            disc_per=item.get('discPer', 0),
+                            sch_disc_per=item.get('schDiscPer', 0)
                         )
                     
                     # Generate document number
@@ -1722,6 +1751,17 @@ class CreateSalesOrderView(APIView):
                         'code': '200',
                         'type': 'SaleOrderCreate',
                         'message': f'Document No. : {sales_order.document_pk} successfully processed.',
+                        'paymentMode': payment_mode,  # Return payment mode to frontend
+                        'paymentDetails': {
+                            'mode': payment_mode,
+                            'amount': str(sales_order.bill_total),
+                            'currency': 'INR'
+                        },
+                        'config': {
+                            'c2Code': settings.ERP_C2_CODE,           # ✅ From backend settings
+                            'storeId': settings.ERP_STORE_ID,         # ✅ From backend settings
+                            'prodCode': settings.ERP_PROD_CODE,       # ✅ From backend settings
+                        },
                         'documentDetails': [{
                             'brCode': sales_order.br_code,
                             'tranYear': sales_order.tran_year,
@@ -1883,6 +1923,8 @@ class GetOrderStatusView(APIView):
                 'code': '500',
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 
 # ==================== CART VIEWS ====================
@@ -3673,16 +3715,38 @@ class CheckoutWithAddressView(APIView):
                     'errors': serializer.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            address_id = serializer.validated_data['address_id']
+            address_id = serializer.validated_data.get('address_id')
             
-            # Verify address belongs to user
-            try:
-                address = Address.objects.get(id=address_id, user=request.user, is_active=True)
-            except Address.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': 'Selected address not found or not available'
-                }, status=status.HTTP_404_NOT_FOUND)
+            # Get address - either specified or use default/last used
+            if address_id:
+                # Use specified address
+                try:
+                    address = Address.objects.get(id=address_id, user=request.user, is_active=True)
+                except Address.DoesNotExist:
+                    return Response({
+                        'success': False,
+                        'message': 'Selected address not found or not available'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                # Auto-select: Try default address first, then most recently created
+                address = Address.objects.filter(
+                    user=request.user, 
+                    is_active=True, 
+                    is_default=True
+                ).first()
+                
+                if not address:
+                    # No default address, use the most recently created
+                    address = Address.objects.filter(
+                        user=request.user, 
+                        is_active=True
+                    ).order_by('-created_at').first()
+                
+                if not address:
+                    return Response({
+                        'success': False,
+                        'message': 'No active delivery address found. Please add an address first.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
             
             # Get user's cart
             try:
@@ -3700,11 +3764,10 @@ class CheckoutWithAddressView(APIView):
                     'message': 'Cart is empty'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Prepare order data
+            # Prepare order data (order_id will be auto-generated in SalesOrder.save())
             order_data = {
                 'c2_code': address.pincode[:3],
                 'store_id': getattr(request.user.kyc, 'user_id', '00001'),
-                'order_id': f"ORD-{uuid.uuid4().hex[:8].upper()}",
                 'ip_no': getattr(request.user.kyc, 'user_id', ''),
                 'mobile_no': address.phone,
                 'patient_name': address.name,
@@ -5722,3 +5785,234 @@ class RegisterDeviceTokenView(APIView):
         
         msg = "Token registered successfully" if created else "Token updated successfully"
         return Response({'message': msg}, status=status.HTTP_200_OK)
+    
+class RetailerOrdersView(APIView):
+    """
+    Get all orders for a specific retailer mobile app
+    GET: Retrieve active and completed orders with product details
+    """
+    permission_classes = [AllowAny] # Or IsAuthenticated depending on mobile app auth
+    
+    def get(self, request, user_id):
+        try:
+            # Check if user exists
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'User not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+            
+        # Optional status filter: active or completed
+        filter_status = request.query_params.get('status', 'all').lower()
+        
+        # Fetch orders for this user using string representation of ID as stored
+        # Also prefetch items for efficiency
+        orders = SalesOrder.objects.filter(user_id=str(user.id)).prefetch_related(
+            'items'
+        ).order_by('-created_at')
+        
+        active_orders = []
+        completed_orders = []
+        
+        for order in orders:
+            # Check for canceled orders first
+            payment = order.payments.first() if hasattr(order, 'payments') else None
+            is_cancelled = False
+            if payment and payment.status == 'FAILED':
+                is_cancelled = True
+                
+            # Skip canceled orders entirely
+            if is_cancelled:
+                continue
+
+            # Determine if order is completed
+            # dc_conversion_flag = Dispatched/Delivered.
+            is_completed = order.dc_conversion_flag
+            
+            # Fetch product info for items
+            items_data = []
+            for item in order.items.all():
+                # Attempt to find product info for images/subheading
+                image_url = None
+                subheading = ""
+                type_label = ""
+                
+                try:
+                    product_info = ProductInfo.objects.get(item__item_code=item.item_code)
+                    subheading = product_info.subheading or ""
+                    type_label = product_info.type_label or ""
+                    
+                    # Try to get the first image
+                    first_image = product_info.images.first()
+                    if first_image and first_image.image:
+                        image_url = request.build_absolute_uri(first_image.image.url)
+                except ProductInfo.DoesNotExist:
+                    pass
+                
+                items_data.append({
+                    'item_id': item.id,
+                    'item_code': item.item_code,
+                    'name': item.item_name or item.item_code,
+                    'subheading': subheading,
+                    'type_label': type_label,
+                    'image': image_url,
+                    'qty': item.total_loose_qty,
+                    'price': str(item.sale_rate),
+                    'total': str(item.item_total) if item.item_total else str(float(item.sale_rate) * item.total_loose_qty)
+                })
+                
+            order_data = {
+                'order_id': order.order_id,
+                'document_pk': order.document_pk,
+                'date': order.ord_date.strftime('%Y-%m-%d') if order.ord_date else '',
+                'total': str(order.order_total),
+                'status': 'Delivered' if is_completed else ('Dispatched' if order.dc_conversion_flag else 'In Delivery'),
+                'is_completed': is_completed,
+                'items': items_data
+            }
+            
+            if is_completed:
+                completed_orders.append(order_data)
+            else:
+                active_orders.append(order_data)
+                
+        # Return requested set
+        if filter_status == 'active':
+            result_data = active_orders
+        elif filter_status == 'completed':
+            result_data = completed_orders
+        else:
+            result_data = {
+                'active': active_orders,
+                'completed': completed_orders
+            }
+            
+        return Response({
+            'success': True,
+            'message': 'Orders retrieved successfully',
+            'data': result_data
+        }, status=status.HTTP_200_OK)
+    
+
+# ==================== ORDER MANAGEMENT VIEWS ====================
+
+class SuperAdminOrdersView(APIView):
+    """
+    API endpoint for superadmin to get all orders with items and payment info.
+    GET /api/superadmin/orders/ - Get all orders with their line items
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get all orders with items and payment details"""
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Query params for filtering
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search', '').strip()
+
+        orders = SalesOrder.objects.prefetch_related(
+            'items', 'payments'
+        ).order_by('-created_at')
+
+        # Filter by conversion status (maps to frontend status labels)
+        if status_filter:
+            status_map = {
+                'Confirmed': {'ord_conversion_flag': True, 'dc_conversion_flag': False},
+                'Dispatched': {'dc_conversion_flag': True},
+                'Pending': {'ord_conversion_flag': False, 'dc_conversion_flag': False},
+            }
+            if status_filter in status_map:
+                orders = orders.filter(**status_map[status_filter])
+
+        # Search by order_id, patient_name, or cust_name
+        if search:
+            from django.db.models import Q
+            orders = orders.filter(
+                Q(order_id__icontains=search) |
+                Q(patient_name__icontains=search) |
+                Q(cust_name__icontains=search)
+            )
+
+        results = []
+        for order in orders:
+            # Determine order status
+            payment = order.payments.first()
+            payment_method = payment.get_payment_method_display() if payment else 'COD'
+            payment_status = payment.status if payment else 'PENDING'
+
+            if payment and payment.status == 'FAILED':
+                order_status = 'Cancelled'
+            elif order.dc_conversion_flag:
+                order_status = 'Delivered'  # Matches Figma
+            elif order.ord_conversion_flag:
+                order_status = 'Confirmed'
+            else:
+                order_status = 'Pending'
+
+            # Build items list for modal
+            items_data = []
+            for item in order.items.all():
+                items_data.append({
+                    'name': item.item_name or item.item_code,
+                    'item_code': item.item_code,
+                    'qty': item.total_loose_qty,
+                    'mrp': float(item.sale_rate),
+                    'total': float(item.item_total) if item.item_total else float(item.sale_rate) * item.total_loose_qty,
+                    'batch_no': item.batch_no,
+                })
+
+            # Build timeline
+            timeline = []
+            timeline.append({
+                'label': 'Created',
+                'date': order.created_at.strftime('%Y-%m-%d %I:%M %p') if order.created_at else '',
+                'status': 'completed'
+            })
+            if order.ord_conversion_flag:
+                timeline.append({
+                    'label': 'Confirmed',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
+            if order.dc_conversion_flag:
+                timeline.append({
+                    'label': 'Dispatched',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
+                
+            retailer_id = order.store_id if order.store_id else 'RET001' # Fallback for display
+            if order.user_id and order.user_id.isdigit():
+                try:
+                    retailer_user = get_user_model().objects.get(id=int(order.user_id))
+                    if hasattr(retailer_user, 'kyc') and retailer_user.kyc.user_id:
+                        retailer_id = retailer_user.kyc.user_id
+                except:
+                    pass
+
+            results.append({
+                'id': order.order_id,
+                'retailer_id': retailer_id,
+                'retailer': order.cust_name or order.patient_name,
+                'date': order.ord_date.strftime('%Y - %m - %d') if order.ord_date else '', # Figma format
+                'items': order.items.count(),
+                'total': str(order.order_total),
+                'payment': payment_method,
+                'payment_status': payment_status,
+                'status': order_status,
+                'erpRef': order.document_pk or f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else '',
+                'detailedTimeline': timeline,
+                'detailedItems': items_data,
+            })
+
+        return Response({
+            'message': f'Found {len(results)} order(s)',
+            'count': len(results),
+            'results': results
+        }, status=status.HTTP_200_OK)
+    

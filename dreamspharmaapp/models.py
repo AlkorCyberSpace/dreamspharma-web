@@ -343,28 +343,28 @@ class Address(models.Model):
 
 class SalesOrder(models.Model):
     """Sales Order document"""
-    c2_code = models.CharField(max_length=20)
-    store_id = models.CharField(max_length=20)
+    c2_code = models.CharField(max_length=20, blank=True, default='')
+    store_id = models.CharField(max_length=20, blank=True, default='')
     order_id = models.CharField(max_length=100, unique=True)
-    ip_no = models.CharField(max_length=100, help_text="Patient/Customer IP number")
-    mobile_no = models.CharField(max_length=15)
-    patient_name = models.CharField(max_length=255)
-    patient_address = models.TextField()
+    ip_no = models.CharField(max_length=100, blank=True, default='', help_text="Patient/Customer IP number")
+    mobile_no = models.CharField(max_length=15, blank=True, default='')
+    patient_name = models.CharField(max_length=255, blank=True, default='')
+    patient_address = models.TextField(blank=True, default='')
     delivery_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name='sales_orders', blank=True, null=True, help_text="Linked delivery address for this order")
-    patient_email = models.EmailField()
+    patient_email = models.EmailField(blank=True, null=True)
     counter_sale = models.BooleanField(default=False)
-    ord_date = models.DateField()
-    ord_time = models.TimeField()
-    user_id = models.CharField(max_length=100)  # User placing order
-    cust_code = models.CharField(max_length=50, help_text="Customer/Account code")
-    cust_name = models.CharField(max_length=255)
+    ord_date = models.DateField(auto_now_add=False, null=True, blank=True)
+    ord_time = models.TimeField(auto_now_add=False, null=True, blank=True)
+    user_id = models.CharField(max_length=100, blank=True, default='')  # User placing order
+    cust_code = models.CharField(max_length=50, blank=True, default='', help_text="Customer/Account code")
+    cust_name = models.CharField(max_length=255, blank=True, default='')
     dr_code = models.CharField(max_length=50, blank=True, null=True)
     dr_name = models.CharField(max_length=255, blank=True, null=True)
     dr_address = models.TextField(blank=True, null=True)
     dr_reg_no = models.CharField(max_length=50, blank=True, null=True)
     dr_office_code = models.CharField(max_length=50, default="-")
     dman_code = models.CharField(max_length=50, default="-")
-    order_total = models.DecimalField(max_digits=12, decimal_places=2)
+    order_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     order_disc_per = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     ref_no = models.IntegerField(blank=True, null=True)
     remark = models.TextField(blank=True, null=True)
@@ -372,19 +372,25 @@ class SalesOrder(models.Model):
     ord_conversion_flag = models.BooleanField(default=False)
     dc_conversion_flag = models.BooleanField(default=False)
     ord_ref_no = models.IntegerField(default=0)
-    sys_name = models.CharField(max_length=100)
-    sys_ip = models.GenericIPAddressField()
-    sys_user = models.CharField(max_length=100)
+    sys_name = models.CharField(max_length=100, blank=True, default='')
+    sys_ip = models.GenericIPAddressField(blank=True, null=True)
+    sys_user = models.CharField(max_length=100, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     # Document details
-    br_code = models.CharField(max_length=20)
-    tran_year = models.CharField(max_length=4)
-    tran_prefix = models.CharField(max_length=10)
-    tran_srno = models.CharField(max_length=50)
+    br_code = models.CharField(max_length=20, blank=True, default='')
+    tran_year = models.CharField(max_length=4, blank=True, default='')
+    tran_prefix = models.CharField(max_length=10, blank=True, default='')
+    tran_srno = models.CharField(max_length=50, blank=True, default='')
     document_pk = models.CharField(max_length=100, unique=True, blank=True, null=True)
-    bill_total = models.DecimalField(max_digits=12, decimal_places=2)
+    bill_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    
+    def save(self, *args, **kwargs):
+        """Auto-generate order_id if not provided"""
+        if not self.order_id:
+            self.order_id = f"ORD-{self.ord_date.strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
     
     def __str__(self):
         return f"Order {self.order_id} - {self.patient_name}"

@@ -5,7 +5,7 @@ from django.conf import settings
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dreamspharmaapp', '0025_offer_productview'),
+        ('dreamspharmaapp', '0025_fcmdevice_offer_productview'),
         ('payment', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
