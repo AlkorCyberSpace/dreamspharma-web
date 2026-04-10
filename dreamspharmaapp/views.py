@@ -3579,9 +3579,18 @@ class RetailerOrdersView(APIView):
         completed_orders = []
         
         for order in orders:
+            # Check for canceled orders first
+            payment = order.payments.first() if hasattr(order, 'payments') else None
+            is_cancelled = False
+            if payment and payment.status == 'FAILED':
+                is_cancelled = True
+                
+            # Skip canceled orders entirely
+            if is_cancelled:
+                continue
+
             # Determine if order is completed
-            # dc_conversion_flag = Dispatched/Delivered. Or we can check payment/order status.
-            # Assuming dc_conversion_flag=True means completed/delivered
+            # dc_conversion_flag = Dispatched/Delivered.
             is_completed = order.dc_conversion_flag
             
             # Fetch product info for items

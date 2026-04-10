@@ -6,11 +6,12 @@ from django.contrib.auth import get_user_model, logout
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer
-from .models import AuditLog
+from .models import AuditLog, AdminNotification
 from .serializers import (
     RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer,
     DashboardStatisticsSerializer, ChangePasswordSerializer, SuperAdminProfileSerializer,
-    SuperAdminProfileImageSerializer, AddCategorySerializer, AuditLogSerializer
+    SuperAdminProfileImageSerializer, AddCategorySerializer, AuditLogSerializer,
+    AdminNotificationSerializer
 )
 from dreamspharmaapp.serializers import OfferSerializer, OfferCreateUpdateSerializer, OfferListSerializer
 import logging
@@ -1149,12 +1150,129 @@ class AuditLogListView(APIView):
             },
             'data': serializer.data
         }, status=status.HTTP_200_OK)
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from .models import AdminNotification
-from .serializers import AdminNotificationSerializer
+
+
+# ==================== ORDER MANAGEMENT VIEWS ====================
+
+class SuperAdminOrdersView(APIView):
+    """
+    API endpoint for superadmin to get all orders with items and payment info.
+    GET /api/superadmin/orders/ - Get all orders with their line items
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get all orders with items and payment details"""
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Query params for filtering
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search', '').strip()
+
+        orders = SalesOrder.objects.prefetch_related(
+            'items', 'payments'
+        ).order_by('-created_at')
+
+        # Filter by conversion status (maps to frontend status labels)
+        if status_filter:
+            status_map = {
+                'Confirmed': {'ord_conversion_flag': True, 'dc_conversion_flag': False},
+                'Dispatched': {'dc_conversion_flag': True},
+                'Pending': {'ord_conversion_flag': False, 'dc_conversion_flag': False},
+            }
+            if status_filter in status_map:
+                orders = orders.filter(**status_map[status_filter])
+
+        # Search by order_id, patient_name, or cust_name
+        if search:
+            from django.db.models import Q
+            orders = orders.filter(
+                Q(order_id__icontains=search) |
+                Q(patient_name__icontains=search) |
+                Q(cust_name__icontains=search)
+            )
+
+        results = []
+        for order in orders:
+            # Determine order status
+            payment = order.payments.first()
+            payment_method = payment.get_payment_method_display() if payment else 'COD'
+            payment_status = payment.status if payment else 'PENDING'
+
+            if payment and payment.status == 'FAILED':
+                order_status = 'Cancelled'
+            elif order.dc_conversion_flag:
+                order_status = 'Delivered'  # Matches Figma
+            elif order.ord_conversion_flag:
+                order_status = 'Confirmed'
+            else:
+                order_status = 'Pending'
+
+            # Build items list for modal
+            items_data = []
+            for item in order.items.all():
+                items_data.append({
+                    'name': item.item_name or item.item_code,
+                    'item_code': item.item_code,
+                    'qty': item.total_loose_qty,
+                    'mrp': float(item.sale_rate),
+                    'total': float(item.item_total) if item.item_total else float(item.sale_rate) * item.total_loose_qty,
+                    'batch_no': item.batch_no,
+                })
+
+            # Build timeline
+            timeline = []
+            timeline.append({
+                'label': 'Created',
+                'date': order.created_at.strftime('%Y-%m-%d %I:%M %p') if order.created_at else '',
+                'status': 'completed'
+            })
+            if order.ord_conversion_flag:
+                timeline.append({
+                    'label': 'Confirmed',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
+            if order.dc_conversion_flag:
+                timeline.append({
+                    'label': 'Dispatched',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
+                
+            retailer_id = order.store_id if order.store_id else 'RET001' # Fallback for display
+            if order.user_id and order.user_id.isdigit():
+                try:
+                    retailer_user = get_user_model().objects.get(id=int(order.user_id))
+                    if hasattr(retailer_user, 'kyc') and retailer_user.kyc.user_id:
+                        retailer_id = retailer_user.kyc.user_id
+                except:
+                    pass
+
+            results.append({
+                'id': order.order_id,
+                'retailer_id': retailer_id,
+                'retailer': order.cust_name or order.patient_name,
+                'date': order.ord_date.strftime('%Y - %m - %d') if order.ord_date else '', # Figma format
+                'items': order.items.count(),
+                'total': str(order.order_total),
+                'payment': payment_method,
+                'payment_status': payment_status,
+                'status': order_status,
+                'erpRef': order.document_pk or f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else '',
+                'detailedTimeline': timeline,
+                'detailedItems': items_data,
+            })
+
+        return Response({
+            'message': f'Found {len(results)} order(s)',
+            'count': len(results),
+            'results': results
+        }, status=status.HTTP_200_OK)
+
 
 class AdminNotificationListView(APIView):
     """
