@@ -5,8 +5,12 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model, logout
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Sum, Count, Q
-from datetime import timedelta
+from django.http import HttpResponse
+import openpyxl
+from io import BytesIO
+from django.db.models import Sum, Count, Q, Avg, Max
+from django.utils.dateparse import parse_date
+from datetime import timedelta, date
 from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem
 from .models import AuditLog, AdminNotification
 from .serializers import (
@@ -1397,3 +1401,223 @@ class AdminNotificationMarkReadView(APIView):
             return Response({'status': 'success', 'message': 'Notification marked as read'})
         except AdminNotification.DoesNotExist:
             return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+
+# ==================== REPORTS & ANALYTICS VIEWS ====================
+
+class ExcelExportMixin:
+    def generate_excel(self, data, report_type):
+        if not data:
+            return Response({'error': 'No data available to export'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = report_type.capitalize()
+
+        # Write headers
+        headers = list(data[0].keys())
+        sheet.append(headers)
+
+        # Write rows
+        for row in data:
+            sheet.append([str(val) if val is not None else '' for val in row.values()])
+
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{report_type}.xlsx"'
+        return response
+
+class ReportSummaryView(APIView):
+    """
+    MTD cards data for Reports page.
+    GET /api/superadmin/reports/summary/?start_date=...&end_date=...
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Time selection
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+
+        if start_date_str and end_date_str:
+            start_date = parse_date(start_date_str)
+            end_date = parse_date(end_date_str)
+        else:
+            # Default to current month MTD
+            today = timezone.now().date()
+            start_date = today.replace(day=1)
+            end_date = today
+
+        # Queries
+        orders = SalesOrder.objects.filter(ord_date__range=[start_date, end_date])
+        
+        total_revenue = orders.aggregate(total=Sum('order_total'))['total'] or 0.0
+        total_orders = orders.count()
+        avg_order_value = orders.aggregate(avg=Avg('order_total'))['avg'] or 0.0
+        active_retailers = orders.values('user_id').distinct().count()
+
+        # Previous month comparison (simplified)
+        prev_start = (start_date - timedelta(days=30)).replace(day=1)
+        prev_end = (start_date - timedelta(days=1))
+        prev_orders = SalesOrder.objects.filter(ord_date__range=[prev_start, prev_end])
+        prev_revenue = prev_orders.aggregate(total=Sum('order_total'))['total'] or 0.0
+        
+        rev_change = ((float(total_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if float(prev_revenue) > 0 else 0
+
+        return Response({
+            'success': True,
+            'data': {
+                'total_revenue': float(total_revenue),
+                'total_orders': total_orders,
+                'avg_order_value': float(avg_order_value),
+                'active_retailers': active_retailers,
+                'revenue_change_percentage': round(rev_change, 1)
+            }
+        })
+
+class KYCStatusReportView(APIView, ExcelExportMixin):
+    """
+    KYC approval/rejection statistics and record list.
+    GET /api/superadmin/reports/kyc/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        queryset = KYC.objects.all().order_by('-submitted_at')
+        if start_date and end_date:
+            queryset = queryset.filter(submitted_at__date__range=[start_date, end_date])
+
+        summary = queryset.values('status').annotate(count=Count('id'))
+        report_data = []
+        for item in queryset[:100]: # Limit for list view
+            report_data.append({
+                'retailer': item.user.username,
+                'shop_name': item.shop_name,
+                'status': item.status,
+                'date': item.submitted_at.strftime('%Y-%m-%d'),
+                'approved_at': item.approved_at.strftime('%Y-%m-%d') if item.approved_at else 'N/A'
+            })
+
+        if request.query_params.get('export') == 'excel':
+            return self.generate_excel(report_data, 'kyc_status_report')
+
+        return Response({
+            'success': True,
+            'summary': list(summary),
+            'data': report_data
+        })
+
+class OrderReportView(APIView, ExcelExportMixin):
+    """
+    Detailed list of orders with specific columns for reports.
+    GET /api/superadmin/reports/orders/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        search = request.query_params.get('search', '')
+
+        orders = SalesOrder.objects.all().order_by('-ord_date')
+        if start_date and end_date:
+            orders = orders.filter(ord_date__range=[start_date, end_date])
+        
+        if search:
+            orders = orders.filter(
+                Q(order_id__icontains=search) | 
+                Q(cust_name__icontains=search)
+            )
+
+        data = []
+        for order in orders:
+            data.append({
+                'order_id': order.order_id,
+                'retailer': order.cust_name or order.patient_name,
+                'date': order.ord_date.strftime('%Y-%m-%d') if order.ord_date else '',
+                'items': order.items.count(),
+                'total': float(order.order_total),
+                'status': 'Delivered' if order.dc_conversion_flag else ('Confirmed' if order.ord_conversion_flag else 'Pending'),
+                'erp_ref': order.document_pk or 'N/A'
+            })
+
+        if request.query_params.get('export') == 'excel':
+            return self.generate_excel(data, 'order_report')
+
+        return Response({
+            'success': True,
+            'count': len(data),
+            'data': data
+        })
+
+class RetailerActivityReportView(APIView, ExcelExportMixin):
+    """
+    Retailer-wise ordering patterns.
+    GET /api/superadmin/reports/retailer-activity/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Aggregate users by their orders
+        activity = SalesOrder.objects.values('user_id', 'cust_name').annotate(
+            order_count=Count('id'),
+            total_spent=Sum('order_total'),
+            last_order=Max('ord_date')
+        ).order_by('-total_spent')
+
+        activity_list = list(activity)
+        if request.query_params.get('export') == 'excel':
+            return self.generate_excel(activity_list, 'retailer_activity_report')
+
+        return Response({
+            'success': True,
+            'data': activity_list
+        })
+
+class RevenueReportView(APIView, ExcelExportMixin):
+    """
+    Daily revenue trends for line charts.
+    GET /api/superadmin/reports/revenue/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.now().date()
+        start = today - timedelta(days=30)
+        
+        revenue_data = SalesOrder.objects.filter(ord_date__range=[start, today]) \
+            .values('ord_date') \
+            .annotate(revenue=Sum('order_total')) \
+            .order_by('ord_date')
+
+        revenue_list = list(revenue_data)
+        if request.query_params.get('export') == 'excel':
+            return self.generate_excel(revenue_list, 'revenue_report')
+
+        return Response({
+            'success': True,
+            'data': revenue_list
+        })

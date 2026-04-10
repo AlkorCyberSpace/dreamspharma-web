@@ -47,8 +47,16 @@ urlpatterns = [
     # Public Endpoints - Homepage & Category Offers
     path('offers/homepage/', views.HomePageOffersView.as_view(), name='homepage-offers'),
     path('offers/category/<int:category_id>/', views.CategoryOffersView.as_view(), name='category-offers'),
-    # ==================== ADMIN NOTIFICATIONS ENDPOINTS ==================== # SuperAdmin - Notifications
+    # ==================== ADMIN NOTIFICATIONS ENDPOINTS ====================
+    # SuperAdmin - Notifications
     path('superadmin/notifications/', views.AdminNotificationListView.as_view(), name='superadmin-notifications'),
     path('superadmin/notifications/<int:notification_id>/mark-read/', views.AdminNotificationMarkReadView.as_view(), name='superadmin-notification-mark-read'),
+
+    # ==================== REPORTS & ANALYTICS ====================
+    path('superadmin/reports/summary/', views.ReportSummaryView.as_view(), name='superadmin-report-summary'),
+    path('superadmin/reports/kyc/', views.KYCStatusReportView.as_view(), name='superadmin-report-kyc'),
+    path('superadmin/reports/orders/', views.OrderReportView.as_view(), name='superadmin-report-orders'),
+    path('superadmin/reports/retailer-activity/', views.RetailerActivityReportView.as_view(), name='superadmin-report-retailer-activity'),
+    path('superadmin/reports/revenue/', views.RevenueReportView.as_view(), name='superadmin-report-revenue'),
 ]
    
