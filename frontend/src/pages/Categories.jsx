@@ -143,7 +143,7 @@ export default function Categories() {
     );
 
     return (
-        <div className="h-full overflow-hidden flex flex-col relative">
+        <div className="h-full overflow-hidden flex flex-col relative ml-2 mt-3">
             {toast.show && (
                 <div className={`fixed top-6 right-6 z-[200] px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 transition-all duration-300 animate-in fade-in slide-in-from-top-4 ${toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
                     {toast.type === 'success' ? <Package size={20} className="text-green-600" /> : <X size={20} className="text-red-600" />}
@@ -156,10 +156,10 @@ export default function Categories() {
             <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-xl font-semibold text-[#505050]">Category Management</h1>
-                    <p className="text-sm text-[#505050] mt-1">Manage product categories and brands</p>
+                    <p className="text-sm text-[#505050]">Manage product categories and brands</p>
                 </div>
 
-                <div className="flex items-center gap-3 border border-gray-200 bg-white rounded-xl px-4 py-2 shadow-sm w-full md:w-64">
+                <div className="flex items-center gap-3 border border-gray-200 bg-white rounded-xl px-4 py-2 shadow-sm w-full md:w-[400px]">
                     <Search size={18} className="text-gray-400 shrink-0" />
                     <input
                         type="text"
@@ -193,7 +193,7 @@ export default function Categories() {
                     blobColor1="bg-[#83ACE5]"
                     blobColor2="bg-[#1447EA]"
                 />
-                <div className="flex-1 flex justify-end items-center">
+                <div className="flex-1 flex justify-end items-end">
                     <button
                         onClick={() => handleOpenModal()}
                         className="flex items-center justify-center h-12 gap-2 px-6 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-xl transition-all shadow-sm"
@@ -208,13 +208,13 @@ export default function Categories() {
             <div className="bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-gray-100 flex-1 overflow-hidden flex flex-col">
                 <div className="flex-1 overflow-auto">
                     <table className="min-w-full w-full text-left border-collapse">
-                        <thead className="bg-[#e7f1f4] text-[#505050] text-sm font-semibold uppercase tracking-wider sticky top-0 z-10">
+                        <thead className="bg-[#e7f1f4] text-[#505050] text-xs   top-0 z-10">
                             <tr>
-                                <th className="px-6 py-4 font-medium text-center w-16">ID</th>
-                                <th className="px-6 py-4 font-medium w-32">ICON</th>
-                                <th className="px-6 py-4 font-medium">CATEGORY NAME</th>
-                                <th className="px-6 py-4 font-medium">STATUS</th>
-                                <th className="px-6 py-4 font-medium text-center w-32">ACTION</th>
+                                <th className="px-6 py-2 font-medium text-center w-16">ID</th>
+                                <th className="px-6 py-2 font-medium w-32">ICON</th>
+                                <th className="px-6 py-2 font-medium">CATEGORY NAME</th>
+                                <th className="px-6 py-2 font-medium">STATUS</th>
+                                <th className="px-6 py-2 font-medium text-center w-32">ACTION</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
@@ -243,18 +243,18 @@ export default function Categories() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-6 py-3 text-[14px] font-medium text-gray-900">{cat.name}</td>
-                                        <td className="px-6 py-3 text-[13px]">
+                                        <td className="px-6 py-2 text-[14px] font-medium text-gray-900">{cat.name}</td>
+                                        <td className="px-6 py-2 text-[13px]">
                                             <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${cat.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                                                 {cat.is_active ? "Active" : "Inactive"}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-3 text-center">
+                                        <td className="px-6 py-2 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => handleOpenModal(cat)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Category">
+                                                <button onClick={() => handleOpenModal(cat)} className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Category">
                                                     <Edit size={16} />
                                                 </button>
-                                                <button onClick={() => handleDelete(cat.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Category">
+                                                <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Category">
                                                     <Trash2 size={16} />
                                                 </button>
                                             </div>

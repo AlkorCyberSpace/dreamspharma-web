@@ -52,10 +52,10 @@ const NotificationModal = ({ isOpen, notifications, onClose, onMarkAsRead }) => 
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-end p-3 bg-black/40 backdrop-blur-[2px]">
-      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[100vh] animate-in slide-in-from-right duration-300">
+      <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[100vh] animate-in slide-in-from-right duration-300">
         
         {/* Header */}
-        <div className="p-4 border-b border-gray-50 flex items-center relative">
+        <div className="p-2.5 border-b border-gray-50 flex items-center relative">
           {selectedNotif && (
             <button 
               onClick={() => setSelectedNotif(null)} 
@@ -116,12 +116,12 @@ const NotificationModal = ({ isOpen, notifications, onClose, onMarkAsRead }) => 
           </div>
         ) : (
           /* Scrollable List View */
-          <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-[#f8fafc]">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-[#f8fafc]">
             {notifications && notifications.length > 0 ? (
               notifications.map((notif) => (
                 <div
                   key={notif.id}
-                  className={`group relative bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex gap-4 items-start transition-all hover:shadow-md hover:translate-y-[-1px] cursor-pointer ${
+                  className={`group relative bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 items-start transition-all hover:shadow-md hover:translate-y-[-1px] cursor-pointer ${
                     !notif.is_read ? "ring-1 ring-blue-50" : ""
                   }`}
                   onClick={() => handleNotifClick(notif)}

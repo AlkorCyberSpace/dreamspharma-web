@@ -244,3 +244,7 @@ export const getAdminNotificationsAPI = () => {
 export const markAdminNotificationReadAPI = (notificationId) => {
   return axiosInstance.post(`superadmin/notifications/${notificationId}/mark-read/`);
 };
+// SuperAdmin - audit logs
+export const getAuditLogsAPI = (params) => {
+  return axiosInstance.get("superadmin/audit-logs/", { params });
+};

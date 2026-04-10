@@ -159,10 +159,9 @@ export default function Products() {
     ) : false;
 
     return (
-        <div className="h-full overflow-hidden flex flex-col ">
+        <div className="h-full overflow-hidden flex flex-col ml-2 mt-3">
 
-            {/* Header Section */}
-            <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 ">
+            <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 ">
                 <div>
                     <h1 className="text-xl sm:text-xl md:text-xl font-semibold text-[#505050]">
                         Product & Inventory View
@@ -263,20 +262,20 @@ export default function Products() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-gray-100 flex-1 overflow-hidden flex flex-col">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
                 <div className="flex-1 overflow-auto">
                     <table className="min-w-[1100px] w-full text-left border-collapse">
-                        <thead className="bg-[#e7f1f4] text-[#505050] text-sm font-semibold uppercase tracking-wider sticky top-0 z-10">
+                        <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
-                                <th className="px-6 py-3 font-medium text-center">SI NO</th>
-                                <th className="px-6 py-3 font-medium text-center">PRODUCT ID</th>
-                                <th className="px-6 font-medium">PRODUCT NAME</th>
-                                <th className="px-6 font-medium">BRAND NAME</th>
-                                <th className="px-6 font-medium">BATCH NO</th>
-                                <th className="px-6 font-medium">EXPIRY</th>
-                                <th className="px-6 font-medium">MRP</th>
-                                <th className="px-6 font-medium">STOCK</th>
-                                <th className="px-6 font-medium text-center">ACTION</th>
+                                <th className="px-6 py-4 text-center">SI NO</th>
+                                <th className="px-6 text-center">PRODUCT ID</th>
+                                <th className="px-6">PRODUCT NAME</th>
+                                <th className="px-6">BRAND NAME</th>
+                                <th className="px-6">BATCH NO</th>
+                                <th className="px-6">EXPIRY</th>
+                                <th className="px-6">MRP</th>
+                                <th className="px-6">STOCK</th>
+                                <th className="px-6 text-center">ACTION</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
@@ -299,23 +298,23 @@ export default function Products() {
                                 paginatedProducts.map((product, index) => (
                                     <tr
                                         key={index}
-                                        className={`${index % 2 === 0 ? "bg-white" : "bg-[#F7F9FB]"} hover:bg-[#EEF2F6] transition`}
+                                        className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"} hover:bg-[#EEF2F6] transition`}
                                     >
                                         <td className="px-6 py-2 text-[12px] font-bold text-gray-800 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                                        <td className="px-6 text-[13px] text-[#000000] font-medium">{product.id}</td>
-                                        <td className="px-6 text-[13px] text-[#000000] font-medium">{product.name}</td>
-                                        <td className="px-6 text-[13px] text-[#000000]">{product.category}</td>
-                                        <td className="px-6 text-[13px] text-[#000000]">{product.batch || "—"}</td>
-                                        <td className="px-6 text-[13px] text-[#000000]">{product.expiry || "—"}</td>
-                                        <td className="px-6 text-[13px] text-[#000000]">{product.mrp}</td>
-                                        <td className="px-6 text-[13px] whitespace-nowrap">
+                                        <td className="px-6 text-sm text-[#127690] font-bold">{product.id}</td>
+                                        <td className="px-6 text-sm text-gray-600 font-medium">{product.name}</td>
+                                        <td className="px-6 text-sm text-gray-500">{product.category}</td>
+                                        <td className="px-6 text-sm text-gray-500">{product.batch || "—"}</td>
+                                        <td className="px-6 text-sm text-gray-500">{product.expiry || "—"}</td>
+                                        <td className="px-6 text-sm text-gray-600 font-bold">{product.mrp}</td>
+                                        <td className="px-6 text-sm whitespace-nowrap">
                                             {product.lowStock ? (
                                                 <span className="text-red-600 font-bold flex items-center gap-1.5">
                                                     {product.stock}
                                                     <AlertTriangle size={14} className="text-red-500" />
                                                 </span>
                                             ) : (
-                                                <span className="text-[#000000]">{product.stock}</span>
+                                                <span className="text-gray-600 font-semibold">{product.stock}</span>
                                             )}
                                         </td>
                                         <td className="px-6 text-[13px] text-center">
@@ -435,9 +434,9 @@ export default function Products() {
                                                                 }`}
                                                         >
                                                             {hasImage ? (
-                                                                <img 
-                                                                    src={hasImage && typeof hasImage === 'string' && hasImage.startsWith('http') ? hasImage : `${mediaUrl}${hasImage}`} 
-                                                                    className="w-full h-full object-cover" 
+                                                                <img
+                                                                    src={hasImage && typeof hasImage === 'string' && hasImage.startsWith('http') ? hasImage : `${mediaUrl}${hasImage}`}
+                                                                    className="w-full h-full object-cover"
                                                                 />
                                                             ) : (
                                                                 <Upload

@@ -103,7 +103,7 @@ function BannerCard({ offer }) {
     );
 }
 
-/* ── Modal ───────────────────────────────────────────────────────────────── */
+/* ── Modal ──*/
 function OfferModal({ offer, onClose, onSave }) {
     const [form, setForm] = useState(() => {
         if (offer) {
@@ -473,7 +473,7 @@ function OfferModal({ offer, onClose, onSave }) {
     );
 }
 
-/* ── Main Page ───────────────────────────────────────────────────────────── */
+/* ── Main Page ── */
 export default function OffersAndBanners() {
     const [offers, setOffers] = useState(initialOffers);
     const [search, setSearch] = useState("");
@@ -547,7 +547,6 @@ export default function OffersAndBanners() {
                 formData.append("banner_image", form.banner_image);
             }
             if (form.products && form.products.length > 0) {
-                // Send products as a JSON-encoded string to satisfy backend list requirement
                 formData.append("products", JSON.stringify(form.products));
             }
 
@@ -605,14 +604,12 @@ export default function OffersAndBanners() {
 
     const handleEdit = async (offer) => {
         try {
-            // Fetch fresh details for the offer to ensure all fields like description are populated
             const response = await getOfferDetailAPI(offer.offer_id);
             const fullOffer = response.data?.data || response.data?.results || response.data || offer;
             setEditingOffer(fullOffer);
             setShowModal(true);
         } catch (error) {
             console.error("Failed to fetch offer details for editing:", error);
-            // Fallback to local data if API fails
             setEditingOffer(offer);
             setShowModal(true);
         }
@@ -622,22 +619,20 @@ export default function OffersAndBanners() {
     const inactiveCount = offers.filter((o) => o.status === false || o.status === "Inactive").length;
 
     return (
-        <div className="w-full ml-5 mt-5 border-l-2 border-gray-100 min-h-screen">
+        <div className="ml-2 mt-3 min-h-screen">
             {/* ── Header ── */}
-            <div className="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            <div className="mb-5 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-xl font-semibold text-[#505050] tracking-tight">
                         Offers &amp; Banners Management
                     </h1>
-                    <p className="text-sm text-gray-500 ">
+                    <p className="text-xs text-gray-500 ">
                         Monitor and manage pharmacy marketing campaigns and seasonal offers.
                     </p>
                 </div>
 
                 <div className="flex flex-col lg:flex-row items-center gap-4 w-full xl:w-auto">
-                    {/* Unified Super Bar: Search + Placement + Status */}
                     <div className="flex items-center bg-white border border-[#E5E7EB] rounded-2xl p-1 shadow-sm focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500 transition-all w-full lg:w-auto overflow-hidden">
-                        {/* Search Input */}
                         <div className="flex items-center px-4 py-1.5 min-w-[100px] md:min-w-[220px]">
                             <Search size={18} className="text-[#9EA2A7] shrink-0" />
                             <input
@@ -651,7 +646,6 @@ export default function OffersAndBanners() {
 
                         <div className="h-6 w-[1px] bg-gray-200 mx-1 hidden sm:block" />
 
-                        {/* Placement Filter */}
                         <div className="relative shrink-0 hidden sm:block">
                             <select
                                 value={placementFilter}
@@ -672,7 +666,6 @@ export default function OffersAndBanners() {
 
                         <div className="h-6 w-[1px] bg-gray-200 mx-1 hidden sm:block" />
 
-                        {/* Status Filter */}
                         <div className="relative shrink-0 pr-2">
                             <select
                                 value={statusFilter}
@@ -690,12 +683,22 @@ export default function OffersAndBanners() {
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
                             />
                         </div>
+                         <button
+                    onClick={() => {
+                        setEditingOffer(null);
+                        setShowModal(true);
+                    }}
+                    className="flex items-center justify-center gap-1 bg-[#127690] hover:bg-[#0f5f75] text-white text-sm font-bold px-2 py-2 rounded-xl shadow-md shadow-teal-900/10 transition-all active:scale-95 shrink-0"
+                >
+                    <Plus size={17} />
+                    <span></span>
+                </button>
                     </div>
                 </div>
             </div>
 
             {/* ── Summary Cards ── */}
-            <div className="flex flex-col md:flex-row gap-4 lg:gap-6 mb-4">
+            {/* <div className="flex flex-col md:flex-row gap-4 lg:gap-6 mb-4">
                 <SummaryCard
                     title="Total Offers"
                     value={offers.length}
@@ -726,11 +729,10 @@ export default function OffersAndBanners() {
                     blobColor1="bg-[#D08700]"
                     blobColor2="bg-[#733E0A]"
                 />
-            </div>
+            </div> */}
 
             {/* ── Table Header ── */}
-            <div className="flex items-center justify-between mb-4 mt-4">
-                <h2 className="text-lg font-bold text-gray-700">Campaign List</h2>
+            {/* <div className="flex items-center justify-between mb-4 mt-4">
                 <button
                     onClick={() => {
                         setEditingOffer(null);
@@ -741,15 +743,15 @@ export default function OffersAndBanners() {
                     <Plus size={18} />
                     <span>Create Offer</span>
                 </button>
-            </div>
+            </div> */}
 
             {/* ── Table ── */}
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
                 <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
                     <table className="min-w-[900px] w-full text-left">
                         <thead className="bg-[#DCE4EA] text-gray-600 text-xs uppercase tracking-wide sticky top-0 z-10">
                             <tr>
-                                <th className="px-6 py-4 text-center">SI NO</th>
+                                <th className="px-6 py-4text-center">SI NO</th>
                                 <th className="px-6 py-4">Offer ID</th>
                                 <th className="px-6">Title</th>
                                 <th className="px-6">Valid Period</th>
@@ -774,11 +776,11 @@ export default function OffersAndBanners() {
                                         key={offer.offer_id}
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"} hover:bg-[#EEF2F6] transition`}
                                     >
-                                        <td className="px-6 py-4 font-bold text-[#127690] text-center">
+                                        <td className="px-6 py-2 font-bold text-[#127690] text-center">
                                             {index + 1}
                                         </td>
 
-                                        <td className="px-6 py-4 font-semibold text-[#127690]">
+                                        <td className="px-6 py-2 font-semibold text-[#127690]">
                                             {offer.offer_id}
                                         </td>
 
@@ -831,11 +833,11 @@ export default function OffersAndBanners() {
             </div>
 
             {/* ── Banner Preview Section ── */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
+            <div className="bg-white rounded-2xl shadow-sm p-3">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <LayoutTemplate size={18} className="text-[#127690]" />
-                        <h2 className="text-base font-semibold text-[#505050]">
+                        <h2 className="text-xs sm:text-xs font-semibold text-[#505050]">
                             Preview –{" "}
                             <span className="text-[#127690]">{previewPlacement}</span>
                         </h2>

@@ -14,6 +14,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import logo from "../assets/logoo.png";
 
 export default function Sidebar({ isOpen, onClose }) {
   const menuItems = [
@@ -32,7 +33,6 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      {/* Overlay – only on sm/md when sidebar is open */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-30 lg:hidden"
@@ -51,16 +51,10 @@ export default function Sidebar({ isOpen, onClose }) {
         `}
       >
         {/* Logo Section */}
-        <div className="flex items-center justify-between gap-3 mb-10 px-6">
+        <div className="flex items-center justify-between gap-3 mb-5 px-6">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-teal-600 rounded-md flex items-center justify-center text-white font-bold text-xs">
-              DP
-            </div>
-            <h1 className="text-xl font-semibold text-teal-700">
-              Dreams Pharma
-            </h1>
+            <img src={logo} alt="" />
           </div>
-          {/* Close button – only visible on sm/md */}
           <button
             onClick={onClose}
             className="lg:hidden p-1 rounded text-gray-500 hover:bg-gray-200 transition-colors"

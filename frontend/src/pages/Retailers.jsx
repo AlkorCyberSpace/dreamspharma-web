@@ -320,7 +320,7 @@ export default function RetailerKYCPage() {
   const statusOptions = ["All", "APPROVED", "PENDING", "REJECTED"];
 
   return (
-    <div className="h-full overflow-hidden flex flex-col ml-5 mt-5 border-l-2 border-gray-100">
+    <div className="h-full overflow-hidden flex flex-col ml-2 mt-3 ">
 
       <RetailerModal
         retailer={selectedRetailer}
@@ -391,11 +391,11 @@ export default function RetailerKYCPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm flex-1 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto">
           <div className="w-full overflow-x-auto">
             <table className="min-w-[900px] w-full text-left">
-              <thead className="bg-[#1276901A] text-gray-600 text-xs uppercase tracking-wide sticky top-0 z-10">
+              <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-4">Retailer ID</th>
                   <th className="px-6">Shop Name</th>
@@ -403,7 +403,7 @@ export default function RetailerKYCPage() {
                   <th className="px-6">Contact</th>
                   <th className="px-6">Email</th>
                   <th className="px-6">KYC Status</th>
-                  <th className="px-6">Actions</th>
+                  <th className="px-6 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="text-md text-gray-700">
@@ -421,21 +421,21 @@ export default function RetailerKYCPage() {
                     return (
                       <tr
                         key={retailer.id ?? index}
-                        className={`${index % 2 === 0 ? "bg-white" : "bg-[#F7F9FB]"
+                        className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
                           } hover:bg-[#EEF2F6] transition`}
                       >
-                        <td className="px-6 py-3 font-semibold whitespace-nowrap">{retailer.id}</td>
-                        <td className="px-6 whitespace-nowrap ">{retailer.shop_name || "—"}</td>
-                        <td className="px-6 whitespace-nowrap">{ownerName}</td>
-                        <td className="px-6 whitespace-nowrap">{retailer.shop_phone || "—"}</td>
-                        <td className="px-6 whitespace-nowrap">{retailer.shop_email || "—"}</td>
+                        <td className="px-6 py-3 font-bold text-[#127690] whitespace-nowrap">{retailer.id}</td>
+                        <td className="px-6 text-sm text-gray-600 font-medium whitespace-nowrap ">{retailer.shop_name || "—"}</td>
+                        <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{ownerName}</td>
+                        <td className="px-6 text-sm text-gray-600 whitespace-nowrap">{retailer.shop_phone || "—"}</td>
+                        <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{retailer.shop_email || "—"}</td>
                         <td className="px-6 whitespace-nowrap">
                           <StatusBadge status={retailer.status} />
                         </td>
-                        <td className="px-6 whitespace-nowrap">
+                        <td className="px-6 text-center whitespace-nowrap">
                           <button
                             onClick={() => setSelectedRetailer(retailer)}
-                            className="text-teal-600 hover:text-teal-800 transition-colors"
+                            className="text-[#127690] hover:text-[#127690]/80 transition-colors"
                             title="View details"
                           >
                             <Eye size={20} />

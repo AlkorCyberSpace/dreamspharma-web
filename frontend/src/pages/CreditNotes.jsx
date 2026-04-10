@@ -92,18 +92,17 @@ export default function CreditNotes() {
     };
 
     return (
-        <div className="p-6">
-            {/* Header and Filters */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div className=" ml-2">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-[#454545]">Credit Note Management</h1>
-                    <p className="text-[#8E8E8E] text-sm mt-1">
+                    <h1 className="text-xl font-semibold text-[#505050]">Credit Note Management</h1>
+                    <p className="text-[#8E8E8E] text-sm">
                         Manage credit requests for returned, damaged, or expired products.
                     </p>
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
-                    <span className="text-[#454545] font-medium text-sm">Time Selection:</span>
+                <div className="flex flex-col items-start gap-2">
+                    <span className="text-[#454545] font-small text-sm">Time Selection:</span>
                     <div className="flex items-center gap-3">
                         <div className="relative">
                             <input
@@ -134,28 +133,28 @@ export default function CreditNotes() {
             <div className="bg-white rounded-xl shadow-sm border border-[#F1F5F9] overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-[#EBF3F6] text-[#4F5B67] text-[13px] font-semibold uppercase tracking-wider">
+                        <thead className="bg-[#EBF3F6] text-[#4F5B67] text-[12px] font-semibold uppercase tracking-wider">
                             <tr>
-                                <th className="px-6 py-4">ORDER ID</th>
-                                <th className="px-6 py-4">CREDIT NOTE ID</th>
-                                <th className="px-6 py-4 text-center">REFERENCE INVOICE</th>
-                                <th className="px-6 py-4">PRODUCT NAME</th>
-                                <th className="px-6 py-4 text-center">QUANTITY</th>
-                                <th className="px-6 py-4 text-center">RETURN QUANTITY</th>
-                                <th className="px-6 py-4 text-center">STATUS</th>
-                                <th className="px-6 py-4 text-center">VIEW</th>
+                                <th className="px-3 py-4">ORDER ID</th>
+                                <th className="px-3 py-4">CREDIT NOTE ID</th>
+                                <th className="px-3 py-4 text-center">REFERENCE INVOICE</th>
+                                <th className="px-3 py-4">PRODUCT NAME</th>
+                                <th className="px-3 py-4 text-center">QUANTITY</th>
+                                <th className="px-3 py-4 text-center">RETURN QUANTITY</th>
+                                <th className="px-3 py-4 text-center">STATUS</th>
+                                <th className="px-3 py-4 text-center">VIEW</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F1F5F9]">
                             {creditNotesData.map((note, index) => (
                                 <tr key={index} className="hover:bg-[#F8FAFC] transition-colors">
-                                    <td className="px-6 py-5 font-bold text-[#0F172A]">{note.orderId}</td>
-                                    <td className="px-6 py-5 text-[#475569]">{note.creditNoteId}</td>
-                                    <td className="px-6 py-5 text-[#475569] text-center">{note.referenceInvoice}</td>
-                                    <td className="px-6 py-5 text-[#475569] font-medium">{note.productName}</td>
-                                    <td className="px-6 py-5 text-[#475569] text-center">{note.quantity}</td>
-                                    <td className="px-6 py-5 text-[#475569] text-center">{note.returnQuantity}</td>
-                                    <td className="px-6 py-5 text-center">
+                                    <td className="px-3 py-1 font-semibold text-[#0F172A]">{note.orderId}</td>
+                                    <td className="px-3 py-1 text-[#475569]">{note.creditNoteId}</td>
+                                    <td className="px-3 py-1 text-[#475569] text-center">{note.referenceInvoice}</td>
+                                    <td className="px-3 py-1 text-[#475569] font-medium">{note.productName}</td>
+                                    <td className="px-3 py-1 text-[#475569] text-center">{note.quantity}</td>
+                                    <td className="px-3 py-1 text-[#475569] text-center">{note.returnQuantity}</td>
+                                    <td className="px-3 py-3 text-center">
                                         <span
                                             className={`px-4 py-1.5 rounded-lg text-xs font-bold ${getStatusStyle(
                                                 note.status
@@ -175,8 +174,8 @@ export default function CreditNotes() {
                     </table>
                 </div>
                 {/* Horizontal scroll indicator matching the screenshot */}
-                <div className="px-6 py-4">
-                    <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+                <div className="px-2 py-3">
+                    <div className="w-full h-1 bg-[#E2E8F0] rounded-full overflow-hidden">
                         <div className="w-[70%] h-full bg-[#94A3B8] rounded-full"></div>
                     </div>
                 </div>
