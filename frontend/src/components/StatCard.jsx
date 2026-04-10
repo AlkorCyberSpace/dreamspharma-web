@@ -27,8 +27,8 @@ const StatCard = ({ title, value, change, icon: Icon, variant = "primary" }) => 
         <Icon size={22} />
       </div>
 
-      <h2 className="text-3xl font-medium">{value}</h2>
-      <p className="mt-2 text-xl font-medium">{title}</p>
+      <h2 className="text-2xl font-medium">{value}</h2>
+      <p className="mt-2 text-lg font-medium">{title}</p>
       <p className="mt-1 text-sm text-gray-700">{change}</p>
     </div>
   );

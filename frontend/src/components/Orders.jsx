@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, ChevronDown, Eye, X, Check, Download } from 'lucide-react';
+import { getOrdersApi } from '../services/allAPI';
 
 const OrderDetailModal = ({ order, onClose }) => {
   if (!order) return null;
@@ -131,35 +132,44 @@ const OrderDetailModal = ({ order, onClose }) => {
 
 const Orders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const orders = [
-    {
-      id: 'ORD-2026-001',
-      retailer: 'MedPlus Pharmacy',
-      date: '2026-02-05',
-      items: 12,
-      total: '15,420',
-      payment: 'Razorpay',
-      status: 'Delivered',
-      erpRef: 'ERP-45678',
-      detailedTimeline: [
-        { label: 'Created', date: '2026-02-05 09:30 AM', status: 'completed' },
-        { label: 'Confirmed', date: '2026-02-05 10:15 AM', status: 'completed' },
-        { label: 'ERP Synced', date: '2026-02-05 10:30 AM', status: 'completed' },
-        { label: 'Dispatched', date: '2026-02-05 02:30 PM', status: 'completed' },
-        { label: 'Delivered', date: '2026-02-05 06:30 PM', status: 'upcoming' }
-      ],
-      detailedItems: [
-        { name: 'Paracetamol 500mg (Strip of 15)', qty: 50, mrp: 25, total: 1250 },
-        { name: 'Amoxicillin 250mg (Strip of 10)', qty: 20, mrp: 85, total: 1700 },
-        { name: 'Cetirizine 10mg (Strip of 10)', qty: 100, mrp: 15, total: 1500 },
-      ]
-    },
-    { id: 'ORD-2026-002', retailer: 'MedPlus Pharmacy', date: '2026-02-05', items: 12, total: '15,420', payment: 'Razorpay', status: 'Dispatched', erpRef: 'ERP-45678', detailedTimeline: [], detailedItems: [] },
-    { id: 'ORD-2026-003', retailer: 'MedPlus Pharmacy', date: '2026-02-21', items: 12, total: '15,420', payment: 'Razorpay', status: 'Confirmed', erpRef: 'ERP-25821', detailedTimeline: [], detailedItems: [] },
-    { id: 'ORD-2026-004', retailer: 'MedPlus Pharmacy', date: '2026-02-21', items: 12, total: '15,420', payment: 'Razorpay', status: 'Pending', erpRef: 'ERP-25821', detailedTimeline: [], detailedItems: [] },
-    { id: 'ORD-2026-005', retailer: 'MedPlus Pharmacy', date: '2026-02-21', items: 12, total: '15,420', payment: 'Razorpay', status: 'Cancelled', erpRef: 'ERP-25821', detailedTimeline: [], detailedItems: [] },
-  ];
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        const response = await getOrdersApi();
+        
+        // Map API response to component format
+        if (response?.data?.results) {
+          const mappedOrders = response.data.results.map(order => ({
+            id: order.id,
+            retailer: order.retailer,
+            retailer_id: order.retailer_id,
+            date: order.date,
+            items: order.items,
+            total: order.total,
+            payment: order.payment,
+            payment_status: order.payment_status,
+            status: order.status,
+            erpRef: order.erpRef,
+            detailedTimeline: order.detailedTimeline || [],
+            detailedItems: order.detailedItems || []
+          }));
+          setOrders(mappedOrders);
+          setError(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch orders:", error);
+        setError("Failed to load orders. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
   const getStatusStyles = (status) => {
     switch (status) {
       case 'Delivered':
@@ -229,54 +239,81 @@ const Orders = () => {
 
       {/* Table Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col mb-5">
-        <div className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-[#DCE4EA] text-gray-500 uppercase text-[11px] font-bold tracking-wider">
-                <th className="px-6 py-4">Order ID</th>
-                <th className="px-6">Retailer</th>
-                <th className="px-6">Date</th>
-                <th className="px-6">Items</th>
-                <th className="px-6 text-center">Total Value</th>
-                <th className="px-6">Payment</th>
-                <th className="px-6 text-center">Status</th>
-                <th className="px-6">ERP Ref</th>
-                <th className="px-6 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {orders.map((order, index) => (
-                <tr key={index} className={`transition-colors hover:bg-[#EEF2F6] ${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"}`}>
-                  <td className="px-3 py-3 text-sm font-semibold text-[#127690]">{order.id}</td>
-                  <td className="px-6 text-sm text-gray-600 font-medium">{order.retailer}</td>
-                  <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{order.date}</td>
-                  <td className="px-6 text-sm text-gray-600 font-semibold">{order.items}</td>
-                  <td className="px-6 text-sm text-gray-600 text-center font-semibold">{order.total}</td>
-                  <td className="px-6 text-sm text-gray-600 font-medium">{order.payment}</td>
-                  <td className="px-6 text-center">
-                    <span className={`px-3 py-1 rounded-full text-[12px] font-bold inline-block min-w-[85px] ${getStatusStyles(order.status)}`}>
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="px-6 text-sm text-gray-500 font-medium">{order.erpRef}</td>
-                  <td className="px-6 text-center">
-                    <button
-                      onClick={() => setSelectedOrder(order)}
-                      className="text-[#127690] hover:text-teal-600 transition-colors"
-                    >
-                      <Eye size={20} />
-                    </button>
-                  </td>
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#127690] mb-4"></div>
+              <p className="text-gray-500">Loading orders...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-red-500 font-medium">{error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-4 px-4 py-2 bg-[#127690] text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-gray-500">No orders found</p>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#DCE4EA] text-gray-500 uppercase text-[11px] font-bold tracking-wider">
+                  <th className="px-6 py-4">Order ID</th>
+                  <th className="px-6">Retailer</th>
+                  <th className="px-6">Date</th>
+                  <th className="px-6">Items</th>
+                  <th className="px-6 text-center">Total Value</th>
+                  <th className="px-6">Payment</th>
+                  <th className="px-6 text-center">Status</th>
+                  <th className="px-6">ERP Ref</th>
+                  <th className="px-6 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {orders.map((order, index) => (
+                  <tr key={index} className={`transition-colors hover:bg-[#EEF2F6] ${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"}`}>
+                    <td className="px-3 py-3 text-sm font-semibold text-[#127690]">{order.id}</td>
+                    <td className="px-6 text-sm text-gray-600 font-medium">{order.retailer}</td>
+                    <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{order.date}</td>
+                    <td className="px-6 text-sm text-gray-600 font-semibold">{order.items}</td>
+                    <td className="px-6 text-sm text-gray-600 text-center font-semibold">₹{order.total}</td>
+                    <td className="px-6 text-sm text-gray-600 font-medium">{order.payment}</td>
+                    <td className="px-6 text-center">
+                      <span className={`px-3 py-1 rounded-full text-[12px] font-bold inline-block min-w-[85px] ${getStatusStyles(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-6 text-sm text-gray-500 font-medium">{order.erpRef}</td>
+                    <td className="px-6 text-center">
+                      <button
+                        onClick={() => setSelectedOrder(order)}
+                        className="text-[#127690] hover:text-teal-600 transition-colors"
+                      >
+                        <Eye size={20} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       <OrderDetailModal
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
       />
+    </div>
     </div>
   );
 };

@@ -33,7 +33,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 const RefundTrends = () => {
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#e2e8f0] h-[215px] flex flex-col">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#e2e8f0] h-53.75 flex flex-col">
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp size={18} className="text-gray-500" />
         <h3 className="text-gray-600 font-medium">Refund Trends</h3>
