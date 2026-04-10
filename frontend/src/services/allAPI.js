@@ -101,6 +101,11 @@ export const loginAPI = (data) => {
   return axiosInstance.post("auth/login/", data);
 };
 
+// dashboard statistics
+export const getDashboardStatsAPI = () => {
+  return axiosInstance.get("superadmin/dashboard/statistics/");
+};
+
 export const getRetailersAPI = () => {
   return axiosInstance.get("superadmin/retailers/");
 };
@@ -248,3 +253,7 @@ export const markAdminNotificationReadAPI = (notificationId) => {
 export const getAuditLogsAPI = (params) => {
   return axiosInstance.get("superadmin/audit-logs/", { params });
 };
+
+export const  getOrdersApi = (params) => {
+  return axiosInstance.get("superadmin/orders/", { params });
+}
