@@ -141,17 +141,21 @@ SIMPLE_JWT = {
 #         os.environ.get("DATABASE_URL")
 #     )
 # }
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'pharma',        
-        'USER': 'postgres',      
-        'PASSWORD': 'Soorya@123',
-        'HOST': 'localhost',     
-        'PORT': '5432',         
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'pharma',        
+#         'USER': 'postgres',      
+#         'PASSWORD': 'Soorya@123',
+#         'HOST': 'localhost',     
+#         'PORT': '5432',         
+#     }
+# }
+import dj_database_url
 
+DATABASES = {
+    'default': dj_database_url.parse("postgresql://postgres:[db_dreamspharma]@db.wdpwanzaoacvcyvdqeek.supabase.co:5432/postgres")
+}
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
