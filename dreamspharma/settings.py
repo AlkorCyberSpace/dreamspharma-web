@@ -152,10 +152,15 @@ SIMPLE_JWT = {
 #     }
 # }
 import dj_database_url
-
 DATABASES = {
-    'default': dj_database_url.parse("postgresql://postgres:db_dreamspharma@db.wdpwanzaoacvcyvdqeek.supabase.co:5432/postgres")
+    'default': dj_database_url.config(
+        default=os.environ.get("DATABASE_URL"),
+        conn_max_age=600
+    )
 }
+# DATABASES = {
+#     'default': dj_database_url.parse("postgresql://postgres:db_dreamspharma@db.wdpwanzaoacvcyvdqeek.supabase.co:5432/postgres")
+# }
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
