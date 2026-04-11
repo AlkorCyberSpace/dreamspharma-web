@@ -128,15 +128,19 @@ SIMPLE_JWT = {
 
 # Replace your current DATABASES = { ... } with this:
 
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         # This will use your local DB when developing on your PC, 
+#         # but will automatically use Render's DATABASE_URL environment variable in production!
+#         default='postgresql://postgres:Soorya@123@localhost:5432/pharma',
+#         conn_max_age=600
+#     )
+# }
 DATABASES = {
-    'default': dj_database_url.config(
-        # This will use your local DB when developing on your PC, 
-        # but will automatically use Render's DATABASE_URL environment variable in production!
-        default='postgresql://postgres:Soorya@123@localhost:5432/pharma',
-        conn_max_age=600
+    'default': dj_database_url.parse(
+        os.environ.get("DATABASE_URL")
     )
 }
-
 
 
 # Password validation
