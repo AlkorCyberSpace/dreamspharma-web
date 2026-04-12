@@ -1,10 +1,15 @@
 import axios from "axios";
 import { serverUrl } from "./serverUrl";
 
+// const axiosInstance = axios.create({
+//   baseURL: serverUrl,
+// });
 const axiosInstance = axios.create({
   baseURL: serverUrl,
+  headers: {
+    "ngrok-skip-browser-warning": "true"
+  }
 });
-
 axiosInstance.interceptors.request.use(
   (config) => {
     const access = localStorage.getItem("access");
