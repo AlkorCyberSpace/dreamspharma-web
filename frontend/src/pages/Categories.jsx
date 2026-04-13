@@ -236,7 +236,9 @@ export default function Categories() {
                                         <td className="px-6 py-3 text-[13px] font-bold text-gray-500 text-center">{cat.id}</td>
                                         <td className="px-6 py-3">
                                             {cat.icon ? (
-                                                <img src={cat.icon} alt={cat.name} className="w-10 h-10 object-contain rounded-md border border-gray-200 bg-white p-1" />
+                                                <img
+                                                  src={cat.icon?.replace("http://127.0.0.1:8000", mediaUrl)}
+                                                  alt={cat.name} className="w-10 h-10 object-contain rounded-md border border-gray-200 bg-white p-1" />
                                             ) : (
                                                 <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center border border-gray-200">
                                                     <Archive size={16} className="text-gray-400" />
