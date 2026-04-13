@@ -156,16 +156,16 @@ export default function Topbar({ onToggleSidebar }) {
                 onClick={() => setShowLogoutModal(false)}
               ></div>
               
-              <div className="absolute right-0 top-full mt-4 z-50 w-72 sm:w-80 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-5 transform origin-top-right transition-all">
+              <div className="absolute right-0 top-full mt-4 z-50 w-72 sm:w-80 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-2 transform origin-top-right transition-all">
                 {/* Small indicator arrow pointing to the icon */}
                 <div className="absolute -top-2 right-1.5 w-4 h-4 bg-white border-t border-l border-gray-100 transform rotate-45"></div>
                 
                 <div className="relative flex flex-col items-center flex-grow text-center z-10">
-                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-3 border border-red-100">
+                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-2 border border-red-100">
                      <LogOut className="text-red-500 w-5 h-5 ml-0.5" />
                   </div>
                   <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1">Ready to leave?</h3>
-                  <p className="text-gray-500 text-xs sm:text-sm mb-5 leading-relaxed px-1">Are you sure you want to log out of your account?</p>
+                  <p className="text-gray-500 text-xs sm:text-sm mb-2 leading-relaxed px-1">Are you sure you want to log out of your account?</p>
                 </div>
                 
                 <div className="relative flex justify-between gap-3 w-full z-10">
