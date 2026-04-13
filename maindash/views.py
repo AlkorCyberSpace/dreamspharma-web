@@ -1359,6 +1359,61 @@ class SuperAdminOrdersView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+class SuperAdminMarkCODDeliveredView(APIView):
+    """
+    API endpoint for superadmin to mark a COD order as delivered and payment collected.
+    POST /api/superadmin/orders/<order_id>/cod-delivered/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            order = SalesOrder.objects.get(order_id=order_id)
+        except SalesOrder.DoesNotExist:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Look for a COD payment associated with this order
+        from payment.models import Payment
+        payment = order.payments.filter(payment_method='COD').first()
+        
+        if not payment:
+            return Response({'error': 'No COD payment found for this order'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if payment.cod_collected:
+            return Response({'error': 'COD payment already marked as collected'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update payment
+        payment.cod_collected = True
+        payment.cod_collected_at = timezone.now()
+        payment.cod_collected_by = request.user.username
+        payment.status = 'SUCCESS'
+        payment.save()
+
+        # Update order to mark as delivered
+        order.dc_conversion_flag = True
+        order.save()
+
+        # Audit log
+        log_audit(
+            action='COD Order Delivered',
+            performed_by_user=request.user,
+            target_entity=order_id,
+            details=f'Marked COD Order "{order_id}" as delivered and payment collected',
+            category='Order',
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Order marked as delivered and COD payment collected successfully'
+        }, status=status.HTTP_200_OK)
+
+
+
 class AdminNotificationListView(APIView):
     """
     List admin notifications
