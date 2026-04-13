@@ -70,6 +70,9 @@ export default function Topbar({ onToggleSidebar }) {
   };
 
   const handleLogout = async () => {
+    const confirmed = window.confirm("Are you sure you want to logout?");
+    if (!confirmed) return;
+
     try {
       await superAdminLogoutAPI();
     } catch (error) {
