@@ -13,6 +13,7 @@ export default function Topbar({ onToggleSidebar }) {
   const [adminName, setAdminName] = useState('Admin');
   const [adminRole, setAdminRole] = useState('Super Admin');
   const [profileImage, setProfileImage] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const fetchNotifications = async () => {
     try {
@@ -69,7 +70,11 @@ export default function Topbar({ onToggleSidebar }) {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
     try {
       await superAdminLogoutAPI();
     } catch (error) {
@@ -77,6 +82,7 @@ export default function Topbar({ onToggleSidebar }) {
     } finally {
       localStorage.removeItem("token");
       localStorage.removeItem("superadminInfo");
+      setShowLogoutModal(false);
       navigate("/login");
     }
   };
@@ -133,12 +139,53 @@ export default function Topbar({ onToggleSidebar }) {
           />
         </div>
 
-        {/* Logout Icon */}
-        <LogOut
-          className="text-gray-600 cursor-pointer hover:text-red-500 transition-colors"
-          size={20}
-          onClick={handleLogout}
-        />
+        {/* Logout Icon Container */}
+        <div className="relative flex items-center">
+          <LogOut
+            className="text-gray-600 cursor-pointer hover:text-red-500 transition-colors"
+            size={20}
+            onClick={handleLogoutClick}
+          />
+          
+          {/* Logout Confirmation Modal/Popover */}
+          {showLogoutModal && (
+            <>
+              {/* Invisible overlay for click-outside to close */}
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setShowLogoutModal(false)}
+              ></div>
+              
+              <div className="absolute right-0 top-full mt-4 z-50 w-72 sm:w-80 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-2 transform origin-top-right transition-all">
+                {/* Small indicator arrow pointing to the icon */}
+                <div className="absolute -top-2 right-1.5 w-4 h-4 bg-white border-t border-l border-gray-100 transform rotate-45"></div>
+                
+                <div className="relative flex flex-col items-center flex-grow text-center z-10">
+                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-2 border border-red-100">
+                     <LogOut className="text-red-500 w-5 h-5 ml-0.5" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1">Ready to leave?</h3>
+                  <p className="text-gray-500 text-xs sm:text-sm mb-2 leading-relaxed px-1">Are you sure you want to log out of your account?</p>
+                </div>
+                
+                <div className="relative flex justify-between gap-3 w-full z-10">
+                  <button 
+                    onClick={() => setShowLogoutModal(false)}
+                    className="flex-1 py-2 px-3 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs sm:text-sm font-semibold rounded-xl transition-colors border border-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={confirmLogout}
+                    className="flex-1 py-2 px-3 bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
       </div>
 

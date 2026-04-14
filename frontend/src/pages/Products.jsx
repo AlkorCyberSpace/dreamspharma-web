@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Search, Package, AlertTriangle, Archive, Eye, X, Edit, Upload } from "lucide-react";
 import SummaryCard from "../components/SummaryCard";
 import { getProductsAPI, updateProductInfoAPI, getCategoriesAPI, assignBrandToProductAPI } from "../services/allAPI";
+import { mediaUrl } from "../services/serverUrl";
 
 
 export default function Products() {
