@@ -23,11 +23,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-v9div(*7#85s3qa+mt-wc%&&57s0sz5bpx4i-(h&)li__-1r*+'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+CORS_ALLOW_ALL_ORIGINS = False
 
+CORS_ALLOWED_ORIGINS = [
+    "https://dreamspharma-web.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+CORS_ALLOW_CREDENTIALS = True
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'ngrok-skip-browser-warning',
+]
+CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 ALLOWED_HOSTS = ['*']
 
-
+# CORS_ALLOWED_ORIGINS = [
+#     "https://dreamspharma-web.vercel.app",
+# ]
 # Application definition
 
 INSTALLED_APPS = [
@@ -188,8 +202,7 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
+
 
 
 
