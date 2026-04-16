@@ -262,3 +262,7 @@ export const getAuditLogsAPI = (params) => {
 export const  getOrdersApi = (params) => {
   return axiosInstance.get("superadmin/orders/", { params });
 }
+
+export const getReportSummaryApi =() =>{
+  return axiosInstance.get('superadmin/reports/summary/')
+}

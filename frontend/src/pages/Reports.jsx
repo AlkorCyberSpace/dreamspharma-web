@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { DollarSign, TrendingUp, Download } from "lucide-react";
 import {
   XAxis,
@@ -11,8 +11,10 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { getReportSummaryApi } from "../services/allAPI";
 
 export default function Reports() {
+  const [summary, setSummary] = useState({})
   const revenueData = [
     { month: "Aug", revenue: 0 },
     { month: "Sep", revenue: 95000 },
@@ -28,6 +30,24 @@ export default function Reports() {
     { name: "Antihistamines", value: 75000 },
   ];
 
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReportSummary = async () => {
+      try {
+        const response = await getReportSummaryApi();
+        setSummary(response.data);
+        console.log(response.data);
+
+      } catch (err) {
+        console.error("Error fetching summary:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReportSummary();
+  }, []);
   /* ---------- Stat Card ---------- */
 
   const StatCard = ({ title, value, growth, icon, index = 0 }) => {
@@ -35,11 +55,10 @@ export default function Reports() {
     return (
       <div
         className={`relative p-5 rounded-xl shadow-sm border border-gray-100
-        ${
-          isLight
+        ${isLight
             ? "bg-gradient-to-r from-[#f4f8f9] via-[#c1d9dd] to-[#67a7b3]"
             : "bg-gradient-to-r from-[#64a5b1] to-[#529ba7]"
-        }
+          }
         text-gray-800 overflow-hidden`}
       >
         <div className="absolute right-4 top-5 bg-[#177286] w-10 h-10 rounded-full flex items-center justify-center text-white shadow-sm">
@@ -89,59 +108,64 @@ export default function Reports() {
 
         <div className="flex flex-col items-start gap-1">
           <span className="text-sm text-gray-600">Time Selection:</span>
-        <div className="flex gap-2">
-          <input
-            type="date"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-          />
+          <div className="flex gap-2">
+            <input
+              type="date"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
 
-          <input
-            type="date"
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-          />
+            <input
+              type="date"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
 
-          <button className="bg-[#2e7d88] hover:bg-[#24656d] text-white px-5 py-2 rounded-lg text-sm">
-            Apply
-          </button>
+            <button className="bg-[#2e7d88] hover:bg-[#24656d] text-white px-5 py-2 rounded-lg text-sm">
+              Apply
+            </button>
           </div>
         </div>
       </div>
 
       {/* ---------- STATS ---------- */}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          index={0}
-          title="Total Revenue (MTD)"
-          value="₹ 1,85,000"
-          growth="+12% from last month"
-          icon={<DollarSign size={20} />}
-        />
+      {loading ? (
+        <p>Loading...</p>
+      ) : summary && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <StatCard
+            index={0}
+            title="Total Revenue (MTD)"
+            value={`₹ ${summary?.totalRevenue || 0}`}
+            growth={`${summary?.revenueGrowth || "+0%"}`}
+            icon={<DollarSign size={20} />}
+          />
 
-        <StatCard
-          index={1}
-          title="Orders (MTD)"
-          value="147"
-          growth="+8% from last month"
-          icon={<TrendingUp size={20} />}
-        />
+          <StatCard
+            index={1}
+            title="Orders (MTD)"
+            value={summary?.orders || 0}
+            growth={`${summary?.ordersGrowth || "+0%"}`}
+            icon={<TrendingUp size={20} />}
+          />
 
-        <StatCard
-          index={2}
-          title="Avg Order Value"
-          value="₹12,585"
-          growth="+5% from last month"
-          icon={<DollarSign size={20} />}
-        />
+          <StatCard
+            index={2}
+            title="Avg Order Value"
+            value={`₹ ${summary?.avgOrderValue || 0}`}
+            growth={`${summary?.avgOrderGrowth || "+0%"}`}
+            icon={<DollarSign size={20} />}
+          />
 
-        <StatCard
-          index={3}
-          title="Active Retailers"
-          value="1,247"
-          growth="+15% from last month"
-          icon={<TrendingUp size={20} />}
-        />
-      </div>
+          <StatCard
+            index={3}
+            title="Active Retailers"
+            value={summary?.activeRetailers || 0}
+            growth={`${summary?.retailersGrowth || "+0%"}`}
+            icon={<TrendingUp size={20} />}
+          />
+        </div>
+
+      )}
 
       {/* ---------- CHARTS ---------- */}
 
