@@ -108,9 +108,20 @@ function OfferModal({ offer, onClose, onSave }) {
     const [form, setForm] = useState(() => {
         if (offer) {
             // Transform products array from objects to IDs for selection
+            // Handle both product_id (from offer detail) and c_item_code (from product list)
             const selectedProductIds = Array.isArray(offer.products)
-                ? offer.products.map(p => String(p.product_id || p.c_item_code || p))
+                ? offer.products.map(p => {
+                    // Normalize to always use item code/product_id
+                    if (typeof p === 'string' || typeof p === 'number') {
+                        return String(p);
+                    }
+                    const id = String(p.product_id || p.c_item_code || p.item_code || '');
+                    console.log('Extracted product ID:', id, 'from object:', p);
+                    return id;
+                })
                 : [];
+            
+            console.log('Selected product IDs from offer:', selectedProductIds);
 
             return {
                 ...offer,
@@ -407,12 +418,28 @@ function OfferModal({ offer, onClose, onSave }) {
                                         ) : (
                                             <div className="grid grid-cols-1 gap-px bg-gray-50">
                                                 {productsList.map((prod) => {
-                                                    const isSelected = form.products?.includes(String(prod.c_item_code));
+                                                    // Normalize product ID - handle both c_item_code and product_id
+                                                    const prodId = String(prod.c_item_code || prod.product_id || prod.item_code || '');
+                                                    const prodName = String(prod.itemName || prod.product_name || prod.name || '').toLowerCase();
+                                                    
+                                                    // Check if selected by ID
+                                                    let isSelected = form.products?.includes(prodId);
+                                                    
+                                                    // Fallback: check if any selected product matches by name
+                                                    if (!isSelected && form.products && form.products.length > 0 && prodName) {
+                                                        isSelected = form.products.some(selectedId => {
+                                                            const selectedProd = productsList.find(p => 
+                                                                String(p.c_item_code || p.product_id || p.item_code || '') === selectedId
+                                                            );
+                                                            return selectedProd && 
+                                                                String(selectedProd.itemName || selectedProd.product_name || selectedProd.name || '').toLowerCase() === prodName;
+                                                        });
+                                                    }
+                                                    
                                                     return (
                                                         <div
-                                                            key={prod.c_item_code}
+                                                            key={prodId}
                                                             onClick={() => {
-                                                                const prodId = String(prod.c_item_code);
                                                                 const current = form.products || [];
                                                                 const updated = isSelected
                                                                     ? current.filter(id => id !== prodId)
@@ -422,8 +449,8 @@ function OfferModal({ offer, onClose, onSave }) {
                                                             className={`
                                                                 flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-all border-l-4
                                                                 ${isSelected
-                                                                    ? "bg-blue-600 border-blue-800 text-white"
-                                                                    : "bg-white border-transparent hover:bg-gray-50 text-gray-700"
+                                                                    ? "bg-[#1abc9c] border-[#a5e0d5] text-white"
+                                                                    : "bg-white border-transparent hover:bg-gray-50 text-gray-800"
                                                                 }
                                                             `}
                                                         >
@@ -431,14 +458,14 @@ function OfferModal({ offer, onClose, onSave }) {
                                                                 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
                                                                 ${isSelected ? "bg-white border-white" : "border-gray-300 bg-white"}
                                                             `}>
-                                                                {isSelected && <CheckCircle size={12} className="text-blue-600" fill="currentColor" />}
+                                                                {isSelected && <CheckCircle size={12} className="text-[#09705b]" fill="currentColor" />}
                                                             </div>
                                                             <div className="flex flex-col flex-1">
                                                                 <span className="text-xs font-bold leading-tight uppercase tracking-tight">
                                                                     {prod.itemName}
                                                                 </span>
                                                                 <span className={`text-[9px] font-medium mt-0.5 ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
-                                                                    PID: {prod.c_item_code}
+                                                                    PID: {prodId}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -482,6 +509,7 @@ export default function OffersAndBanners() {
     const [showModal, setShowModal] = useState(false);
     const [editingOffer, setEditingOffer] = useState(null);
     const [previewPlacement, setPreviewPlacement] = useState("Homepage Banner");
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
     useEffect(() => {
         const fetchOffers = async () => {
@@ -574,14 +602,19 @@ export default function OffersAndBanners() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm("Are you sure you want to delete this offer?")) {
-            try {
-                await deleteOfferAPI(id);
-                setOffers((prev) => prev.filter((o) => o.offer_id !== id));
-            } catch (error) {
-                console.error("Failed to delete offer:", error);
-            }
+    const handleDelete = (id) => {
+        setDeleteConfirmId(id);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteConfirmId) return;
+        try {
+            await deleteOfferAPI(deleteConfirmId);
+            setOffers((prev) => prev.filter((o) => o.offer_id !== deleteConfirmId));
+        } catch (error) {
+            console.error("Failed to delete offer:", error);
+        } finally {
+            setDeleteConfirmId(null);
         }
     };
 
@@ -603,16 +636,10 @@ export default function OffersAndBanners() {
     };
 
     const handleEdit = async (offer) => {
-        try {
-            const response = await getOfferDetailAPI(offer.offer_id);
-            const fullOffer = response.data?.data || response.data?.results || response.data || offer;
-            setEditingOffer(fullOffer);
-            setShowModal(true);
-        } catch (error) {
-            console.error("Failed to fetch offer details for editing:", error);
-            setEditingOffer(offer);
-            setShowModal(true);
-        }
+        // Use the offer data from the list (which includes products)
+        // Don't refetch detail as it doesn't include product data
+        setEditingOffer(offer);
+        setShowModal(true);
     };
 
     const activeCount = offers.filter((o) => o.status === true || o.status === "Active").length;
@@ -891,6 +918,35 @@ export default function OffersAndBanners() {
                     }}
                     onSave={handleSave}
                 />
+            )}
+
+            {/* ── Delete Confirmation Modal ── */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 bg-gray-900/40 backdrop-blur-sm transition-opacity duration-300">
+                    <div className="bg-white rounded-[1rem] shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100 flex flex-col p-4 items-center text-center">
+                        <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center mb-2">
+                            <Trash2 size={20} className="text-red-500" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900">Delete Offer?</h3>
+                        <p className="text-sm text-gray-500 mb-1 px-2 leading-relaxed">
+                            Are you sure you want to delete offer <span className="font-semibold text-gray-700">{deleteConfirmId}</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex w-full gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="flex-1 px-3 py-2 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all active:scale-95"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="flex-1 px-3 py-2 rounded-2xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold hover:shadow-lg hover:shadow-red-500/30 transition-all active:scale-95"
+                            >
+                                Yes, Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
