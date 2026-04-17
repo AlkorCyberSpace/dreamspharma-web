@@ -197,7 +197,7 @@ class SuperAdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile_image', 'phone_number']
-        read_only_fields = ['id', 'username']
+        read_only_fields = ['id']
 
 
 class SuperAdminProfileImageSerializer(serializers.ModelSerializer):

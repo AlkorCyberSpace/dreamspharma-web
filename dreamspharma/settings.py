@@ -41,9 +41,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 ALLOWED_HOSTS = ['*']
 
-# CORS_ALLOWED_ORIGINS = [
-#     "https://dreamspharma-web.vercel.app",
-# ]
+
 # Application definition
 
 INSTALLED_APPS = [
