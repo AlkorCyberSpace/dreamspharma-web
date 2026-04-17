@@ -1376,15 +1376,22 @@ class SuperAdminOrdersView(APIView):
 class SuperAdminMarkCODDeliveredView(APIView):
     """
     API endpoint for superadmin to mark a COD order as delivered and payment collected.
-    POST /api/superadmin/orders/<order_id>/cod-delivered/
+    POST /api/superadmin/orders/cod-delivered/
+    Payload: {"order_id": "..."}
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, order_id):
+    def post(self, request):
         if request.user.role != 'SUPERADMIN':
             return Response({
                 'error': 'Only Super Admin can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
+
+        order_id = request.data.get('order_id')
+        status_action = request.data.get('status', 'delivered') # 'paid', 'confirmed', 'delivered'
+        
+        if not order_id:
+            return Response({'error': 'order_id is required in the payload'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             order = SalesOrder.objects.get(order_id=order_id)
@@ -1398,32 +1405,64 @@ class SuperAdminMarkCODDeliveredView(APIView):
         if not payment:
             return Response({'error': 'No COD payment found for this order'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if payment.cod_collected:
-            return Response({'error': 'COD payment already marked as collected'}, status=status.HTTP_400_BAD_REQUEST)
+        if status_action in ['paid', 'confirmed', 'delivered'] and not payment.cod_collected:
+            # Whenever they mark it as paid, confirmed or delivered, IF it's not yet collected, collect it
+            pass
 
-        # Update payment
-        payment.cod_collected = True
-        payment.cod_collected_at = timezone.now()
-        payment.cod_collected_by = request.user.username
-        payment.status = 'SUCCESS'
-        payment.save()
+        if status_action == 'paid':
+            if payment.cod_collected:
+                return Response({'error': 'COD payment already marked as collected'}, status=status.HTTP_400_BAD_REQUEST)
+            payment.cod_collected = True
+            payment.cod_collected_at = timezone.now()
+            payment.cod_collected_by = request.user.username
+            payment.status = 'SUCCESS'
+            payment.save()
+            action_msg = 'COD Order Paid'
+            log_details = f'Marked COD payment for Order "{order_id}" as paid/collected'
 
-        # Update order to mark as delivered
-        order.dc_conversion_flag = True
-        order.save()
+        elif status_action == 'confirmed':
+            # Mark payment as collected if not already
+            if not payment.cod_collected:
+                payment.cod_collected = True
+                payment.cod_collected_at = timezone.now()
+                payment.cod_collected_by = request.user.username
+                payment.status = 'SUCCESS'
+                payment.save()
+            
+            # Update order to mark as confirmed
+            order.ord_conversion_flag = True
+            order.save()
+            action_msg = 'COD Order Confirmed'
+            log_details = f'Marked COD Order "{order_id}" as confirmed'
+
+        else: # 'delivered'
+            # Mark payment as collected if not already
+            if not payment.cod_collected:
+                payment.cod_collected = True
+                payment.cod_collected_at = timezone.now()
+                payment.cod_collected_by = request.user.username
+                payment.status = 'SUCCESS'
+                payment.save()
+                
+            # Update order to mark as delivered
+            order.dc_conversion_flag = True
+            order.ord_conversion_flag = True # Setting both for delivered
+            order.save()
+            action_msg = 'COD Order Delivered'
+            log_details = f'Marked COD Order "{order_id}" as delivered and payment collected'
 
         # Audit log
         log_audit(
-            action='COD Order Delivered',
+            action=action_msg,
             performed_by_user=request.user,
             target_entity=order_id,
-            details=f'Marked COD Order "{order_id}" as delivered and payment collected',
+            details=log_details,
             category='Order',
         )
 
         return Response({
             'success': True,
-            'message': 'Order marked as delivered and COD payment collected successfully'
+            'message': log_details + ' successfully'
         }, status=status.HTTP_200_OK)
 
 

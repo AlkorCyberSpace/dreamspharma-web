@@ -39,7 +39,7 @@ urlpatterns = [
 
     # ==================== ORDER MANAGEMENT ====================
     path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
-    path('superadmin/orders/<str:order_id>/cod-delivered/', views.SuperAdminMarkCODDeliveredView.as_view(), name='superadmin-mark-cod-delivered'),
+    path('superadmin/orders/cod-delivered/', views.SuperAdminMarkCODDeliveredView.as_view(), name='superadmin-mark-cod-delivered'),
 
     # ==================== OFFERS & BANNERS ENDPOINTS ====================
     # Offers Management (SuperAdmin)
