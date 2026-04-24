@@ -36,8 +36,10 @@ export default function Reports() {
     const fetchReportSummary = async () => {
       try {
         const response = await getReportSummaryApi();
-        setSummary(response.data);
-        console.log(response.data);
+        console.log("Full response:", response);
+        console.log("Data:", response.data);
+        // Extract the nested 'data' object from the response
+        setSummary(response.data?.data || {});
 
       } catch (err) {
         console.error("Error fetching summary:", err);
@@ -52,6 +54,14 @@ export default function Reports() {
 
   const StatCard = ({ title, value, growth, icon, index = 0 }) => {
     const isLight = index % 2 === 0;
+    
+    // Determine if growth is positive or negative
+    const growthStr = String(growth);
+    const isNegative = growthStr.includes("-");
+    const arrow = isNegative ? "↓" : "↑";
+    const colorClass = isNegative ? "text-red-600" : "text-[#008258]";
+    const cleanGrowth = growthStr.replace("+", "").replace("+ ", "").replace("-", "");
+
     return (
       <div
         className={`relative p-5 rounded-xl shadow-sm border border-gray-100
@@ -67,8 +77,8 @@ export default function Reports() {
 
         <h2 className="text-2xl font-medium">{value}</h2>
         <p className="mt-1 text-[17px] text-gray-700">{title}</p>
-        <p className="mt-1 text-sm font-medium text-[#008258]">
-          ↑ {growth.replace("+", "").replace("+ ", "")}
+        <p className={`mt-1 text-sm font-medium ${colorClass}`}>
+          {arrow} {cleanGrowth}
         </p>
       </div>
     );
@@ -135,32 +145,32 @@ export default function Reports() {
           <StatCard
             index={0}
             title="Total Revenue (MTD)"
-            value={`₹ ${summary?.totalRevenue || 0}`}
-            growth={`${summary?.revenueGrowth || "+0%"}`}
+            value={`₹ ${summary?.total_revenue ? summary.total_revenue.toFixed(2) : 0}`}
+            growth={`${summary?.revenue_change_percentage >= 0 ? '+' : ''}${summary?.revenue_change_percentage || "0"}%`}
             icon={<DollarSign size={20} />}
           />
 
           <StatCard
             index={1}
             title="Orders (MTD)"
-            value={summary?.orders || 0}
-            growth={`${summary?.ordersGrowth || "+0%"}`}
+            value={summary?.total_orders || 0}
+            growth={`${summary?.orders_change_percentage >= 0 ? '+' : ''}${summary?.orders_change_percentage || "0"}%`}
             icon={<TrendingUp size={20} />}
           />
 
           <StatCard
             index={2}
             title="Avg Order Value"
-            value={`₹ ${summary?.avgOrderValue || 0}`}
-            growth={`${summary?.avgOrderGrowth || "+0%"}`}
+            value={`₹ ${summary?.avg_order_value ? summary.avg_order_value.toFixed(2) : 0}`}
+            growth={`${summary?.avg_order_change_percentage >= 0 ? '+' : ''}${summary?.avg_order_change_percentage || "0"}%`}
             icon={<DollarSign size={20} />}
           />
 
           <StatCard
             index={3}
             title="Active Retailers"
-            value={summary?.activeRetailers || 0}
-            growth={`${summary?.retailersGrowth || "+0%"}`}
+            value={summary?.active_retailers || 0}
+            growth={`+0%`} // Active retailers doesn't have a change percentage yet
             icon={<TrendingUp size={20} />}
           />
         </div>
