@@ -756,3 +756,160 @@ class RetailerNotification(models.Model):
     
     def __str__(self):
         return f"Notification: {self.title} → {self.retailer.username}"
+
+
+# ==================== CREDIT NOTE MODELS ====================
+
+class CreditNote(models.Model):
+    """Credit Note for product returns/adjustments"""
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('DELIVERED', 'Delivered'),
+    ]
+    
+    REASON_CHOICES = [
+        ('DAMAGED', 'Damaged product'),
+        ('EXPIRED', 'Expired / Near expiry'),
+        ('WRONG_ITEM', 'Wrong item received'),
+        ('BILLING', 'Billing issue'),
+        ('OTHER', 'Other'),
+    ]
+    
+    # Auto-generated Credit Note ID (CN001, CN002...)
+    credit_note_id = models.CharField(max_length=20, unique=True, editable=False)
+    
+    # Retailer who raised the request
+    retailer = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='credit_notes'
+    )
+    
+    # Reference fields
+    reference_invoice = models.CharField(max_length=100, blank=True)
+    order_id = models.CharField(max_length=100, blank=True)
+    
+    # Product details
+    product_name = models.CharField(max_length=255)
+    item_code = models.CharField(max_length=50, blank=True)
+    quantity = models.IntegerField(default=0)
+    quantity_to_return = models.IntegerField(default=0)
+    
+    # Credit details
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    additional_notes = models.TextField(blank=True)
+    
+    # Image upload (drug license / product image)
+    upload_image = models.ImageField(
+        upload_to='credit_notes/', 
+        null=True, 
+        blank=True
+    )
+    
+    # Status
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='PENDING'
+    )
+    
+    # Admin action
+    admin_remarks = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_credit_notes'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Retailer confirmation
+    retailer_confirmed = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def save(self, *args, **kwargs):
+        # Auto-generate credit_note_id
+        if not self.credit_note_id:
+            last = CreditNote.objects.order_by('id').last()
+            next_id = (last.id + 1) if last else 1
+            self.credit_note_id = f"CN{str(next_id).zfill(3)}"
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.credit_note_id} - {self.retailer.username}"
+    
+    class Meta:
+        ordering = ['-created_at']
+
+
+class RetailerWallet(models.Model):
+    """Wallet balance for each retailer"""
+    retailer = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='wallet'
+    )
+    balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.retailer.username} - ₹{self.balance}"
+
+
+class WalletTransaction(models.Model):
+    """Every credit/debit to wallet is logged"""
+    
+    TYPE_CHOICES = [
+        ('CREDIT', 'Credit'),   # money added
+        ('DEBIT', 'Debit'),     # money deducted
+    ]
+    
+    SOURCE_CHOICES = [
+        ('CREDIT_NOTE', 'Credit Note Refund'),
+        ('ORDER_PAYMENT', 'Order Payment'),
+        ('MANUAL', 'Manual Adjustment'),
+    ]
+    
+    wallet = models.ForeignKey(
+        RetailerWallet,
+        on_delete=models.CASCADE,
+        related_name='transactions'
+    )
+    transaction_type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    
+    # Reference
+    credit_note = models.ForeignKey(
+        CreditNote,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='wallet_transactions'
+    )
+    order = models.ForeignKey(
+        SalesOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    
+    description = models.TextField(blank=True)
+    closing_balance = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.transaction_type} ₹{self.amount} - {self.wallet.retailer.username}"
+
+    class Meta:
+        ordering = ['-created_at']
