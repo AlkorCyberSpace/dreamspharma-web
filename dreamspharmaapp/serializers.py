@@ -4,7 +4,7 @@ from .models import (
     KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
     SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
     Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address,
-    Category, Offer, RetailerNotification
+    Category, Offer, RetailerNotification, CreditNote, RetailerWallet, WalletTransaction
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -489,12 +489,14 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     ✅ ALL FIELDS ARE OPTIONAL
     - Send only the fields you have
     - Missing fields will use default values
+    - Accepts both camelCase (itemSeq) and snake_case (item_seq) field names for Flutter compatibility
     """
+    # ── Camel-case fields (primary API format) ──
     itemSeq = serializers.IntegerField(source='item_seq', required=False, default=1)
     itemcode = serializers.CharField(source='item_code', required=False, allow_blank=True, default='')
     itemName = serializers.CharField(source='item_name', required=False, allow_blank=True, allow_null=True, help_text="Product name for display")
     batchNo = serializers.CharField(source='batch_no', required=False, allow_blank=True, allow_null=True, help_text="Medicine batch number for recall tracking")
-    expiryDate = serializers.DateField(source='expiry_date', required=False, allow_null=True, help_text="Medicine expiry date for tracking")
+    expiryDate = serializers.CharField(source='expiry_date', required=False, allow_blank=True, allow_null=True, help_text="Medicine expiry date (YYYY-MM-DD or empty)")
     totalLooseQty = serializers.IntegerField(source='total_loose_qty', required=False, default=0)
     totalLooseSchQty = serializers.IntegerField(source='total_loose_sch_qty', required=False, default=0)
     serviceQty = serializers.IntegerField(source='service_qty', required=False, default=0)
@@ -505,6 +507,51 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SalesOrderItem
         fields = ['itemSeq', 'itemcode', 'itemName', 'batchNo', 'expiryDate', 'totalLooseQty', 'totalLooseSchQty', 'serviceQty', 'saleRate', 'discPer', 'schDiscPer']
+    
+    def to_internal_value(self, data):
+        """Normalize both camelCase and snake_case field names to the camelCase format expected by the serializer"""
+        from datetime import datetime
+        
+        # Map snake_case to camelCase for internal processing
+        snake_to_camel = {
+            'item_seq': 'itemSeq',
+            'item_code': 'itemcode',
+            'item_name': 'itemName',
+            'batch_no': 'batchNo',
+            'expiry_date': 'expiryDate',
+            'total_loose_qty': 'totalLooseQty',
+            'total_loose_sch_qty': 'totalLooseSchQty',
+            'service_qty': 'serviceQty',
+            'sale_rate': 'saleRate',
+            'disc_per': 'discPer',
+            'sch_disc_per': 'schDiscPer',
+        }
+        
+        # Normalize the incoming data
+        normalized = {}
+        for key, value in data.items():
+            # If it's snake_case, convert to camelCase
+            if key in snake_to_camel:
+                normalized[snake_to_camel[key]] = value
+            else:
+                # Keep camelCase as-is
+                normalized[key] = value
+        
+        # Handle empty strings for date fields - convert to None
+        if 'expiryDate' in normalized:
+            if normalized['expiryDate'] == '' or normalized['expiryDate'] is None:
+                normalized['expiryDate'] = None
+            elif isinstance(normalized['expiryDate'], str) and normalized['expiryDate']:
+                # Try to parse date string if it's a valid date format
+                try:
+                    parsed_date = datetime.strptime(normalized['expiryDate'], '%Y-%m-%d').strftime('%Y-%m-%d')
+                    normalized['expiryDate'] = parsed_date
+                except (ValueError, TypeError):
+                    # If parsing fails, set to None (will be handled as optional)
+                    normalized['expiryDate'] = None
+        
+        # Call parent to validate normalized data
+        return super().to_internal_value(normalized)
 
 
 class CreateSalesOrderRequestSerializer(serializers.Serializer):
@@ -1951,4 +1998,146 @@ class RetailerNotificationCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         return RetailerNotification.objects.create(**validated_data)
+
+
+# ==================== CREDIT NOTE SERIALIZERS ====================
+
+class CreditNoteCreateSerializer(serializers.ModelSerializer):
+    """Retailer creates a credit note request"""
+    
+    class Meta:
+        model = CreditNote
+        fields = [
+            'reference_invoice', 'order_id', 'product_name',
+            'item_code', 'quantity', 'quantity_to_return',
+            'reason', 'additional_notes', 'upload_image',
+            'retailer_confirmed'
+        ]
+    
+    def validate_quantity_to_return(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                "Quantity to return must be greater than 0"
+            )
+        return value
+    
+    def validate(self, data):
+        if data.get('quantity_to_return', 0) > data.get('quantity', 0):
+            raise serializers.ValidationError(
+                "Return quantity cannot exceed original quantity"
+            )
+        return data
+
+
+class CreditNoteListSerializer(serializers.ModelSerializer):
+    """For listing credit notes - retailer and admin"""
+    retailer_name = serializers.CharField(
+        source='retailer.first_name', 
+        read_only=True
+    )
+    shop_name = serializers.SerializerMethodField()
+    status_display = serializers.CharField(
+        source='get_status_display', 
+        read_only=True
+    )
+    reason_display = serializers.CharField(
+        source='get_reason_display', 
+        read_only=True
+    )
+    
+    class Meta:
+        model = CreditNote
+        fields = [
+            'id', 'credit_note_id', 'retailer_name', 'shop_name',
+            'reference_invoice', 'order_id', 'product_name',
+            'quantity', 'quantity_to_return', 'amount',
+            'reason', 'reason_display', 'status', 'status_display',
+            'additional_notes', 'upload_image',
+            'admin_remarks', 'reviewed_at', 'created_at'
+        ]
+    
+    def get_shop_name(self, obj):
+        try:
+            return obj.retailer.kyc.shop_name
+        except:
+            return ''
+
+
+class CreditNoteDetailSerializer(serializers.ModelSerializer):
+    """Full detail for admin modal view"""
+    retailer_name = serializers.CharField(
+        source='retailer.first_name', 
+        read_only=True
+    )
+    shop_name = serializers.SerializerMethodField()
+    reviewed_by_name = serializers.CharField(
+        source='reviewed_by.username', 
+        read_only=True,
+        allow_null=True
+    )
+    upload_image_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CreditNote
+        fields = [
+            'id', 'credit_note_id', 'retailer_name', 'shop_name',
+            'reference_invoice', 'order_id', 'product_name',
+            'item_code', 'quantity', 'quantity_to_return', 'amount',
+            'reason', 'additional_notes', 'upload_image_url',
+            'status', 'admin_remarks', 'reviewed_by_name',
+            'reviewed_at', 'retailer_confirmed', 'created_at'
+        ]
+    
+    def get_shop_name(self, obj):
+        try:
+            return obj.retailer.kyc.shop_name
+        except:
+            return ''
+    
+    def get_upload_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.upload_image and request:
+            return request.build_absolute_uri(obj.upload_image.url)
+        return None
+
+
+# ==================== WALLET SERIALIZERS ====================
+
+class WalletTransactionSerializer(serializers.ModelSerializer):
+    """Serializer for wallet transactions"""
+    source_display = serializers.CharField(
+        source='get_source_display',
+        read_only=True
+    )
+    type_display = serializers.CharField(
+        source='get_transaction_type_display',
+        read_only=True
+    )
+    credit_note_id = serializers.CharField(
+        source='credit_note.credit_note_id',
+        read_only=True,
+        allow_null=True
+    )
+    
+    class Meta:
+        model = WalletTransaction
+        fields = [
+            'id', 'transaction_type', 'type_display', 'source', 'source_display',
+            'amount', 'description', 'closing_balance', 'credit_note_id', 'created_at'
+        ]
+
+
+class RetailerWalletSerializer(serializers.ModelSerializer):
+    """Serializer for retailer wallet with transaction history"""
+    transactions = WalletTransactionSerializer(many=True, read_only=True)
+    retailer_name = serializers.CharField(
+        source='retailer.first_name',
+        read_only=True
+    )
+    
+    class Meta:
+        model = RetailerWallet
+        fields = [
+            'id', 'retailer_name', 'balance', 'transactions', 'updated_at'
+        ]
 

@@ -15,6 +15,7 @@ import requests
 import logging
 from datetime import datetime
 from dreamspharmaapp.models import ItemMaster
+from dreamspharmaapp.erp_token_service import get_cached_erp_token
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,24 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'[{datetime.now()}] Starting ItemMaster sync from ERP...'))
         
         try:
-            # Fetch all items from ERP
+            # 🎯 Get ERP token for authentication
+            api_key = get_cached_erp_token()
+            if not api_key:
+                self.stdout.write(self.style.ERROR('Failed to get ERP token. Aborting sync.'))
+                logger.error('[SYNC_ITEMMASTER] Failed to get ERP token')
+                return
+            
+            # Fetch all items from ERP with authentication
             erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_get_master_data"
-            response = requests.get(erp_url, timeout=30)
+            params = {
+                'apiKey': api_key,
+                'prodCode': settings.ERP_PROD_CODE,
+                'c2Code': settings.ERP_C2_CODE,
+                'storeId': settings.ERP_STORE_ID
+            }
+            
+            self.stdout.write(f'[SYNC_ITEMMASTER] Fetching items from ERP: {erp_url}')
+            response = requests.get(erp_url, params=params, timeout=30)
             response.raise_for_status()
             
             data = response.json()

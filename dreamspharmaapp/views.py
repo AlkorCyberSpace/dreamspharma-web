@@ -31,7 +31,7 @@ from .models import FCMDevice
 
 logger = logging.getLogger(__name__)
 
-from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address, Category, ProductView, SearchHistory
+from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address, Category, ProductView, SearchHistory, CreditNote, RetailerWallet, WalletTransaction
 from .serializers import (
     CustomUserSerializer, UserRegistrationSerializer, KYCSerializer, 
     KYCSubmitSerializer, SuperAdminLoginSerializer, RetailerLoginSerializer,
@@ -48,7 +48,8 @@ from .serializers import (
     SelectAddressSerializer, DetectLocationSerializer, LocationAddressResponseSerializer,
     ConfirmLocationAddressSerializer, UpdateProductInfoRequestSerializer, UploadProductImageRequestSerializer,
     ProductRecommendationSerializer, SimilarProductsResponseSerializer, 
-    FrequentlyBoughtTogetherResponseSerializer, TopSellingResponseSerializer, CategoryWithProductsSerializer
+    FrequentlyBoughtTogetherResponseSerializer, TopSellingResponseSerializer, CategoryWithProductsSerializer,
+    CreditNoteCreateSerializer, CreditNoteListSerializer, CreditNoteDetailSerializer, RetailerWalletSerializer
 )
 from .geocoding import reverse_geocode, GeocodingException, validate_coordinates
 
@@ -1119,7 +1120,15 @@ class GetItemMasterView(APIView):
                 
                 logger.info(f"[GET_ITEM_MASTER] Fetching from ERP: {erp_server_url}")
                 
-                erp_response = requests.get(erp_server_url, params={'apiKey': api_key}, timeout=10)
+                # Build complete parameters for ERP API
+                erp_params = {
+                    'apiKey': api_key,
+                    'prodCode': settings.ERP_PROD_CODE,
+                    'c2Code': settings.ERP_C2_CODE,
+                    'storeId': settings.ERP_STORE_ID
+                }
+                
+                erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
                 
                 if erp_response.status_code != 200:
                     logger.error(f"ERP Server error: {erp_response.status_code} - {erp_response.text}")
@@ -1566,228 +1575,426 @@ class FetchStockView(APIView):
                 'type': 'fetchStock',
                 'message': f'Error: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 class CreateSalesOrderView(APIView):
-    """
-    Create a sales order in the system
-    POST: Create sales order with line items
-    
-    🎯 Token auto-generated in background - NO apiKey needed in request!
-    """
     permission_classes = [AllowAny]
-    
-    def post(self, request):
-        serializer = CreateSalesOrderRequestSerializer(data=request.data)
-        if serializer.is_valid():
-            # Get payment mode from request
-            payment_mode = serializer.validated_data.get('paymentMode', 'COD')
-            
-            # Validate payment mode
-            if payment_mode not in ['COD', 'RAZORPAY']:
-                return Response({
-                    'code': '400',
-                    'type': 'SaleOrderCreate',
-                    'message': f'Invalid payment mode: {payment_mode}. Must be "COD" or "RAZORPAY"'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            logger.info(f"[CREATE_SALES_ORDER] Payment Mode: {payment_mode}")
-            
-            # 🎯 Use auto-generated token from background service
-            from .erp_token_service import get_erp_token_for_request
-            api_key = get_erp_token_for_request()
-            if not api_key:
-                return Response({
-                    'code': '503',
-                    'type': 'SaleOrderCreate',
-                    'message': 'ERP service temporarily unavailable'
-                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            
-            try:
-                # ✅ FIX #5: ATOMIC TRANSACTION - Prevents race conditions and ensures data consistency
-                with transaction.atomic():
-                    # ✅ AUTO-GENERATE UNIQUE ORDER ID (Always - Backend Responsibility)
-                    # Format: {storeId}{YYYYMMDD}{HHMMSS}{UUID}
-                    # Example: 001202604051430AB12CD34
-                    store_id_val = serializer.validated_data.get('storeId') or settings.ERP_STORE_ID
-                    store_id = str(store_id_val).zfill(3)  # Pad to 3 digits
-                    date_str = timezone.now().strftime('%Y%m%d')
-                    time_str = timezone.now().strftime('%H%M%S')
-                    unique_suffix = str(uuid.uuid4())[:8].upper()
-                    order_id = f"{store_id}{date_str}{time_str}{unique_suffix}"
-                    logger.info(f"[ORDER_ID] Auto-generated orderId: {order_id} | StoreId: {store_id}")
-                    
-                    # Create sales order with duplicate ID check
-                    from django.db import IntegrityError
-                    try:
-                        sales_order = SalesOrder.objects.create(
-                            c2_code=serializer.validated_data.get('c2Code') or settings.ERP_C2_CODE,
-                            store_id=store_id_val,
-                            order_id=order_id,
-                            ip_no=serializer.validated_data.get('ipNo') or '',
-                            mobile_no=serializer.validated_data.get('mobileNo') or '',
-                            patient_name=serializer.validated_data.get('patientName') or '',
-                            patient_address=serializer.validated_data.get('patientAddress') or '',
-                            patient_email=serializer.validated_data.get('patientEmail') or '',
-                            counter_sale=bool(serializer.validated_data.get('counterSale', 0)),
-                            ord_date=serializer.validated_data.get('ordDate') or timezone.now().date(),
-                            ord_time=serializer.validated_data.get('ordTime') or timezone.now().time(),
-                            user_id=serializer.validated_data.get('userId') or '',
-                            cust_code=serializer.validated_data.get('actCode') or '',
-                            cust_name=serializer.validated_data.get('actName') or '',
-                            dr_code=serializer.validated_data.get('drCode', ''),
-                            dr_name=serializer.validated_data.get('drName', ''),
-                            dr_address=serializer.validated_data.get('drAddress', ''),
-                            dr_reg_no=serializer.validated_data.get('drRegNo', ''),
-                            dr_office_code=serializer.validated_data.get('drOfficeCode', '-'),
-                            dman_code=serializer.validated_data.get('dmanCode', '-'),
-                            order_total=serializer.validated_data.get('orderTotal') or 0.00,
-                            order_disc_per=serializer.validated_data.get('orderDiscPer', 0),
-                            ref_no=serializer.validated_data.get('refNo'),
-                            remark=serializer.validated_data.get('remark'),
-                            urgent_flag=bool(serializer.validated_data.get('urgentFlag', 0)),
-                            ord_conversion_flag=bool(serializer.validated_data.get('ordConversionFlag', 0)),
-                            dc_conversion_flag=bool(serializer.validated_data.get('dcConversionFlag', 0)),
-                            ord_ref_no=serializer.validated_data.get('ordRefNo', 0),
-                            sys_name=serializer.validated_data.get('sysName') or '',
-                            sys_ip=serializer.validated_data.get('sysIp') or '',
-                            sys_user=serializer.validated_data.get('sysUser') or '',
-                            br_code=store_id_val,
-                            tran_year=str(timezone.now().year % 100),
-                            tran_prefix='6',
-                            tran_srno='1',
-                            bill_total=serializer.validated_data.get('orderTotal') or 0.00
-                        )
-                    except IntegrityError as e:
-                        # ✅ FIX #5: Handle duplicate order ID (race condition - extremely rare)
-                        logger.error(f"[ORDER_DUPLICATE] Rare race condition - Duplicate orderId {order_id} | Error: {str(e)}")
-                        # Retry with new timestamp
-                        time_str_retry = timezone.now().strftime('%H%M%S%f')[:6]  # Include microseconds
-                        unique_suffix_retry = str(uuid.uuid4())[:8].upper()
-                        order_id_retry = f"{store_id}{date_str}{time_str_retry}{unique_suffix_retry}"
-                        logger.info(f"[ORDER_RETRY] Retrying with new orderId: {order_id_retry}")
-                        
-                        try:
-                            sales_order = SalesOrder.objects.create(
-                                c2_code=serializer.validated_data.get('c2Code') or settings.ERP_C2_CODE,
-                                store_id=store_id_val,
-                                order_id=order_id_retry,
-                                ip_no=serializer.validated_data.get('ipNo') or '',
-                                mobile_no=serializer.validated_data.get('mobileNo') or '',
-                                patient_name=serializer.validated_data.get('patientName') or '',
-                                patient_address=serializer.validated_data.get('patientAddress') or '',
-                                patient_email=serializer.validated_data.get('patientEmail') or '',
-                                counter_sale=bool(serializer.validated_data.get('counterSale', 0)),
-                                ord_date=serializer.validated_data.get('ordDate') or timezone.now().date(),
-                                ord_time=serializer.validated_data.get('ordTime') or timezone.now().time(),
-                                user_id=serializer.validated_data.get('userId') or '',
-                                cust_code=serializer.validated_data.get('actCode') or '',
-                                cust_name=serializer.validated_data.get('actName') or '',
-                                dr_code=serializer.validated_data.get('drCode', ''),
-                                dr_name=serializer.validated_data.get('drName', ''),
-                                dr_address=serializer.validated_data.get('drAddress', ''),
-                                dr_reg_no=serializer.validated_data.get('drRegNo', ''),
-                                dr_office_code=serializer.validated_data.get('drOfficeCode', '-'),
-                                dman_code=serializer.validated_data.get('dmanCode', '-'),
-                                order_total=serializer.validated_data.get('orderTotal') or 0.00,
-                                order_disc_per=serializer.validated_data.get('orderDiscPer', 0),
-                                ref_no=serializer.validated_data.get('refNo'),
-                                remark=serializer.validated_data.get('remark'),
-                                urgent_flag=bool(serializer.validated_data.get('urgentFlag', 0)),
-                                ord_conversion_flag=bool(serializer.validated_data.get('ordConversionFlag', 0)),
-                                dc_conversion_flag=bool(serializer.validated_data.get('dcConversionFlag', 0)),
-                                ord_ref_no=serializer.validated_data.get('ordRefNo', 0),
-                                sys_name=serializer.validated_data.get('sysName') or '',
-                                sys_ip=serializer.validated_data.get('sysIp') or '',
-                                sys_user=serializer.validated_data.get('sysUser') or '',
-                                br_code=store_id_val,
-                                tran_year=str(timezone.now().year % 100),
-                                tran_prefix='6',
-                                tran_srno='1',
-                                bill_total=serializer.validated_data.get('orderTotal') or 0.00
-                            )
-                            order_id = order_id_retry  # Update for logging
-                        except IntegrityError as e2:
-                            logger.error(f"[ORDER_CREATION_FAILED] Failed even after retry | Error: {str(e2)}")
-                            return Response({
-                                'code': '500',
-                                'type': 'SaleOrderCreate',
-                                'message': 'Failed to create order after multiple retries. Please contact support.'
-                            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                    # Create line items with batch and expiry tracking
-                    material_info = serializer.validated_data.get('materialInfo') or []
-                    # ✅ FIX #6: Auto-increment item_seq if not provided to avoid unique constraint violation
-                    for idx, item in enumerate(material_info):
-                        item_seq = item.get('itemSeq')
-                        if item_seq is None:
-                            # Auto-generate unique sequence number starting from 1
-                            item_seq = idx + 1
-                        SalesOrderItem.objects.create(
-                            sales_order=sales_order,
-                            item_seq=item_seq,
-                            item_code=item.get('itemcode') or '',
-                            item_name=item.get('itemName', ''),
-                            batch_no=item.get('batchNo'),  # ✅ FIX #2: Track batch for recalls
-                            expiry_date=item.get('expiryDate'),  # ✅ FIX #2: Track expiry for recalls
-                            total_loose_qty=item.get('totalLooseQty', 0),
-                            total_loose_sch_qty=item.get('totalLooseSchQty', 0),
-                            service_qty=item.get('serviceQty', 0),
-                            sale_rate=item.get('saleRate', 0),
-                            disc_per=item.get('discPer', 0),
-                            sch_disc_per=item.get('schDiscPer', 0)
-                        )
-                    
-                    # Generate document number
-                    sales_order.document_pk = f"{sales_order.br_code}{sales_order.tran_year}{sales_order.tran_prefix}{sales_order.id}"
-                    sales_order.save()
-                    
-                    # ✅ FIX #4: AUDIT LOGGING - Log all order creation details
-                    logger.info(f"[ORDER_CREATED] ID: {sales_order.order_id} | Patient: {sales_order.patient_name} | Email: {sales_order.patient_email} | Mobile: {sales_order.mobile_no} | Total: {sales_order.order_total} | User: {sales_order.sys_user} | IP: {sales_order.sys_ip}")
-                    for order_item in sales_order.items.all():
-                        logger.info(f"  [ORDER_ITEM] Code: {order_item.item_code} | Name: {order_item.item_name} | Batch: {order_item.batch_no} | Expiry: {order_item.expiry_date} | Qty: {order_item.total_loose_qty} | Rate: {order_item.sale_rate}")
-                    
-                    response_data = {
-                        'code': '200',
-                        'type': 'SaleOrderCreate',
-                        'message': f'Document No. : {sales_order.document_pk} successfully processed.',
-                        'paymentMode': payment_mode,  # Return payment mode to frontend
-                        'paymentDetails': {
-                            'mode': payment_mode,
-                            'amount': str(sales_order.bill_total),
-                            'currency': 'INR'
-                        },
-                        'config': {
-                            'c2Code': settings.ERP_C2_CODE,           # ✅ From backend settings
-                            'storeId': settings.ERP_STORE_ID,         # ✅ From backend settings
-                            'prodCode': settings.ERP_PROD_CODE,       # ✅ From backend settings
-                        },
-                        'documentDetails': [{
-                            'brCode': sales_order.br_code,
-                            'tranYear': sales_order.tran_year,
-                            'tranPrefix': sales_order.tran_prefix,
-                            'tranSrno': sales_order.tran_srno,
-                            'documentPk': sales_order.document_pk,
-                            'OrderId': sales_order.order_id,
-                            'createdDate': str(sales_order.ord_date),
-                            'billTotal': str(sales_order.bill_total)
-                        }]
-                    }
-                    return Response(response_data, status=status.HTTP_201_CREATED)
-            
-            except Exception as e:
-                return Response({
-                    'code': '500',
-                    'type': 'SaleOrderCreate',
-                    'message': str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response({
-            'code': '400',
-            'type': 'SaleOrderCreate',
-            'message': 'Invalid parameters'
-        }, status=status.HTTP_400_BAD_REQUEST)
 
+    def post(self, request):
+        
+        # ── Debug incoming request ──
+        logger.info(f"[ORDER_DEBUG] Request data: {request.data}")
+        
+        serializer = CreateSalesOrderRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.error(f"[ORDER_VALIDATION] Errors: {serializer.errors}")
+            return Response({
+                'code': '400',
+                'type': 'SaleOrderCreate',
+                'message': 'Invalid parameters',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"[ORDER_DEBUG] Validated data: {serializer.validated_data}")
+
+        payment_mode = serializer.validated_data.get('paymentMode', 'COD')
+        if payment_mode not in ['COD', 'RAZORPAY']:
+            return Response({
+                'code': '400',
+                'type': 'SaleOrderCreate',
+                'message': f'Invalid payment mode: {payment_mode}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        from .erp_token_service import get_erp_token_for_request
+        api_key = get_erp_token_for_request()
+        if not api_key:
+            return Response({
+                'code': '503',
+                'type': 'SaleOrderCreate',
+                'message': 'ERP service temporarily unavailable'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        try:
+            with transaction.atomic():
+
+                # ── Safe value extraction helpers ──
+                def safe_str(val, default=''):
+                    if val is None:
+                        return default
+                    s = str(val).strip()
+                    return s if s else default
+
+                def safe_float(val, default=0.0):
+                    try:
+                        return float(val) if val is not None else default
+                    except (ValueError, TypeError):
+                        return default
+
+                def safe_int(val, default=0):
+                    try:
+                        return int(val) if val is not None else default
+                    except (ValueError, TypeError):
+                        return default
+
+                def safe_bool(val, default=False):
+                    try:
+                        return bool(int(str(val))) if val is not None else default
+                    except (ValueError, TypeError):
+                        return default
+
+                def safe_email(val):
+                    # EmailField cannot store '' — must be None
+                    if not val:
+                        return None
+                    s = str(val).strip()
+                    return s if s and '@' in s else None
+
+                def safe_ip(val):
+                    # GenericIPAddressField cannot store '' — must be None
+                    if not val:
+                        return None
+                    s = str(val).strip()
+                    return s if s else None
+
+                # ── ERP config ──
+                store_id_val = safe_str(
+                    serializer.validated_data.get('storeId'),
+                    settings.ERP_STORE_ID
+                )
+                store_id = store_id_val.zfill(3)
+                c2_code = safe_str(
+                    serializer.validated_data.get('c2Code'),
+                    settings.ERP_C2_CODE
+                )
+                prod_code = safe_str(
+                    serializer.validated_data.get('prodCode'),
+                    settings.ERP_PROD_CODE
+                )
+
+                # ── Generate order ID ──
+                date_str = timezone.now().strftime('%Y%m%d')
+                time_str = timezone.now().strftime('%H%M%S')
+                unique_suffix = str(uuid.uuid4())[:8].upper()
+                order_id = f"{store_id}{date_str}{time_str}{unique_suffix}"
+                logger.info(f"[ORDER_ID] Generated: {order_id}")
+
+                # ── Capture IP from request ──
+                client_ip = safe_ip(get_client_ip(request))
+                user_id_raw = safe_str(serializer.validated_data.get('userId'))
+
+                # ── Build order_kwargs with all safe values ──
+                order_kwargs = dict(
+                    c2_code=c2_code,
+                    store_id=store_id_val,
+                    order_id=order_id,
+                    ip_no=safe_str(serializer.validated_data.get('ipNo')),
+                    mobile_no=safe_str(serializer.validated_data.get('mobileNo')),
+                    patient_name=safe_str(serializer.validated_data.get('patientName')),
+                    patient_address=safe_str(serializer.validated_data.get('patientAddress')),
+                    patient_email=safe_email(serializer.validated_data.get('patientEmail')),
+                    counter_sale=safe_bool(serializer.validated_data.get('counterSale', 0)),
+                    ord_date=serializer.validated_data.get('ordDate') or timezone.now().date(),
+                    ord_time=serializer.validated_data.get('ordTime') or timezone.now().time(),
+                    user_id=user_id_raw,
+                    cust_code=safe_str(serializer.validated_data.get('actCode')),
+                    cust_name=safe_str(serializer.validated_data.get('actName')),
+                    dr_code=safe_str(serializer.validated_data.get('drCode')),
+                    dr_name=safe_str(serializer.validated_data.get('drName')),
+                    dr_address=safe_str(serializer.validated_data.get('drAddress')),
+                    dr_reg_no=safe_str(serializer.validated_data.get('drRegNo')),
+                    dr_office_code=safe_str(serializer.validated_data.get('drOfficeCode'), '-'),
+                    dman_code=safe_str(serializer.validated_data.get('dmanCode'), '-'),
+                    order_total=safe_float(serializer.validated_data.get('orderTotal')),
+                    order_disc_per=safe_float(serializer.validated_data.get('orderDiscPer')),
+                    ref_no=serializer.validated_data.get('refNo') or None,
+                    remark=serializer.validated_data.get('remark') or None,
+                    urgent_flag=safe_bool(serializer.validated_data.get('urgentFlag', 0)),
+                    ord_conversion_flag=safe_bool(serializer.validated_data.get('ordConversionFlag', 0)),
+                    dc_conversion_flag=safe_bool(serializer.validated_data.get('dcConversionFlag', 0)),
+                    ord_ref_no=safe_int(serializer.validated_data.get('ordRefNo')),
+                    sys_name=safe_str(serializer.validated_data.get('sysName')),
+                    sys_ip=client_ip,        # safe None if empty
+                    sys_user=safe_str(serializer.validated_data.get('sysUser')),
+                    br_code=store_id_val,
+                    tran_year=str(timezone.now().year % 100),
+                    tran_prefix='6',
+                    tran_srno='1',
+                    bill_total=safe_float(serializer.validated_data.get('orderTotal')),
+                )
+
+                logger.info(f"[ORDER_DEBUG] order_kwargs built successfully")
+
+                # ── Create SalesOrder with retry ──
+                from django.db import IntegrityError
+                sales_order = None
+                for attempt in range(2):
+                    try:
+                        sales_order = SalesOrder.objects.create(**order_kwargs)
+                        logger.info(f"[ORDER_DEBUG] SalesOrder created: id={sales_order.id}")
+                        break
+                    except IntegrityError as ie:
+                        logger.error(f"[ORDER_INTEGRITY] Attempt {attempt+1}: {str(ie)}")
+                        if attempt == 0:
+                            time_str_retry = timezone.now().strftime('%H%M%S%f')[:8]
+                            unique_suffix_retry = str(uuid.uuid4())[:8].upper()
+                            order_id = f"{store_id}{date_str}{time_str_retry}{unique_suffix_retry}"
+                            order_kwargs['order_id'] = order_id
+                        else:
+                            raise
+
+                if not sales_order:
+                    return Response({
+                        'code': '500',
+                        'type': 'SaleOrderCreate',
+                        'message': 'Failed to create order after retries.'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+                # ── Create line items ──
+                material_info = serializer.validated_data.get('materialInfo') or []
+                logger.info(f"[ORDER_DEBUG] Processing {len(material_info)} line items")
+
+                # ── Validate item_code values before creating items ──
+                invalid_items = []
+                for idx, item in enumerate(material_info):
+                    item_code = safe_str(item.get('item_code'))
+                    if not item_code:
+                        invalid_items.append(idx)
+                
+                if invalid_items:
+                    logger.error(
+                        f"[ORDER_VALIDATION] Items with missing item_code at indices: {invalid_items}. "
+                        f"Cannot proceed without valid item codes."
+                    )
+                    # Delete the order since items are invalid
+                    sales_order.delete()
+                    return Response({
+                        'code': '400',
+                        'type': 'SaleOrderCreate',
+                        'message': f'Invalid items: missing item_code at positions {[i+1 for i in invalid_items]}. '
+                                   f'All items must have valid item codes.',
+                        'invalid_item_indices': invalid_items
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                # ── Track used item_seq to prevent duplicates ──
+                used_item_seqs = set()
+
+                for idx, item in enumerate(material_info):
+                    item_seq = safe_int(item.get('item_seq'), idx + 1)
+                    
+                    # ── Ensure item_seq is unique ──
+                    if item_seq in used_item_seqs:
+                        logger.warning(
+                            f"[ORDER_ITEMS] Duplicate item_seq {item_seq} at index {idx}, "
+                            f"reassigning to next available"
+                        )
+                        # Find next available item_seq
+                        next_seq = max(used_item_seqs) + 1 if used_item_seqs else 1
+                        while next_seq in used_item_seqs:
+                            next_seq += 1
+                        item_seq = next_seq
+                    
+                    used_item_seqs.add(item_seq)
+                    
+                    qty = safe_int(item.get('total_loose_qty'))
+                    sale_rate = safe_float(item.get('sale_rate'))
+                    disc_per = safe_float(item.get('disc_per'))
+                    sch_disc_per = safe_float(item.get('sch_disc_per'))
+                    item_total = round(sale_rate * (1 - disc_per / 100) * qty, 2)
+
+                    logger.info(
+                        f"[ORDER_DEBUG] Item {idx+1}: "
+                        f"code={item.get('item_code')} "
+                        f"qty={qty} rate={sale_rate} total={item_total}"
+                    )
+
+                    SalesOrderItem.objects.create(
+                        sales_order=sales_order,
+                        item_seq=item_seq,
+                        item_code=safe_str(item.get('item_code')),
+                        item_name=safe_str(item.get('item_name')),
+                        batch_no=item.get('batch_no') or None,
+                        expiry_date=item.get('expiry_date') or None,
+                        total_loose_qty=qty,
+                        total_loose_sch_qty=safe_int(item.get('total_loose_sch_qty')),
+                        service_qty=safe_int(item.get('service_qty')),
+                        sale_rate=sale_rate,
+                        disc_per=disc_per,
+                        sch_disc_per=sch_disc_per,
+                        item_total=item_total,
+                    )
+
+                # ── Recalculate total if 0 ──
+                provided_total = safe_float(serializer.validated_data.get('orderTotal'))
+                if provided_total == 0 and material_info:
+                    actual_total = round(sum(
+                        safe_float(i.get('sale_rate'))
+                        * (1 - safe_float(i.get('disc_per')) / 100)
+                        * safe_int(i.get('total_loose_qty'))
+                        for i in material_info
+                    ), 2)
+                    sales_order.order_total = actual_total
+                    sales_order.bill_total = actual_total
+                    logger.info(f"[ORDER_DEBUG] Auto-calculated total: {actual_total}")
+
+                # ── document_pk ──
+                sales_order.document_pk = (
+                    f"{sales_order.tran_year}"
+                    f"{sales_order.br_code}"
+                    f"{sales_order.tran_prefix}"
+                    f"{sales_order.id}"
+                )
+                sales_order.save()
+                logger.info(f"[ORDER_DEBUG] document_pk: {sales_order.document_pk}")
+
+                # ── SYNC ORDER TO ERP SERVER ──
+                # Build ERP payload with all items
+                erp_material_info = []
+                for order_item in SalesOrderItem.objects.filter(sales_order=sales_order).order_by('item_seq'):
+                    erp_material_info.append({
+                        "itemSeq": order_item.item_seq,
+                        "itemcode": order_item.item_code,  # ERP field: lowercase 'c'
+                        "totalLooseQty": order_item.total_loose_qty,
+                        "totalLooseSchQty": order_item.total_loose_sch_qty,
+                        "serviceQty": order_item.service_qty,
+                        "saleRate": str(order_item.sale_rate),  # ERP expects string
+                        "discPer": str(order_item.disc_per),    # ERP expects string
+                        "schDiscPer": str(order_item.sch_disc_per),
+                    })
+
+                erp_payload = {
+                    "c2Code": c2_code,
+                    "storeId": store_id_val,
+                    "prodCode": prod_code,
+                    "apiKey": api_key,  # Already generated at start of post()
+                    "ipNo": sales_order.ip_no,
+                    "mobileNo": sales_order.mobile_no,
+                    "patientName": sales_order.patient_name,
+                    "patientAddress": sales_order.patient_address,
+                    "patientEmail": sales_order.patient_email or '',
+                    "counterSale": "1" if sales_order.counter_sale else "0",
+                    "ordDate": str(sales_order.ord_date),
+                    "ordTime": str(sales_order.ord_time),
+                    "userId": sales_order.user_id,
+                    "actCode": sales_order.cust_code,
+                    "actName": sales_order.cust_name,
+                    "drCode": sales_order.dr_code or '',
+                    "drName": sales_order.dr_name or '',
+                    "drAddress": sales_order.dr_address or '',
+                    "drRegNo": sales_order.dr_reg_no or '',
+                    "drOfficeCode": sales_order.dr_office_code or '-',
+                    "dmanCode": sales_order.dman_code or '-',
+                    "orderTotal": str(sales_order.order_total),
+                    "orderDiscPer": str(sales_order.order_disc_per),
+                    "refNo": sales_order.ref_no or 0,
+                    "orderId": sales_order.order_id,  # ERP spec: orderId in request body
+                    "remark": sales_order.remark or '',
+                    "urgentFlag": 1 if sales_order.urgent_flag else 0,
+                    "ordConversionFlag": 1 if sales_order.ord_conversion_flag else 0,
+                    "dcConversionFlag": 1 if sales_order.dc_conversion_flag else 0,
+                    "ordRefNo": sales_order.ord_ref_no or 0,
+                    "sysName": sales_order.sys_name or '',
+                    "sysIp": sales_order.sys_ip or '',  # actual request IP
+                    "sysUser": sales_order.sys_user or '',
+                    "materialInfo": erp_material_info,
+                }
+
+                # Send to ERP
+                erp_sync_success = False
+                try:
+                    erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_create_sale_order"
+                    logger.info(f"[ERP_SYNC] Syncing order {sales_order.order_id} to ERP: {erp_url}")
+                    
+                    erp_response = requests.post(erp_url, json=erp_payload, timeout=15)
+                    
+                    # Accept both 200 OK and 201 Created as success
+                    if erp_response.status_code in [200, 201]:
+                        erp_data = erp_response.json()
+                        if erp_data.get('code') == '200':
+                            logger.info(
+                                f"[ERP_SYNC] ✓ Order {sales_order.order_id} accepted by ERP | "
+                                f"ERP documentPk: {erp_data.get('documentDetails', [{}])[0].get('documentPk')}"
+                            )
+                            erp_sync_success = True
+                        else:
+                            logger.error(
+                                f"[ERP_SYNC] ERP rejected order {sales_order.order_id}: "
+                                f"{erp_data.get('message')}"
+                            )
+                    else:
+                        logger.error(
+                            f"[ERP_SYNC] HTTP {erp_response.status_code} from ERP for order "
+                            f"{sales_order.order_id}: {erp_response.text[:300]}"
+                        )
+                except requests.exceptions.Timeout:
+                    logger.error(f"[ERP_SYNC] Timeout syncing order {sales_order.order_id} to ERP")
+                except requests.exceptions.ConnectionError:
+                    logger.error(f"[ERP_SYNC] Cannot reach ERP server for order {sales_order.order_id}")
+                except Exception as e:
+                    logger.error(f"[ERP_SYNC] Unexpected error: {str(e)}", exc_info=True)
+
+                if not erp_sync_success:
+                    logger.warning(
+                        f"[ERP_SYNC] Order {order_id} saved locally but ERP sync failed — "
+                        f"invoice sync will retry in background"
+                    )
+
+                # ── Clear cart ──
+                if user_id_raw:
+                    try:
+                        user_cart = Cart.objects.get(user_id=int(user_id_raw))
+                        cleared = user_cart.items.all().delete()
+                        logger.info(f"[CART_CLEAR] Cleared {cleared[0]} items for user {user_id_raw}")
+                    except (Cart.DoesNotExist, ValueError):
+                        pass
+                    except Exception as ce:
+                        logger.error(f"[CART_CLEAR] Error: {str(ce)}")
+
+                # ── Background invoice sync ──
+                # Only spawn if ERP sync succeeded, or spawn anyway to retry
+                import threading
+                from .services import sync_invoice_from_erp
+                thread = threading.Thread(
+                    target=sync_invoice_from_erp,
+                    args=(sales_order.order_id, sales_order.c2_code, sales_order.store_id),
+                    daemon=True
+                )
+                thread.start()
+
+                return Response({
+                    'code': '200',
+                    'type': 'SaleOrderCreate',
+                    'message': f'Document No. : {sales_order.document_pk} successfully processed.',
+                    'paymentMode': payment_mode,
+                    'paymentDetails': {
+                        'mode': payment_mode,
+                        'amount': str(sales_order.bill_total),
+                        'currency': 'INR'
+                    },
+                    'config': {
+                        'c2Code': settings.ERP_C2_CODE,
+                        'storeId': settings.ERP_STORE_ID,
+                        'prodCode': settings.ERP_PROD_CODE,
+                    },
+                    'documentDetails': [{
+                        'brCode': sales_order.br_code,
+                        'tranYear': sales_order.tran_year,
+                        'tranPrefix': sales_order.tran_prefix,
+                        'tranSrno': sales_order.tran_srno,
+                        'documentPk': sales_order.document_pk,
+                        'OrderId': sales_order.order_id,
+                        'createdDate': str(sales_order.ord_date),
+                        'billTotal': str(sales_order.bill_total)
+                    }]
+                }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"[ORDER_ERROR] {str(e)}\n{tb}")
+            return Response({
+                'code': '500',
+                'type': 'SaleOrderCreate',
+                'message': str(e),
+                'traceback': tb   # remove before production
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CreateGLCustomerView(APIView):
     """
@@ -1865,6 +2072,11 @@ class GetOrderStatusView(APIView):
     GET: Retrieve sales order status and invoice details
     
     🎯 Token auto-generated in background - NO apiKey needed in request!
+    
+    Flow:
+    1. Check local database for invoices
+    2. If not found, sync from ERP (invoices are generated server-side after sales order creation)
+    3. Return invoice details to client
     """
     permission_classes = [AllowAny]
     
@@ -1896,29 +2108,58 @@ class GetOrderStatusView(APIView):
             # Get invoices for this order
             invoices = Invoice.objects.filter(sales_order=sales_order)
             
+            # If no invoices found, try syncing from ERP
+            if not invoices.exists():
+                logger.info(f"[ORDER_STATUS] No invoices found locally for order {order_id}. Syncing from ERP...")
+                
+                from .services import sync_invoice_from_erp
+                # Sync synchronously to ensure invoices are available for this response
+                sync_success = sync_invoice_from_erp(
+                    order_id=order_id,
+                    c2_code=c2_code,
+                    store_id=store_id,
+                    max_retries=3
+                )
+                
+                if sync_success:
+                    # Retrieve invoices again after sync
+                    invoices = Invoice.objects.filter(sales_order=sales_order)
+                    logger.info(f"[ORDER_STATUS] ✓ Successfully synced {invoices.count()} invoice(s)")
+                else:
+                    logger.warning(f"[ORDER_STATUS] Failed to sync invoices from ERP for order {order_id}")
+            
+            # Build response
             response_data = {
                 'code': '200',
                 'orderId': sales_order.order_id,
                 'custCode': sales_order.cust_code,
-                'fromGstNo': '07NQQAE5107K2ZW',  # Replace with actual GST from backend
-                'toGstNo': '07NQQAE5107K2ZW',    # Replace with actual GST from customer
+                'fromGstNo': '07NQQAE5107K2ZW',  # Replace with actual GST from backend settings
+                'toGstNo': '07NQQAE5107K2ZW',    # Replace with actual GST from customer data
                 'customerType': 'Un - Registered',
                 'doctorName': sales_order.dr_name or '-',
                 'invoices': []
             }
             
+            # Serialize invoices with all details
             invoice_serializer = InvoiceForStatusSerializer(invoices, many=True)
             response_data['invoices'] = invoice_serializer.data
+            
+            # Log successful retrieval
+            logger.info(f"[ORDER_STATUS] ✓ Retrieved order status | Order: {order_id} | Invoices: {invoices.count()}")
             
             return Response(response_data, status=status.HTTP_200_OK)
         
         except SalesOrder.DoesNotExist:
+            logger.warning(f"[ORDER_STATUS] Order not found: {order_id}")
             return Response({
                 'code': '404',
                 'message': 'Order not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
         except Exception as e:
+            logger.error(f"[ORDER_STATUS] Error: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return Response({
                 'code': '500',
                 'message': str(e)
@@ -3591,113 +3832,7 @@ class SetDefaultAddressView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class RetailerOrdersView(APIView):
-    """
-    Get all orders for a specific retailer mobile app
-    GET: Retrieve active and completed orders with product details
-    """
-    permission_classes = [AllowAny] # Or IsAuthenticated depending on mobile app auth
-    
-    def get(self, request, user_id):
-        try:
-            # Check if user exists
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-            
-        # Optional status filter: active or completed
-        filter_status = request.query_params.get('status', 'all').lower()
-        
-        # Fetch orders for this user using string representation of ID as stored
-        # Also prefetch items for efficiency
-        orders = SalesOrder.objects.filter(user_id=str(user.id)).prefetch_related(
-            'items'
-        ).order_by('-created_at')
-        
-        active_orders = []
-        completed_orders = []
-        
-        for order in orders:
-            # Check for canceled orders first
-            payment = order.payments.first() if hasattr(order, 'payments') else None
-            is_cancelled = False
-            if payment and payment.status == 'FAILED':
-                is_cancelled = True
-                
-            # Skip canceled orders entirely
-            if is_cancelled:
-                continue
 
-            # Determine if order is completed
-            # dc_conversion_flag = Dispatched/Delivered.
-            is_completed = order.dc_conversion_flag
-            
-            # Fetch product info for items
-            items_data = []
-            for item in order.items.all():
-                # Attempt to find product info for images/subheading
-                image_url = None
-                subheading = ""
-                type_label = ""
-                
-                try:
-                    product_info = ProductInfo.objects.get(item__item_code=item.item_code)
-                    subheading = product_info.subheading or ""
-                    type_label = product_info.type_label or ""
-                    
-                    # Try to get the first image
-                    first_image = product_info.images.first()
-                    if first_image and first_image.image:
-                        image_url = request.build_absolute_uri(first_image.image.url)
-                except ProductInfo.DoesNotExist:
-                    pass
-                
-                items_data.append({
-                    'item_id': item.id,
-                    'item_code': item.item_code,
-                    'name': item.item_name or item.item_code,
-                    'subheading': subheading,
-                    'type_label': type_label,
-                    'image': image_url,
-                    'qty': item.total_loose_qty,
-                    'price': str(item.sale_rate),
-                    'total': str(item.item_total) if item.item_total else str(float(item.sale_rate) * item.total_loose_qty)
-                })
-                
-            order_data = {
-                'order_id': order.order_id,
-                'document_pk': order.document_pk,
-                'date': order.ord_date.strftime('%Y-%m-%d') if order.ord_date else '',
-                'total': str(order.order_total),
-                'status': 'Delivered' if is_completed else ('Dispatched' if order.dc_conversion_flag else 'In Delivery'),
-                'is_completed': is_completed,
-                'items': items_data
-            }
-            
-            if is_completed:
-                completed_orders.append(order_data)
-            else:
-                active_orders.append(order_data)
-                
-        # Return requested set
-        if filter_status == 'active':
-            result_data = active_orders
-        elif filter_status == 'completed':
-            result_data = completed_orders
-        else:
-            result_data = {
-                'active': active_orders,
-                'completed': completed_orders
-            }
-            
-        return Response({
-            'success': True,
-            'message': 'Orders retrieved successfully',
-            'data': result_data
-        }, status=status.HTTP_200_OK)
 
 
 class CheckoutWithAddressView(APIView):
@@ -5788,112 +5923,187 @@ class RegisterDeviceTokenView(APIView):
     
 class RetailerOrdersView(APIView):
     """
-    Get all orders for a specific retailer mobile app
-    GET: Retrieve active and completed orders with product details
+    Get all orders for a specific retailer
+    GET /api/orders/<user_id>/
+    Query params: ?status=active|completed|all (default: all)
     """
-    permission_classes = [AllowAny] # Or IsAuthenticated depending on mobile app auth
-    
+    permission_classes = [AllowAny]
+
     def get(self, request, user_id):
+
+        # ── Validate user ──
         try:
-            # Check if user exists
             user = CustomUser.objects.get(id=user_id)
         except CustomUser.DoesNotExist:
             return Response({
                 'success': False,
                 'message': 'User not found'
             }, status=status.HTTP_404_NOT_FOUND)
-            
-        # Optional status filter: active or completed
+
         filter_status = request.query_params.get('status', 'all').lower()
-        
-        # Fetch orders for this user using string representation of ID as stored
-        # Also prefetch items for efficiency
-        orders = SalesOrder.objects.filter(user_id=str(user.id)).prefetch_related(
-            'items'
-        ).order_by('-created_at')
-        
+        if filter_status not in ['active', 'completed', 'all']:
+            return Response({
+                'success': False,
+                'message': 'Invalid status filter. Use: active, completed, or all'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Fetch orders for this user ──
+        # user_id stored as string in SalesOrder (see CreateSalesOrderView)
+        orders = SalesOrder.objects.filter(
+            user_id=str(user.id)
+        ).prefetch_related('items').order_by('-created_at')
+
+        if not orders.exists():
+            result_data = {'active': [], 'completed': []} if filter_status == 'all' else []
+            return Response({
+                'success': True,
+                'message': 'No orders found',
+                'data': result_data
+            }, status=status.HTTP_200_OK)
+
         active_orders = []
         completed_orders = []
-        
-        for order in orders:
-            # Check for canceled orders first
-            payment = order.payments.first() if hasattr(order, 'payments') else None
-            is_cancelled = False
-            if payment and payment.status == 'FAILED':
-                is_cancelled = True
-                
-            # Skip canceled orders entirely
-            if is_cancelled:
-                continue
 
-            # Determine if order is completed
-            # dc_conversion_flag = Dispatched/Delivered.
-            is_completed = order.dc_conversion_flag
-            
-            # Fetch product info for items
+        for order in orders:
+
+            # ── Determine order status ──
+            # ERP flow: ordConversionFlag=1 → Confirmed, dcConversionFlag=1 → Delivered
+            # FIX: removed payment check — Payment model not defined in models.py
+            if order.dc_conversion_flag:
+                order_status = 'Delivered'
+                is_completed = True
+            elif order.ord_conversion_flag:
+                order_status = 'Confirmed'
+                is_completed = False   # still active until delivered
+            else:
+                order_status = 'Pending'
+                is_completed = False
+
+            # ── Build items list ──
             items_data = []
-            for item in order.items.all():
-                # Attempt to find product info for images/subheading
+            for order_item in order.items.all():
+
                 image_url = None
                 subheading = ""
                 type_label = ""
-                
+                description = ""
+
+                # FIX: item_code is a plain CharField in SalesOrderItem
+                # Must look up ItemMaster first, then ProductInfo
                 try:
-                    product_info = ProductInfo.objects.get(item__item_code=item.item_code)
-                    subheading = product_info.subheading or ""
-                    type_label = product_info.type_label or ""
-                    
-                    # Try to get the first image
-                    first_image = product_info.images.first()
-                    if first_image and first_image.image:
-                        image_url = request.build_absolute_uri(first_image.image.url)
-                except ProductInfo.DoesNotExist:
-                    pass
-                
+                    item_master = ItemMaster.objects.get(
+                        item_code=order_item.item_code
+                    )
+                    try:
+                        product_info = ProductInfo.objects.get(item=item_master)
+                        subheading = product_info.subheading or ""
+                        type_label = product_info.type_label or ""
+                        description = product_info.description or ""
+
+                        first_image = product_info.images.order_by(
+                            'image_order'
+                        ).first()
+                        if first_image and first_image.image:
+                            image_url = request.build_absolute_uri(
+                                first_image.image.url
+                            )
+                    except ProductInfo.DoesNotExist:
+                        # Item exists in ERP but no product info added yet
+                        logger.info(
+                            f"[RETAILER_ORDERS] No ProductInfo for: "
+                            f"{order_item.item_code}"
+                        )
+                except ItemMaster.DoesNotExist:
+                    # Item not yet synced to local DB from ERP
+                    logger.warning(
+                        f"[RETAILER_ORDERS] ItemMaster not found for: "
+                        f"{order_item.item_code}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"[RETAILER_ORDERS] Error fetching product info "
+                        f"for {order_item.item_code}: {str(e)}"
+                    )
+
+                # FIX: item_total fallback guards against None/zero sale_rate
+                if order_item.item_total:
+                    line_total = str(order_item.item_total)
+                else:
+                    rate = float(order_item.sale_rate or 0)
+                    qty = int(order_item.total_loose_qty or 0)
+                    disc = float(order_item.disc_per or 0)
+                    line_total = str(round(rate * (1 - disc / 100) * qty, 2))
+
                 items_data.append({
-                    'item_id': item.id,
-                    'item_code': item.item_code,
-                    'name': item.item_name or item.item_code,
+                    'item_id': order_item.id,
+                    'item_code': order_item.item_code,
+                    'name': order_item.item_name or order_item.item_code,
                     'subheading': subheading,
                     'type_label': type_label,
+                    'description': description,
                     'image': image_url,
-                    'qty': item.total_loose_qty,
-                    'price': str(item.sale_rate),
-                    'total': str(item.item_total) if item.item_total else str(float(item.sale_rate) * item.total_loose_qty)
+                    'qty': order_item.total_loose_qty,
+                    'batch_no': order_item.batch_no or '',
+                    'expiry_date': str(order_item.expiry_date) if order_item.expiry_date else None,
+                    # ERP spec fields
+                    'sale_rate': str(order_item.sale_rate or 0),
+                    'disc_per': str(order_item.disc_per or 0),
+                    'total': line_total,
                 })
-                
+
             order_data = {
                 'order_id': order.order_id,
                 'document_pk': order.document_pk,
                 'date': order.ord_date.strftime('%Y-%m-%d') if order.ord_date else '',
-                'total': str(order.order_total),
-                'status': 'Delivered' if is_completed else ('Dispatched' if order.dc_conversion_flag else 'In Delivery'),
+                'time': str(order.ord_time) if order.ord_time else '',
+                'patient_name': order.patient_name or '',
+                'mobile_no': order.mobile_no or '',
+                'total': str(order.order_total or 0),
+                'bill_total': str(order.bill_total or 0),
+                'status': order_status,
+                # ERP spec flags
+                'ord_conversion_flag': order.ord_conversion_flag,
+                'dc_conversion_flag': order.dc_conversion_flag,
                 'is_completed': is_completed,
-                'items': items_data
+                'item_count': len(items_data),
+                'items': items_data,
             }
-            
+
             if is_completed:
                 completed_orders.append(order_data)
             else:
                 active_orders.append(order_data)
-                
-        # Return requested set
+
+        # ── Filter response ──
         if filter_status == 'active':
             result_data = active_orders
+            message = f'Found {len(active_orders)} active order(s)'
         elif filter_status == 'completed':
             result_data = completed_orders
+            message = f'Found {len(completed_orders)} completed order(s)'
         else:
             result_data = {
                 'active': active_orders,
-                'completed': completed_orders
+                'completed': completed_orders,
+                'total_active': len(active_orders),
+                'total_completed': len(completed_orders),
             }
-            
+            message = (
+                f'Found {len(active_orders)} active and '
+                f'{len(completed_orders)} completed order(s)'
+            )
+
+        logger.info(
+            f"[RETAILER_ORDERS] User {user_id} | "
+            f"Active: {len(active_orders)} | "
+            f"Completed: {len(completed_orders)}"
+        )
+
         return Response({
             'success': True,
-            'message': 'Orders retrieved successfully',
+            'message': message,
             'data': result_data
         }, status=status.HTTP_200_OK)
-    
 
 # ==================== ORDER MANAGEMENT VIEWS ====================
 
@@ -6014,5 +6224,695 @@ class SuperAdminOrdersView(APIView):
             'message': f'Found {len(results)} order(s)',
             'count': len(results),
             'results': results
+        }, status=status.HTTP_200_OK)
+
+
+# ==================== CREDIT NOTE VIEWS ====================
+
+class RetailerCreditNoteCreateView(APIView):
+    """
+    Retailer raises a credit note request
+    POST /api/credit-notes/create/<user_id>/
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id, role='RETAILER')
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Retailer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = CreditNoteCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Auto-calculate amount from invoice if available
+        amount = 0.00
+        invoice_ref = serializer.validated_data.get('reference_invoice')
+        qty_to_return = serializer.validated_data.get('quantity_to_return', 0)
+        
+        if invoice_ref:
+            try:
+                invoice = Invoice.objects.filter(
+                    sales_order__user_id=str(user_id)
+                ).filter(
+                    details__product_name__icontains=serializer.validated_data.get('product_name', '')
+                ).first()
+                
+                if invoice:
+                    detail = invoice.details.filter(
+                        product_name__icontains=serializer.validated_data.get('product_name', '')
+                    ).first()
+                    if detail:
+                        amount = float(detail.sale_rate) * qty_to_return
+            except Exception as e:
+                logger.warning(f"[CREDIT_NOTE] Could not auto-calc amount: {str(e)}")
+        
+        credit_note = serializer.save(
+            retailer=user,
+            amount=amount
+        )
+        
+        logger.info(
+            f"[CREDIT_NOTE_CREATED] ID: {credit_note.credit_note_id} | "
+            f"Retailer: {user.username} | Product: {credit_note.product_name} | "
+            f"Reason: {credit_note.reason}"
+        )
+        
+        # Send push notification to retailer
+        try:
+            from .services import send_push_notification
+            send_push_notification(
+                user=user,
+                title="Credit Note Submitted ✅",
+                body=f"Your credit note {credit_note.credit_note_id} has been submitted and is pending review.",
+                data={"type": "credit_note", "credit_note_id": credit_note.credit_note_id}
+            )
+        except Exception as e:
+            logger.warning(f"[CREDIT_NOTE] Push notification failed: {str(e)}")
+        
+        return Response({
+            'success': True,
+            'message': f'Credit note {credit_note.credit_note_id} submitted successfully',
+            'data': CreditNoteListSerializer(credit_note).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class RetailerCreditNoteListView(APIView):
+    """
+    Retailer views their own credit note history
+    GET /api/credit-notes/<user_id>/
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id, role='RETAILER')
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Retailer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Optional status filter
+        status_filter = request.query_params.get('status')
+        
+        credit_notes = CreditNote.objects.filter(retailer=user)
+        
+        if status_filter:
+            credit_notes = credit_notes.filter(status=status_filter.upper())
+        
+        serializer = CreditNoteListSerializer(
+            credit_notes, 
+            many=True,
+            context={'request': request}
+        )
+        
+        return Response({
+            'success': True,
+            'count': credit_notes.count(),
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminCreditNoteListView(APIView):
+    """
+    SuperAdmin views all credit note requests
+    GET /api/admin/credit-notes/
+    Query params: status, search, date_from, date_to
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'success': False,
+                'message': 'Only SuperAdmin can access this'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        from django.db.models import Q
+        
+        credit_notes = CreditNote.objects.select_related(
+            'retailer', 'retailer__kyc'
+        ).all()
+        
+        # Filter by status
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            credit_notes = credit_notes.filter(status=status_filter.upper())
+        
+        # Search by retailer name, shop name, credit note id
+        search = request.query_params.get('search', '').strip()
+        if search:
+            credit_notes = credit_notes.filter(
+                Q(credit_note_id__icontains=search) |
+                Q(retailer__first_name__icontains=search) |
+                Q(retailer__kyc__shop_name__icontains=search) |
+                Q(reference_invoice__icontains=search) |
+                Q(product_name__icontains=search)
+            )
+        
+        # Date range filter
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        if date_from:
+            credit_notes = credit_notes.filter(created_at__date__gte=date_from)
+        if date_to:
+            credit_notes = credit_notes.filter(created_at__date__lte=date_to)
+        
+        serializer = CreditNoteListSerializer(
+            credit_notes,
+            many=True,
+            context={'request': request}
+        )
+        
+        # Summary counts
+        all_notes = CreditNote.objects.all()
+        
+        return Response({
+            'success': True,
+            'count': credit_notes.count(),
+            'summary': {
+                'total': all_notes.count(),
+                'pending': all_notes.filter(status='PENDING').count(),
+                'approved': all_notes.filter(status='APPROVED').count(),
+                'rejected': all_notes.filter(status='REJECTED').count(),
+                'delivered': all_notes.filter(status='DELIVERED').count(),
+            },
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminCreditNoteDetailView(APIView):
+    """
+    SuperAdmin views credit note detail (modal)
+    GET /api/admin/credit-notes/<credit_note_id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, credit_note_id):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'success': False,
+                'message': 'Only SuperAdmin can access this'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            credit_note = CreditNote.objects.get(credit_note_id=credit_note_id)
+        except CreditNote.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Credit note not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = CreditNoteDetailSerializer(
+            credit_note,
+            context={'request': request}
+        )
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminCreditNoteApproveView(APIView):
+    """
+    SuperAdmin approves a credit note
+    POST /api/admin/credit-notes/<credit_note_id>/approve/
+
+    Body:
+    {
+        "admin_remarks": "Approved after verification",  (optional)
+        "amount": 2500.00  (optional - override amount)
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, credit_note_id):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'success': False,
+                'message': 'Only SuperAdmin can approve credit notes'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            credit_note = CreditNote.objects.get(credit_note_id=credit_note_id)
+        except CreditNote.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Credit note not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if credit_note.status != 'PENDING':
+            return Response({
+                'success': False,
+                'message': f'Cannot approve. Credit note is already {credit_note.get_status_display()}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update
+        admin_remarks = request.data.get('admin_remarks', '')
+        amount = request.data.get('amount')
+
+        credit_note.status = 'APPROVED'
+        credit_note.admin_remarks = admin_remarks
+        credit_note.reviewed_by = request.user
+        credit_note.reviewed_at = timezone.now()
+        if amount:
+            credit_note.amount = amount
+        credit_note.save()
+
+        logger.info(
+            f"[CREDIT_NOTE_APPROVED] ID: {credit_note_id} | "
+            f"Admin: {request.user.username} | "
+            f"Amount: {credit_note.amount}"
+        )
+
+        # Credit wallet after approval
+        from .wallet_service import credit_wallet
+
+        wallet_result = credit_wallet(
+            retailer=credit_note.retailer,
+            amount=credit_note.amount,
+            source='CREDIT_NOTE',
+            credit_note=credit_note,
+            description=f'Credit note {credit_note_id} approved - {credit_note.get_reason_display()}'
+        )
+
+        if wallet_result['success']:
+            logger.info(
+                f"[CREDIT_NOTE_WALLET] ✅ Wallet credited | "
+                f"Retailer: {credit_note.retailer.username} | "
+                f"Amount: ₹{credit_note.amount} | "
+                f"New Balance: ₹{wallet_result['new_balance']}"
+            )
+        else:
+            logger.error(
+                f"[CREDIT_NOTE_WALLET] ❌ Wallet credit failed | "
+                f"Error: {wallet_result['error']}"
+            )
+
+        # Push notification to retailer
+        try:
+            from .services import send_push_notification
+            send_push_notification(
+                user=credit_note.retailer,
+                title="Credit Note Approved ✅",
+                body=f"₹{credit_note.amount} has been added to your wallet. New balance: ₹{wallet_result.get('new_balance', 0)}",
+                data={
+                    "type": "credit_note_approved",
+                    "credit_note_id": credit_note_id,
+                    "amount": str(credit_note.amount),
+                    "wallet_balance": str(wallet_result.get('new_balance', 0))
+                }
+            )
+        except Exception as e:
+            logger.warning(f"[CREDIT_NOTE] Push failed: {str(e)}")
+
+        # Send approval email to retailer
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            retailer_email = credit_note.retailer.email
+            
+            if retailer_email:
+                shop_name = ""
+                try:
+                    shop_name = credit_note.retailer.kyc.shop_name
+                except:
+                    shop_name = credit_note.retailer.first_name
+                
+                email_subject = f"Credit Note Approved ✅ - {credit_note_id}"
+                
+                email_body = f"""
+Hello {credit_note.retailer.first_name},
+
+Good news! Your credit note request has been approved.
+
+Credit Note Details:
+─────────────────────────────────────────
+Credit Note ID:     {credit_note_id}
+Shop Name:          {shop_name}
+Product Name:       {credit_note.product_name}
+Quantity Returned:  {credit_note.quantity_to_return}
+Approved Amount:    ₹{credit_note.amount}
+Status:             APPROVED ✅
+Approval Date:      {timezone.now().strftime('%d-%m-%Y %H:%M:%S')}
+
+What Happens Next?
+─────────────────────────────────────────
+✅ ₹{credit_note.amount} has been added to your wallet
+✅ New Wallet Balance: ₹{wallet_result.get('new_balance', 0)}
+✅ This amount will be deducted from your next order
+
+Your credit will be automatically applied to your next purchase.
+No additional action is required.
+
+Admin Remarks:
+─────────────────────────────────────────
+{admin_remarks if admin_remarks else 'Approved by admin'}
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+Dream Pharma Support Team
+"""
+                
+                send_mail(
+                    subject=email_subject,
+                    message=email_body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[retailer_email],
+                    fail_silently=False,
+                )
+                
+                logger.info(
+                    f"[CREDIT_NOTE_EMAIL] Approval email sent to {retailer_email} | "
+                    f"Credit Note: {credit_note_id} | "
+                    f"Amount: ₹{credit_note.amount}"
+                )
+        except Exception as e:
+            logger.warning(f"[CREDIT_NOTE_EMAIL] Failed to send approval email: {str(e)}")
+
+        # Audit log
+        try:
+            from maindash.views import log_audit
+            log_audit(
+                action='Credit Note Approved',
+                performed_by_user=request.user,
+                target_entity=credit_note_id,
+                details=f'Approved for {credit_note.retailer.username} | Amount: ₹{credit_note.amount}',
+                category='Credit Note',
+            )
+        except Exception:
+            pass
+
+        return Response({
+            'success': True,
+            'message': f'Credit note {credit_note_id} approved successfully',
+            'data': CreditNoteDetailSerializer(
+                credit_note,
+                context={'request': request}
+            ).data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminCreditNoteRejectView(APIView):
+    """
+    SuperAdmin rejects a credit note
+    POST /api/admin/credit-notes/<credit_note_id>/reject/
+
+    Body:
+    {
+        "admin_remarks": "Reason for rejection"  (required)
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, credit_note_id):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'success': False,
+                'message': 'Only SuperAdmin can reject credit notes'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            credit_note = CreditNote.objects.get(credit_note_id=credit_note_id)
+        except CreditNote.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Credit note not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if credit_note.status != 'PENDING':
+            return Response({
+                'success': False,
+                'message': f'Cannot reject. Credit note is already {credit_note.get_status_display()}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Reject reason is required
+        admin_remarks = request.data.get('admin_remarks', '').strip()
+        if not admin_remarks:
+            return Response({
+                'success': False,
+                'message': 'admin_remarks (rejection reason) is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update
+        credit_note.status = 'REJECTED'
+        credit_note.admin_remarks = admin_remarks
+        credit_note.reviewed_by = request.user
+        credit_note.reviewed_at = timezone.now()
+        credit_note.save()
+
+        logger.info(
+            f"[CREDIT_NOTE_REJECTED] ID: {credit_note_id} | "
+            f"Admin: {request.user.username} | "
+            f"Reason: {admin_remarks}"
+        )
+
+        # Push notification to retailer
+        try:
+            from .services import send_push_notification
+            send_push_notification(
+                user=credit_note.retailer,
+                title="Credit Note Rejected ❌",
+                body=f"Your credit note {credit_note_id} was rejected. Reason: {admin_remarks}",
+                data={
+                    "type": "credit_note_rejected",
+                    "credit_note_id": credit_note_id,
+                    "reason": admin_remarks
+                }
+            )
+        except Exception as e:
+            logger.warning(f"[CREDIT_NOTE] Push notification failed: {str(e)}")
+
+        # Send rejection email to retailer
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            retailer_email = credit_note.retailer.email
+            
+            if retailer_email:
+                shop_name = ""
+                try:
+                    shop_name = credit_note.retailer.kyc.shop_name
+                except:
+                    shop_name = credit_note.retailer.first_name
+                
+                email_subject = f"Credit Note Rejected - {credit_note_id}"
+                
+                email_body = f"""
+Hello {credit_note.retailer.first_name},
+
+We regret to inform you that your credit note request has been rejected.
+
+Credit Note Details:
+─────────────────────────────────────────
+Credit Note ID:     {credit_note_id}
+Shop Name:          {shop_name}
+Product Name:       {credit_note.product_name}
+Quantity Returned:  {credit_note.quantity_to_return}
+Requested Amount:   ₹{credit_note.amount}
+Status:             REJECTED
+Rejection Date:     {timezone.now().strftime('%d-%m-%Y %H:%M:%S')}
+
+Reason for Rejection:
+─────────────────────────────────────────
+{admin_remarks}
+
+What's Next?
+─────────────────────────────────────────
+If you believe this decision is incorrect or would like to appeal, 
+please contact our support team or reply to this email.
+
+If you have any questions, please don't hesitate to contact us.
+
+Best regards,
+Dream Pharma Support Team
+"""
+                
+                send_mail(
+                    subject=email_subject,
+                    message=email_body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[retailer_email],
+                    fail_silently=False,
+                )
+                
+                logger.info(
+                    f"[CREDIT_NOTE_EMAIL] Rejection email sent to {retailer_email} | "
+                    f"Credit Note: {credit_note_id}"
+                )
+        except Exception as e:
+            logger.warning(f"[CREDIT_NOTE_EMAIL] Failed to send rejection email: {str(e)}")
+
+        # Audit log
+        try:
+            from maindash.views import log_audit
+            log_audit(
+                action='Credit Note Rejected',
+                performed_by_user=request.user,
+                target_entity=credit_note_id,
+                details=f'Rejected for {credit_note.retailer.username} | Reason: {admin_remarks}',
+                category='Credit Note',
+            )
+        except Exception:
+            pass
+
+        return Response({
+            'success': True,
+            'message': f'Credit note {credit_note_id} rejected',
+            'data': CreditNoteDetailSerializer(
+                credit_note,
+                context={'request': request}
+            ).data
+        }, status=status.HTTP_200_OK)
+
+
+class RetailerWalletView(APIView):
+    """
+    GET /api/wallet/<user_id>/
+    Returns wallet balance and transaction history
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id, role='RETAILER')
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Retailer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        from .models import RetailerWallet, WalletTransaction
+
+        wallet, _ = RetailerWallet.objects.get_or_create(retailer=user)
+        
+        # Get transaction history
+        transactions = WalletTransaction.objects.filter(
+            wallet=wallet
+        ).order_by('-created_at')[:20]
+
+        transactions_data = []
+        for txn in transactions:
+            transactions_data.append({
+                'id': txn.id,
+                'type': txn.transaction_type,
+                'source': txn.source,
+                'amount': str(txn.amount),
+                'description': txn.description,
+                'closing_balance': str(txn.closing_balance),
+                'credit_note_id': txn.credit_note.credit_note_id if txn.credit_note else None,
+                'created_at': txn.created_at.isoformat()
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'balance': str(wallet.balance),
+                'transactions': transactions_data
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class GetProductsByOrderView(APIView):
+    """
+    GET /api/credit-notes/order-products/<user_id>/?order_id=RET001
+    When retailer types Order ID in credit note form,
+    this returns products from that order for the dropdown
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, user_id):
+        order_id = request.query_params.get('order_id', '').strip()
+
+        if not order_id:
+            return Response({
+                'success': False,
+                'message': 'order_id query parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(id=user_id, role='RETAILER')
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Retailer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Order must belong to this retailer
+        try:
+            sales_order = SalesOrder.objects.get(
+                order_id=order_id,
+                user_id=str(user_id)
+            )
+        except SalesOrder.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': f'Order {order_id} not found for this retailer'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get reference invoice
+        reference_invoice = ''
+        try:
+            invoice = Invoice.objects.filter(sales_order=sales_order).first()
+            if invoice:
+                reference_invoice = invoice.doc_no
+        except Exception:
+            pass
+
+        # Build product dropdown list
+        order_items = SalesOrderItem.objects.filter(sales_order=sales_order)
+        
+        if not order_items.exists():
+            return Response({
+                'success': False,
+                'message': 'No products found in this order'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        products = []
+        for item in order_items:
+            image_url = None
+            try:
+                product_info = ProductInfo.objects.get(item__item_code=item.item_code)
+                first_image = product_info.images.first()
+                if first_image:
+                    image_url = request.build_absolute_uri(first_image.image.url)
+            except ProductInfo.DoesNotExist:
+                pass
+
+            products.append({
+                'item_code': item.item_code,
+                'item_name': item.item_name or item.item_code,
+                'quantity': item.total_loose_qty,        # ← auto-fill quantity field
+                'sale_rate': str(item.sale_rate),
+                'batch_no': item.batch_no or '',
+                'expiry_date': str(item.expiry_date) if item.expiry_date else '',
+                'image': image_url,
+                'max_refund_amount': str(
+                    round(float(item.sale_rate) * item.total_loose_qty, 2)
+                ),
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'order_id': order_id,
+                'order_date': str(sales_order.ord_date),
+                'reference_invoice': reference_invoice,  # ← auto-fill invoice field
+                'order_total': str(sales_order.order_total),
+                'products': products                     # ← populate dropdown
+            }
         }, status=status.HTTP_200_OK)
     
