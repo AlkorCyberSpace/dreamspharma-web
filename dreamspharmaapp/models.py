@@ -660,6 +660,21 @@ class Offer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    def auto_inactivate_if_expired(self):
+        """
+        Automatically mark offer as inactive if valid_to date has passed.
+        Saves the change to database.
+        Returns True if offer was inactivated, False otherwise.
+        """
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        if self.status and today > self.valid_to:
+            self.status = False
+            self.save(update_fields=['status', 'updated_at'])
+            return True
+        return False
+    
     @property
     def is_valid_now(self):
         """Check if offer is currently valid"""

@@ -991,6 +991,23 @@ class OfferListCreateView(APIView):
         if category_id:
             offers = offers.filter(category_id=category_id)
         
+        # Auto-inactivate expired offers before returning
+        for offer in offers:
+            offer.auto_inactivate_if_expired()
+        
+        # Refresh queryset to get updated status
+        offers = Offer.objects.all()
+        if placement:
+            offers = offers.filter(placement=placement)
+        if status_filter:
+            try:
+                status_bool = status_filter.lower() == 'true'
+                offers = offers.filter(status=status_bool)
+            except:
+                pass
+        if category_id:
+            offers = offers.filter(category_id=category_id)
+        
         # Serialize with request context
         serializer = OfferListSerializer(offers, many=True, context={'request': request})
         
@@ -1073,6 +1090,9 @@ class OfferDetailView(APIView):
                 'status': 'error',
                 'message': 'Offer not found'
             }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Auto-inactivate if expired
+        offer.auto_inactivate_if_expired()
         
         serializer = OfferSerializer(offer)
         return Response({
@@ -1596,43 +1616,75 @@ class ReportSummaryView(APIView):
         if request.user.role != 'SUPERADMIN':
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Time selection
+        # ── Date range (default: current month MTD) ───────────────────────────
         start_date_str = request.query_params.get('start_date')
-        end_date_str = request.query_params.get('end_date')
+        end_date_str   = request.query_params.get('end_date')
 
         if start_date_str and end_date_str:
             start_date = parse_date(start_date_str)
-            end_date = parse_date(end_date_str)
+            end_date   = parse_date(end_date_str)
+            if not start_date or not end_date:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         else:
-            # Default to current month MTD
-            today = timezone.now().date()
-            start_date = today.replace(day=1)
-            end_date = today
+            today      = timezone.now().date()
+            start_date = today.replace(day=1)   # 1st of this month
+            end_date   = today                  # today (MTD)
 
-        # Queries
-        orders = SalesOrder.objects.filter(ord_date__range=[start_date, end_date])
-        
-        total_revenue = orders.aggregate(total=Sum('order_total'))['total'] or 0.0
+        # ── MTD order queryset ────────────────────────────────────────────────
+        orders = SalesOrder.objects.filter(
+            ord_date__gte=start_date,
+            ord_date__lte=end_date
+        )
+
+        # 1. Total Orders (MTD)
         total_orders = orders.count()
-        avg_order_value = orders.aggregate(avg=Avg('order_total'))['avg'] or 0.0
-        active_retailers = orders.values('user_id').distinct().count()
 
-        # Previous month comparison (simplified)
-        prev_start = (start_date - timedelta(days=30)).replace(day=1)
-        prev_end = (start_date - timedelta(days=1))
-        prev_orders = SalesOrder.objects.filter(ord_date__range=[prev_start, prev_end])
-        prev_revenue = prev_orders.aggregate(total=Sum('order_total'))['total'] or 0.0
-        
-        rev_change = ((float(total_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if float(prev_revenue) > 0 else 0
+        # 2. Total Revenue (MTD) – sum of order_total
+        total_revenue = float(orders.aggregate(total=Sum('order_total'))['total'] or 0.0)
+
+        # 3. Avg Order Value – revenue ÷ orders (avoids Django Avg() skipping NULL rows)
+        avg_order_value = round(total_revenue / total_orders, 2) if total_orders > 0 else 0.0
+
+        # ── Active Retailers in period ────────────────────────────────────────
+        valid_retailer_ids = set(
+            str(uid) for uid in User.objects.filter(role='RETAILER').values_list('id', flat=True)
+        )
+        active_retailers = len(set(
+            uid for uid in orders.values_list('user_id', flat=True).distinct()
+            if uid and uid in valid_retailer_ids
+        ))
+
+        # ── Previous month (full calendar month before start_date) ────────────
+        prev_end   = start_date - timedelta(days=1)   # last day of previous month
+        prev_start = prev_end.replace(day=1)          # 1st day of previous month
+
+        prev_orders       = SalesOrder.objects.filter(ord_date__gte=prev_start, ord_date__lte=prev_end)
+        prev_total_orders = prev_orders.count()
+        prev_revenue      = float(prev_orders.aggregate(total=Sum('order_total'))['total'] or 0.0)
+        prev_avg          = round(prev_revenue / prev_total_orders, 2) if prev_total_orders > 0 else 0.0
+
+        def calc_change_pct(curr, prev_val):
+            if prev_val > 0:
+                return round((curr - prev_val) / prev_val * 100, 1)
+            return 100.0 if curr > 0 else 0.0
 
         return Response({
             'success': True,
+            'period': {
+                'start_date': str(start_date),
+                'end_date':   str(end_date),
+            },
             'data': {
-                'total_revenue': float(total_revenue),
-                'total_orders': total_orders,
-                'avg_order_value': float(avg_order_value),
-                'active_retailers': active_retailers,
-                'revenue_change_percentage': round(rev_change, 1)
+                'total_revenue':               total_revenue,
+                'total_orders':                total_orders,
+                'avg_order_value':             avg_order_value,
+                'active_retailers':            active_retailers,
+                'revenue_change_percentage':   calc_change_pct(total_revenue,   prev_revenue),
+                'orders_change_percentage':    calc_change_pct(total_orders,    prev_total_orders),
+                'avg_order_change_percentage': calc_change_pct(avg_order_value, prev_avg),
             }
         })
 
