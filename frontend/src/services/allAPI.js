@@ -119,7 +119,9 @@ export const getRetailersAPI = () => {
 export const getSuperAdminProfileAPI = () => {
   return axiosInstance.get("superadmin/profile/");
 };
-
+export const updateSuperAdminProfileAPI = (data) => {
+  return axiosInstance.put("superadmin/profile/", data);
+};
 // SuperAdmin - Update Profile Image
 export const updateSuperAdminProfileImageAPI = (data) => {
   return axiosInstance.post("superadmin/profile/image/", data, {
@@ -259,10 +261,16 @@ export const getAuditLogsAPI = (params) => {
   return axiosInstance.get("superadmin/audit-logs/", { params });
 };
 
-export const  getOrdersApi = (params) => {
+export const getOrdersApi = (params) => {
   return axiosInstance.get("superadmin/orders/", { params });
 }
 
-export const getReportSummaryApi =() =>{
+
+export const getReportSummaryApi = () => {
   return axiosInstance.get('superadmin/reports/summary/')
 }
+
+// SuperAdmin - Mark COD Order as Delivered/Paid
+export const markCODDeliveredAPI = (data) => {
+  return axiosInstance.post("superadmin/orders/cod-delivered/", data);
+};

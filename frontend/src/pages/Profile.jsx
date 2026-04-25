@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Upload, Camera, Check, X, Trash2, AlertTriangle, Info, Eye, EyeOff } from 'lucide-react';
-import { getSuperAdminProfileAPI, updateSuperAdminProfileImageAPI, deleteSuperAdminProfileImageAPI, changeSuperAdminPasswordAPI } from '../services/allAPI';
+import { getSuperAdminProfileAPI, updateSuperAdminProfileImageAPI, deleteSuperAdminProfileImageAPI, changeSuperAdminPasswordAPI, updateSuperAdminProfileAPI } from '../services/allAPI';
 import { mediaUrl } from '../services/serverUrl';
 
 const Profile = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [initialUsername, setInitialUsername] = useState('');
+  const [initialEmail, setInitialEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -30,6 +32,8 @@ const Profile = () => {
           const profile = response.data.profile;
           setUsername(profile.username || '');
           setEmail(profile.email || '');
+          setInitialUsername(profile.username || '');
+          setInitialEmail(profile.email || '');
           if (profile.profile_image) {
             setProfileImage(profile.profile_image);
           }
@@ -86,6 +90,26 @@ const Profile = () => {
       }
     });
   };
+ const handleProfileUpdate = async () => {
+    try {
+      const response = await updateSuperAdminProfileAPI({ username, email });
+      if (response.status === 200) {
+        setInitialUsername(username);
+        setInitialEmail(email);
+        showToast("Profile updated successfully!", "success");
+      }
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      showToast("Failed to update profile.", "error");
+    }
+  };
+
+  const handleDiscardProfile = () => {
+    setUsername(initialUsername);
+    setEmail(initialEmail);
+    showToast("Profile changes discarded.", "info");
+  };
+
 
   const handlePasswordUpdate = async () => {
     if (!currentPassword || !newPassword) {
@@ -232,6 +256,25 @@ const Profile = () => {
           </div>
         </div>
 
+        {(username !== initialUsername || email !== initialEmail) && (
+          <div className="flex justify-end gap-3 mb-6 animate-in fade-in slide-in-from-right-4 duration-300">
+            <button
+              onClick={handleDiscardProfile}
+              className="px-6 py-2 border border-gray-200 text-[#505050] font-bold rounded-xl hover:bg-gray-50 transition-all uppercase tracking-wider text-xs flex items-center gap-2 group"
+            >
+              <X size={14} className="group-hover:rotate-90 transition-transform duration-300" />
+              Cancel
+            </button>
+            <button
+              onClick={handleProfileUpdate}
+              className="px-8 py-2 bg-[#125B6C] text-white font-bold rounded-xl hover:bg-[#0e4856] transition-all uppercase tracking-wider text-xs shadow-lg shadow-teal-900/10 flex items-center gap-2 group"
+            >
+              {/* <Check size={16} className="group-hover:scale-110 transition-transform" /> */}
+              Update Profile
+            </button>
+          </div>
+        )}
+
         {/* Change Password Section */}
         <div className="mb-1">
           <h2 className="text-lg font-semibold text-[#505050] mb-4 tracking-tight">Change Password</h2>
@@ -280,13 +323,13 @@ const Profile = () => {
         <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4 border-t border-gray-50 mt-1">
           <button
             onClick={handleCancel}
-            className="px-6 py-3 border border-[#125B6C] text-[#125B6C] font-bold rounded-lg hover:bg-gray-50 transition-all uppercase tracking-wider text-sm min-w-[180px]"
+            className="px-4 py-1.5 border border-[#125B6C] text-[#125B6C] font-bold rounded-lg hover:bg-gray-50 transition-all uppercase tracking-wider text-sm min-w-[180px]"
           >
             CANCEL
           </button>
           <button
             onClick={handlePasswordUpdate}
-            className="px-6 py-3 bg-[#125B6C] text-white font-bold rounded-lg hover:bg-[#0e4856] transition-all uppercase tracking-wider text-sm min-w-[180px] shadow-lg shadow-teal-900/10"
+            className="px-4 py-1.5 bg-[#125B6C] text-white font-bold rounded-lg hover:bg-[#0e4856] transition-all uppercase tracking-wider text-sm min-w-[180px] shadow-lg shadow-teal-900/10"
           >
             Save
           </button>
