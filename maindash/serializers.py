@@ -150,6 +150,12 @@ class DashboardStatisticsSerializer(serializers.Serializer):
     
     # Pie Chart Data
     orders_by_status = serializers.ListField(child=serializers.DictField(), read_only=True)
+    
+    # Income/Expense Donut Chart Data (by product category)
+    income_by_category = serializers.ListField(child=serializers.DictField(), read_only=True)
+    expense_by_category = serializers.ListField(child=serializers.DictField(), read_only=True)
+    total_income = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total_expense = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
