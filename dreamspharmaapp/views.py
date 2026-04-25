@@ -6269,15 +6269,14 @@ class SuperAdminUpdateOrderStatusView(APIView):
     Payload:
     {
         "order_id": "TEST-COD-34BE5317",
-        "status": "confirmed" | "dispatched" | "delivered"
+        "status": "confirmed" | "dispatched"
     }
     
-    Status Flow: Pending → Confirmed → Dispatched → Delivered
+    Status Flow: Pending → Confirmed → Dispatched
     - confirmed:  sets ord_conversion_flag = True
     - dispatched: sets ord_conversion_flag = True (auto), creates/updates invoice if needed
-    - delivered:  sets dc_conversion_flag = True, ord_conversion_flag = True
     
-    For COD orders, also handles payment collection on delivery.
+    For COD orders, also handles payment collection on dispatch.
     """
     permission_classes = [IsAuthenticated]
 
@@ -6296,7 +6295,7 @@ class SuperAdminUpdateOrderStatusView(APIView):
                 'error': 'order_id is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        valid_statuses = ['confirmed', 'dispatched', 'delivered']
+        valid_statuses = ['confirmed', 'dispatched']
         if new_status not in valid_statuses:
             return Response({
                 'success': False,
@@ -6322,15 +6321,13 @@ class SuperAdminUpdateOrderStatusView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Determine current order status
-        if order.dc_conversion_flag:
-            current_status = 'delivered'
-        elif order.ord_conversion_flag:
+        if order.ord_conversion_flag:
             current_status = 'confirmed'
         else:
             current_status = 'pending'
 
         # Validate status transition
-        status_order = {'pending': 0, 'confirmed': 1, 'dispatched': 2, 'delivered': 3}
+        status_order = {'pending': 0, 'confirmed': 1, 'dispatched': 2}
         if status_order.get(new_status, 0) <= status_order.get(current_status, 0):
             return Response({
                 'success': False,
@@ -6353,13 +6350,6 @@ class SuperAdminUpdateOrderStatusView(APIView):
             action_msg = 'Order Dispatched'
             log_details = f'Order "{order_id}" marked as Dispatched'
 
-        elif new_status == 'delivered':
-            order.ord_conversion_flag = True  # Ensure confirmed
-            order.dc_conversion_flag = True   # Mark delivered
-            order.save()
-            action_msg = 'Order Delivered'
-            log_details = f'Order "{order_id}" marked as Delivered'
-
             # For COD orders, auto-mark payment as collected
             if payment and payment.payment_method == 'COD' and not payment.cod_collected:
                 payment.cod_collected = True
@@ -6377,7 +6367,6 @@ class SuperAdminUpdateOrderStatusView(APIView):
                 status_labels = {
                     'confirmed': 'Confirmed ✅',
                     'dispatched': 'Dispatched 🚚',
-                    'delivered': 'Delivered 📦',
                 }
                 send_push_notification(
                     user=retailer_user,
@@ -6406,9 +6395,7 @@ class SuperAdminUpdateOrderStatusView(APIView):
             logger.warning(f"[ORDER_STATUS] Audit log failed: {e}")
 
         # Determine updated status label for response
-        if order.dc_conversion_flag:
-            updated_status = 'Delivered'
-        elif order.ord_conversion_flag:
+        if order.ord_conversion_flag:
             updated_status = 'Confirmed'
         else:
             updated_status = 'Pending'

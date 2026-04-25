@@ -43,6 +43,7 @@ urlpatterns = [
     path('superadmin/orders/update-status/', SuperAdminUpdateOrderStatusView.as_view(), name='superadmin-update-order-status'),
     path('superadmin/orders/cod-delivered/', views.SuperAdminMarkCODDeliveredView.as_view(), name='superadmin-mark-cod-delivered'),
 
+
     # ==================== OFFERS & BANNERS ENDPOINTS ====================
     # Offers Management (SuperAdmin)
     path('offers/', views.OfferListCreateView.as_view(), name='offer-list-create'),
