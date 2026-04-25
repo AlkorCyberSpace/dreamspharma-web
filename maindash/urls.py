@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from dreamspharmaapp.views import SuperAdminUpdateOrderStatusView
 
 urlpatterns = [
     # SuperAdmin - Dashboard Statistics
@@ -39,6 +40,7 @@ urlpatterns = [
 
     # ==================== ORDER MANAGEMENT ====================
     path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
+    path('superadmin/orders/update-status/', SuperAdminUpdateOrderStatusView.as_view(), name='superadmin-update-order-status'),
     path('superadmin/orders/cod-delivered/', views.SuperAdminMarkCODDeliveredView.as_view(), name='superadmin-mark-cod-delivered'),
 
     # ==================== OFFERS & BANNERS ENDPOINTS ====================

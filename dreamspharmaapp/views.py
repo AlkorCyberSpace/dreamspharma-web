@@ -6139,14 +6139,23 @@ class SuperAdminOrdersView(APIView):
             if status_filter in status_map:
                 orders = orders.filter(**status_map[status_filter])
 
-        # Search by order_id, patient_name, or cust_name
+        # Search by order_id, patient_name, cust_name, or retailer shop_name (via KYC)
         if search:
             from django.db.models import Q
-            orders = orders.filter(
+            # First get matching order_ids from direct order fields
+            direct_matches = orders.filter(
                 Q(order_id__icontains=search) |
                 Q(patient_name__icontains=search) |
                 Q(cust_name__icontains=search)
             )
+            
+            # Also search by retailer shop_name via KYC
+            kyc_matches = KYC.objects.filter(shop_name__icontains=search).values_list('user_id', flat=True)
+            shop_name_orders = SalesOrder.objects.filter(user_id__in=[str(uid) for uid in kyc_matches])
+            
+            # Combine both querysets
+            order_ids = set(direct_matches.values_list('id', flat=True)) | set(shop_name_orders.values_list('id', flat=True))
+            orders = SalesOrder.objects.filter(id__in=order_ids).prefetch_related('items', 'payments').order_by('-created_at')
 
         results = []
         for order in orders:
@@ -6196,19 +6205,44 @@ class SuperAdminOrdersView(APIView):
                     'status': 'completed'
                 })
                 
-            retailer_id = order.store_id if order.store_id else 'RET001' # Fallback for display
-            if order.user_id and order.user_id.isdigit():
+            # Get retailer shop name from KYC via user_id
+            retailer_shop_name = ''
+            retailer_id = order.store_id if order.store_id else 'RET001'
+
+            # Try to find the retailer user and get shop_name from KYC
+            if order.user_id:
                 try:
-                    retailer_user = get_user_model().objects.get(id=int(order.user_id))
-                    if hasattr(retailer_user, 'kyc') and retailer_user.kyc.user_id:
-                        retailer_id = retailer_user.kyc.user_id
-                except:
+                    if order.user_id.isdigit():
+                        retailer_user = get_user_model().objects.select_related('kyc').get(id=int(order.user_id))
+                        # Get shop name from KYC
+                        if hasattr(retailer_user, 'kyc') and retailer_user.kyc and retailer_user.kyc.shop_name:
+                            retailer_shop_name = retailer_user.kyc.shop_name
+                            if retailer_user.kyc.user_id:
+                                retailer_id = retailer_user.kyc.user_id
+                        # Fallback: use retailer username if no KYC shop_name
+                        elif not retailer_shop_name:
+                            retailer_shop_name = retailer_user.username
+                except (ValueError, get_user_model().DoesNotExist):
                     pass
+
+            # Final fallback: check if we can find KYC with c2_code
+            if not retailer_shop_name and order.c2_code:
+                try:
+                    kyc = KYC.objects.filter(user__c2_code=order.c2_code).first()
+                    if kyc and kyc.shop_name:
+                        retailer_shop_name = kyc.shop_name
+                        retailer_id = kyc.user.c2_code or retailer_id
+                except Exception:
+                    pass
+
+            # Last resort fallback
+            if not retailer_shop_name:
+                retailer_shop_name = order.cust_name or order.patient_name or 'Unknown Retailer'
 
             results.append({
                 'id': order.order_id,
                 'retailer_id': retailer_id,
-                'retailer': order.cust_name or order.patient_name,
+                'retailer': retailer_shop_name,
                 'date': order.ord_date.strftime('%Y - %m - %d') if order.ord_date else '', # Figma format
                 'items': order.items.count(),
                 'total': str(order.order_total),
@@ -6224,6 +6258,166 @@ class SuperAdminOrdersView(APIView):
             'message': f'Found {len(results)} order(s)',
             'count': len(results),
             'results': results
+        }, status=status.HTTP_200_OK)
+
+
+class SuperAdminUpdateOrderStatusView(APIView):
+    """
+    API endpoint for superadmin to update order status.
+    POST /api/superadmin/orders/update-status/
+    
+    Payload:
+    {
+        "order_id": "TEST-COD-34BE5317",
+        "status": "confirmed" | "dispatched" | "delivered"
+    }
+    
+    Status Flow: Pending → Confirmed → Dispatched → Delivered
+    - confirmed:  sets ord_conversion_flag = True
+    - dispatched: sets ord_conversion_flag = True (auto), creates/updates invoice if needed
+    - delivered:  sets dc_conversion_flag = True, ord_conversion_flag = True
+    
+    For COD orders, also handles payment collection on delivery.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        order_id = request.data.get('order_id')
+        new_status = request.data.get('status', '').lower().strip()
+
+        if not order_id:
+            return Response({
+                'success': False,
+                'error': 'order_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_statuses = ['confirmed', 'dispatched', 'delivered']
+        if new_status not in valid_statuses:
+            return Response({
+                'success': False,
+                'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            order = SalesOrder.objects.get(order_id=order_id)
+        except SalesOrder.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Order not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check current status to prevent invalid transitions
+        from payment.models import Payment
+        payment = order.payments.first()
+        
+        if payment and payment.status == 'FAILED':
+            return Response({
+                'success': False,
+                'error': 'Cannot update status for a cancelled/failed order'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Determine current order status
+        if order.dc_conversion_flag:
+            current_status = 'delivered'
+        elif order.ord_conversion_flag:
+            current_status = 'confirmed'
+        else:
+            current_status = 'pending'
+
+        # Validate status transition
+        status_order = {'pending': 0, 'confirmed': 1, 'dispatched': 2, 'delivered': 3}
+        if status_order.get(new_status, 0) <= status_order.get(current_status, 0):
+            return Response({
+                'success': False,
+                'error': f'Cannot change status from "{current_status}" to "{new_status}". Order is already at or past this stage.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Apply status update
+        action_msg = ''
+        log_details = ''
+
+        if new_status == 'confirmed':
+            order.ord_conversion_flag = True
+            order.save()
+            action_msg = 'Order Confirmed'
+            log_details = f'Order "{order_id}" marked as Confirmed'
+
+        elif new_status == 'dispatched':
+            order.ord_conversion_flag = True  # Ensure confirmed
+            order.save()
+            action_msg = 'Order Dispatched'
+            log_details = f'Order "{order_id}" marked as Dispatched'
+
+        elif new_status == 'delivered':
+            order.ord_conversion_flag = True  # Ensure confirmed
+            order.dc_conversion_flag = True   # Mark delivered
+            order.save()
+            action_msg = 'Order Delivered'
+            log_details = f'Order "{order_id}" marked as Delivered'
+
+            # For COD orders, auto-mark payment as collected
+            if payment and payment.payment_method == 'COD' and not payment.cod_collected:
+                payment.cod_collected = True
+                payment.cod_collected_at = timezone.now()
+                payment.cod_collected_by = request.user.username
+                payment.status = 'SUCCESS'
+                payment.save()
+                log_details += ' and COD payment collected'
+
+        # Send push notification to the retailer
+        if order.user_id and order.user_id.isdigit():
+            try:
+                retailer_user = get_user_model().objects.get(id=int(order.user_id))
+                from .services import send_push_notification
+                status_labels = {
+                    'confirmed': 'Confirmed ✅',
+                    'dispatched': 'Dispatched 🚚',
+                    'delivered': 'Delivered 📦',
+                }
+                send_push_notification(
+                    user=retailer_user,
+                    title=f"Order {status_labels.get(new_status, new_status)}",
+                    body=f"Your order {order_id} has been {new_status}.",
+                    data={
+                        "type": "order_status_update",
+                        "order_id": order_id,
+                        "status": new_status
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"[ORDER_STATUS] Push notification failed: {e}")
+
+        # Audit log
+        try:
+            from maindash.views import log_audit
+            log_audit(
+                action=action_msg,
+                performed_by_user=request.user,
+                target_entity=order_id,
+                details=log_details,
+                category='Order',
+            )
+        except Exception as e:
+            logger.warning(f"[ORDER_STATUS] Audit log failed: {e}")
+
+        # Determine updated status label for response
+        if order.dc_conversion_flag:
+            updated_status = 'Delivered'
+        elif order.ord_conversion_flag:
+            updated_status = 'Confirmed'
+        else:
+            updated_status = 'Pending'
+
+        return Response({
+            'success': True,
+            'message': log_details + ' successfully',
+            'order_id': order_id,
+            'new_status': updated_status,
         }, status=status.HTTP_200_OK)
 
 
