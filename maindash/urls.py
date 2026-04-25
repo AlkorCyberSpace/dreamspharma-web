@@ -56,6 +56,7 @@ urlpatterns = [
     path('superadmin/notifications/', views.AdminNotificationListView.as_view(), name='superadmin-notifications'),
     path('superadmin/notifications/<int:notification_id>/mark-read/', views.AdminNotificationMarkReadView.as_view(), name='superadmin-notification-mark-read'),
 
+
     # ==================== REPORTS & ANALYTICS ====================
     path('superadmin/reports/summary/', views.ReportSummaryView.as_view(), name='superadmin-report-summary'),
     path('superadmin/reports/kyc/', views.KYCStatusReportView.as_view(), name='superadmin-report-kyc'),
