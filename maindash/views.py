@@ -9,6 +9,7 @@ from django.http import HttpResponse
 import openpyxl
 from io import BytesIO
 from django.db.models import Sum, Count, Q, Avg, Max, F, DecimalField
+from django.db.models.functions import TruncMonth, TruncYear
 from django.utils.dateparse import parse_date
 from datetime import timedelta, date
 from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem, InvoiceDetail, CreditNote
@@ -1961,6 +1962,145 @@ class RevenueReportView(APIView, ExcelExportMixin):
             'success': True,
             'data': revenue_list
         })
+
+
+class RefundTrendsView(APIView):
+    """
+    Refund/Credit Note trends by month and year.
+    GET /api/superadmin/reports/refund-trends/?view=monthly&year=2026
+    
+    Query Parameters:
+    - view: 'monthly' (current year or specified year) or 'yearly' (last N years)
+    - year: Year for monthly view (default: current year)
+    - months: Number of months for monthly view (default: 12)
+    - years: Number of years for yearly view (default: 3)
+    
+    Returns:
+    - Monthly view: [{"month": "October", "count": 35, "amount": 5000.50}, ...]
+    - Yearly view: [{"year": 2024, "count": 180, "amount": 25000.00}, ...]
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        view_type = request.query_params.get('view', 'monthly').lower()
+        
+        if view_type == 'monthly':
+            return self._get_monthly_trends(request)
+        elif view_type == 'yearly':
+            return self._get_yearly_trends(request)
+        else:
+            return Response({
+                'error': "Invalid view. Must be 'monthly' or 'yearly'"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_monthly_trends(self, request):
+        """Get monthly refund trends"""
+        try:
+            year = int(request.query_params.get('year', timezone.now().year))
+            months = int(request.query_params.get('months', 12))
+        except ValueError:
+            return Response({
+                'error': 'Invalid year or months parameter'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate date range
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=30 * months)
+        
+        # Get credit notes grouped by month
+        monthly_data = CreditNote.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            count=Count('credit_note_id'),
+            amount=Sum('amount', output_field=DecimalField())
+        ).order_by('month')
+        
+        # Format response with month names
+        month_names = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December']
+        
+        trends = []
+        for item in monthly_data:
+            if item['month']:
+                month_index = item['month'].month - 1
+                month_name = month_names[month_index]
+                month_short = month_names[month_index][:3]
+                
+                trends.append({
+                    'month': month_name,
+                    'month_short': month_short,
+                    'month_num': item['month'].month,
+                    'year': item['month'].year,
+                    'count': item['count'] or 0,
+                    'amount': float(item['amount'] or 0)
+                })
+        
+        return Response({
+            'success': True,
+            'view': 'monthly',
+            'year_displayed': year,
+            'total_months': len(trends),
+            'trends': trends,
+            'summary': {
+                'total_refunds': sum(t['count'] for t in trends),
+                'total_amount': sum(t['amount'] for t in trends)
+            }
+        }, status=status.HTTP_200_OK)
+
+    def _get_yearly_trends(self, request):
+        """Get yearly refund trends"""
+        try:
+            num_years = int(request.query_params.get('years', 3))
+        except ValueError:
+            return Response({
+                'error': 'Invalid years parameter'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate date range
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=365 * num_years)
+        
+        # Get credit notes grouped by year
+        yearly_data = CreditNote.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).annotate(
+            year=TruncYear('created_at')
+        ).values('year').annotate(
+            count=Count('credit_note_id'),
+            amount=Sum('amount', output_field=DecimalField())
+        ).order_by('year')
+        
+        trends = []
+        for item in yearly_data:
+            if item['year']:
+                trends.append({
+                    'year': item['year'].year,
+                    'count': item['count'] or 0,
+                    'amount': float(item['amount'] or 0)
+                })
+        
+        return Response({
+            'success': True,
+            'view': 'yearly',
+            'years_displayed': num_years,
+            'total_years': len(trends),
+            'trends': trends,
+            'summary': {
+                'total_refunds': sum(t['count'] for t in trends),
+                'total_amount': sum(t['amount'] for t in trends)
+            }
+        }, status=status.HTTP_200_OK)
+
+
 class DailyVolumeGraphView(APIView):
     """
     API endpoint for getting daily volume graph data and top statistics.

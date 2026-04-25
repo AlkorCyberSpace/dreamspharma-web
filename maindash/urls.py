@@ -64,5 +64,6 @@ urlpatterns = [
     path('superadmin/reports/orders/', views.OrderReportView.as_view(), name='superadmin-report-orders'),
     path('superadmin/reports/retailer-activity/', views.RetailerActivityReportView.as_view(), name='superadmin-report-retailer-activity'),
     path('superadmin/reports/revenue/', views.RevenueReportView.as_view(), name='superadmin-report-revenue'),
+    path('superadmin/reports/refund-trends/', views.RefundTrendsView.as_view(), name='superadmin-report-refund-trends'),
 ]
    
