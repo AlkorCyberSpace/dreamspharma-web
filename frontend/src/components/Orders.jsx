@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Search, ChevronDown, Eye, X, Check, Download } from 'lucide-react';
-import { getOrdersApi, markCODDeliveredAPI, getSuperAdminProfileAPI } from '../services/allAPI';
+import { getOrdersApi, markCODDeliveredAPI, updateOrderStatusAPI, getSuperAdminProfileAPI } from '../services/allAPI';
 
 const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
   const [confirming, setConfirming] = useState(false);
@@ -26,6 +26,30 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
       console.error("Error marking order as delivered:", error);
       const errorMessage = error.response?.data?.error || "An error occurred. Please try again.";
       alert(errorMessage);
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleUpdateStatus = async (newStatus) => {
+    try {
+      setConfirming(true);
+      const data = {
+        order_id: order.id,
+        status: newStatus
+      };
+      const response = await updateOrderStatusAPI(data);
+
+      if (response.data.success) {
+        alert(response.data.message || `Order ${newStatus} successfully!`);
+        onOrderConfirmed();
+        onClose();
+      } else {
+        alert(response.data.error || `Failed to update status.`);
+      }
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      alert(error.response?.data?.error || "An error occurred. Please try again.");
     } finally {
       setConfirming(false);
     }
@@ -152,9 +176,9 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
             <Download size={18} />
             Download Invoice
           </button>
-          {order.status === 'Pending' && order.payment === 'Cash on Delivery' && (
+          {order.status === 'Pending' && (
             <button
-              onClick={handleConfirmOrder}
+              onClick={() => handleUpdateStatus('confirmed')}
               disabled={confirming}
               className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#127690] text-white rounded-xl text-sm font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-900/10 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
@@ -166,6 +190,22 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
               {confirming ? 'Confirming...' : 'Confirm Order'}
             </button>
           )}
+
+          {order.status === 'Confirmed' && (
+            <button
+              onClick={() => handleUpdateStatus('dispatched')}
+              disabled={confirming}
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#127690] text-white rounded-xl text-sm font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-900/10 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              {confirming ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check size={18} className="group-hover:scale-110 transition-transform" />
+              )}
+              {confirming ? 'Dispatching...' : 'Dispatch Order'}
+            </button>
+          )}
+
         </div>
       </div>
     </div>
@@ -263,6 +303,15 @@ const Orders = () => {
           .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #D1D5DB;
           }
+          .sticky-action-column {
+            position: sticky;
+            right: 0;
+            z-index: 10;
+            box-shadow: -4px 0 6px -4px rgba(0, 0, 0, 0.1);
+          }
+          tr:hover .sticky-action-column {
+            background-color: #EEF2F6 !important;
+          }
         `}
       </style>
 
@@ -335,7 +384,7 @@ const Orders = () => {
                   <th className="px-6">Payment</th>
                   <th className="px-6 text-center">Status</th>
                   <th className="px-6">ERP Ref</th>
-                  <th className="px-6 text-center">Actions</th>
+                  <th className="px-6 text-center sticky-action-column bg-[#DCE4EA] z-20 border-l border-gray-200">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -353,7 +402,7 @@ const Orders = () => {
                       </span>
                     </td>
                     <td className="px-6 text-sm text-gray-500 font-medium">{order.erpRef}</td>
-                    <td className="px-6 text-center">
+                    <td className={`px-6 text-center sticky-action-column ${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"}`}>
                       <button
                         onClick={() => setSelectedOrder(order)}
                         className="text-[#127690] hover:text-teal-600 transition-colors"
