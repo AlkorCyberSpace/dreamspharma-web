@@ -209,12 +209,41 @@ class DashboardStatisticsView(APIView):
         orders_in_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False).distinct().count()
         prev_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False, created_at__lt=last_7_days).distinct().count()
 
-        # 5. Top Selling Product
-        top_product_entry = SalesOrderItem.objects.filter(created_at__gte=last_7_days).values(
-            'item_code', 'item_name'
-        ).annotate(total_qty=Sum('total_loose_qty')).order_by('-total_qty').first()
+        # 5. Top Selling Product (Current Week)
+        # Since SalesOrderItem.item_name might be empty, we need to fetch from ItemMaster
+        # Use raw SQL to join SalesOrderItem with ItemMaster
+        from django.db import connection
         
-        top_selling_product = top_product_entry['item_name'] if top_product_entry else "N/A"
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT soi.item_code, im.item_name, SUM(soi.total_loose_qty) as total_qty
+            FROM dreamspharmaapp_salesorderitem soi
+            LEFT JOIN dreamspharmaapp_itemmaster im ON soi.item_code = im.item_code
+            JOIN dreamspharmaapp_salesorder so ON soi.sales_order_id = so.id
+            WHERE so.ord_date >= %s
+            AND (im.item_name IS NOT NULL AND im.item_name != '')
+            GROUP BY soi.item_code, im.item_name
+            ORDER BY total_qty DESC
+            LIMIT 1
+        """, [last_7_days.date()])
+        
+        top_product_entry = None
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            top_product_entry = dict(zip(columns, row))
+        
+        top_selling_product = (top_product_entry['item_name'] or 'N/A') if top_product_entry else "N/A"
+        current_week_qty = top_product_entry['total_qty'] if top_product_entry else 0
+        
+        # Compare with previous week for the same product
+        prev_week_qty = 0
+        if top_product_entry and top_product_entry.get('item_code'):
+            prev_product = SalesOrderItem.objects.filter(
+                sales_order__ord_date__gte=prev_7_days.date(),
+                sales_order__ord_date__lt=last_7_days.date(),
+                item_code=top_product_entry['item_code']
+            ).aggregate(total=Sum('total_loose_qty'))['total'] or 0
+            prev_week_qty = prev_product if prev_product else 0
         
         # Calculate Percentages
         def calc_pct(curr, prev):
@@ -244,7 +273,7 @@ class DashboardStatisticsView(APIView):
             'dispatch_change_text': get_trend_text(orders_in_dispatch, prev_dispatch),
 
             'top_selling_product': top_selling_product,
-            'top_selling_change_percentage': 12.5, # Placeholder or specific logic
+            'top_selling_change_percentage': calc_pct(current_week_qty, prev_week_qty),
 
             # Daily Order Volume Graph (Last 7 days)
             'daily_order_volume': [],
@@ -1350,14 +1379,23 @@ class SuperAdminOrdersView(APIView):
             if status_filter in status_map:
                 orders = orders.filter(**status_map[status_filter])
 
-        # Search by order_id, patient_name, or cust_name
+        # Search by order_id, patient_name, cust_name, or retailer shop_name (via KYC)
         if search:
             from django.db.models import Q
-            orders = orders.filter(
+            # First get matching order_ids from direct order fields
+            direct_matches = orders.filter(
                 Q(order_id__icontains=search) |
                 Q(patient_name__icontains=search) |
                 Q(cust_name__icontains=search)
             )
+            
+            # Also search by retailer shop_name via KYC
+            kyc_matches = KYC.objects.filter(shop_name__icontains=search).values_list('user_id', flat=True)
+            shop_name_orders = SalesOrder.objects.filter(user_id__in=kyc_matches)
+            
+            # Combine both querysets
+            order_ids = set(direct_matches.values_list('id', flat=True)) | set(shop_name_orders.values_list('id', flat=True))
+            orders = SalesOrder.objects.filter(id__in=order_ids).order_by('-created_at')
 
         results = []
         for order in orders:
@@ -1407,19 +1445,41 @@ class SuperAdminOrdersView(APIView):
                     'status': 'completed'
                 })
                 
-            retailer_id = order.store_id if order.store_id else 'RET001' # Fallback for display
-            if order.user_id and order.user_id.isdigit():
+            # Get retailer shop name from KYC 
+            retailer_shop_name = 'Unknown Retailer'
+            retailer_id = order.store_id if order.store_id else 'RET001'
+            retailer_user = None
+            
+            # Try to find the retailer user
+            if order.user_id:
                 try:
-                    retailer_user = get_user_model().objects.get(id=int(order.user_id))
-                    if hasattr(retailer_user, 'kyc') and retailer_user.kyc.user_id:
-                        retailer_id = retailer_user.kyc.user_id
-                except:
+                    if order.user_id.isdigit():
+                        retailer_user = get_user_model().objects.get(id=int(order.user_id))
+                        # Get shop name from KYC
+                        if hasattr(retailer_user, 'kyc') and retailer_user.kyc and retailer_user.kyc.shop_name:
+                            retailer_shop_name = retailer_user.kyc.shop_name
+                            if retailer_user.kyc.user_id:
+                                retailer_id = retailer_user.kyc.user_id
+                        # Fallback: use retailer username if no KYC shop_name
+                        elif retailer_shop_name == 'Unknown Retailer':
+                            retailer_shop_name = retailer_user.username
+                except (ValueError, get_user_model().DoesNotExist):
+                    pass
+            
+            # Final fallback: check if we can find KYC with c2_code
+            if retailer_shop_name == 'Unknown Retailer' and order.c2_code:
+                try:
+                    kyc = KYC.objects.filter(user__c2_code=order.c2_code).first()
+                    if kyc and kyc.shop_name:
+                        retailer_shop_name = kyc.shop_name
+                        retailer_id = kyc.user.c2_code or retailer_id
+                except Exception:
                     pass
 
             results.append({
                 'id': order.order_id,
                 'retailer_id': retailer_id,
-                'retailer': order.cust_name or order.patient_name,
+                'retailer': retailer_shop_name,
                 'date': order.ord_date.strftime('%Y - %m - %d') if order.ord_date else '', # Figma format
                 'items': order.items.count(),
                 'total': str(order.order_total),
