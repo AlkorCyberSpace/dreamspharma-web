@@ -187,34 +187,31 @@ class DashboardStatisticsView(APIView):
             return Response({
                 'error': 'Only Super Admin can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
         now = timezone.now()
         last_7_days = now - timedelta(days=7)
         prev_7_days = now - timedelta(days=14)
 
-        # 1. Total Retailers (Approved Only as requested)
+        # 1. Total Retailers (Approved Only)
         total_retailers = User.objects.filter(role='RETAILER', is_kyc_approved=True).count()
         prev_retailers = User.objects.filter(role='RETAILER', is_kyc_approved=True, created_at__lt=last_7_days).count()
-        
+
         # 2. Pending KYC
         pending_kyc = KYC.objects.filter(status='PENDING').count()
         prev_pending_kyc = KYC.objects.filter(status='PENDING', submitted_at__lt=last_7_days).count()
-        
+
         # 3. Total Orders
         total_orders = SalesOrder.objects.count()
         prev_total_orders = SalesOrder.objects.filter(created_at__lt=last_7_days).count()
         curr_week_orders = SalesOrder.objects.filter(created_at__gte=last_7_days).count()
         prev_week_orders = SalesOrder.objects.filter(created_at__gte=prev_7_days, created_at__lt=last_7_days).count()
-        
-        # 4. Orders in Dispatch (Invoice exists but not Delivered)
+
+        # 4. Orders in Dispatch
         orders_in_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False).distinct().count()
         prev_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False, created_at__lt=last_7_days).distinct().count()
 
-        # 5. Top Selling Product (Current Week)
-        # Since SalesOrderItem.item_name might be empty, we need to fetch from ItemMaster
-        # Use raw SQL to join SalesOrderItem with ItemMaster
+        # 5. Top Selling Product
         from django.db import connection
-        
         cursor = connection.cursor()
         cursor.execute("""
             SELECT soi.item_code, im.item_name, SUM(soi.total_loose_qty) as total_qty
@@ -227,16 +224,15 @@ class DashboardStatisticsView(APIView):
             ORDER BY total_qty DESC
             LIMIT 1
         """, [last_7_days.date()])
-        
+
         top_product_entry = None
         columns = [col[0] for col in cursor.description]
         for row in cursor.fetchall():
             top_product_entry = dict(zip(columns, row))
-        
+
         top_selling_product = (top_product_entry['item_name'] or 'N/A') if top_product_entry else "N/A"
         current_week_qty = top_product_entry['total_qty'] if top_product_entry else 0
-        
-        # Compare with previous week for the same product
+
         prev_week_qty = 0
         if top_product_entry and top_product_entry.get('item_code'):
             prev_product = SalesOrderItem.objects.filter(
@@ -245,26 +241,103 @@ class DashboardStatisticsView(APIView):
                 item_code=top_product_entry['item_code']
             ).aggregate(total=Sum('total_loose_qty'))['total'] or 0
             prev_week_qty = prev_product if prev_product else 0
-        
-        # Calculate Percentages
+
+        # ── Helpers ──────────────────────────────────────────────────────────────
         def calc_pct(curr, prev):
-            if prev == 0: return 100.0 if curr > 0 else 0.0
+            if prev == 0:
+                return 100.0 if curr > 0 else 0.0
             return round(((curr - prev) / prev) * 100, 1)
 
         def get_trend_text(curr, prev):
             diff = curr - prev
             return f"{'+' if diff >= 0 else ''}{diff} from last week"
 
-        # Preparing stats payload
+        # ── 6. Income by Category ─────────────────────────────────────────────────
+        # Aggregate SalesOrderItem.item_total grouped by the Category assigned to
+        # each product via ProductInfo.  Only items that have a category assigned
+        # are included; the rest are bucketed as "Uncategorised".
+        income_by_category_qs = (
+            SalesOrderItem.objects
+            .filter(item_total__isnull=False)
+            .values('item_code')
+            .annotate(total_income=Sum('item_total'))
+        )
+
+        # Build a mapping: item_code → (category_id, category_name)
+        from dreamspharmaapp.models import ProductInfo, Category
+        product_category_map = {}
+        for pi in ProductInfo.objects.select_related('category').filter(category__isnull=False):
+            product_category_map[pi.item_id] = {
+                'id': pi.category_id,
+                'name': pi.category.name,
+            }
+
+        income_aggregated = {}
+        for row in income_by_category_qs:
+            cat_info = product_category_map.get(row['item_code'], {'id': None, 'name': 'Uncategorised'})
+            cat_name = cat_info['name']
+            income_aggregated[cat_name] = income_aggregated.get(cat_name, 0) + float(row['total_income'] or 0)
+
+        total_income = sum(income_aggregated.values()) or 1  # avoid divide-by-zero
+        income_by_category = [
+            {
+                'category': cat,
+                'amount': round(amt, 2),
+                'percentage': round((amt / total_income) * 100, 1),
+            }
+            for cat, amt in sorted(income_aggregated.items(), key=lambda x: -x[1])
+        ]
+
+        # ── 7. Expense by Category ────────────────────────────────────────────────
+        # Aggregate approved CreditNote.amount grouped by the Category of the
+        # returned product (matched via item_code → ProductInfo → Category).
+        # Fall back to reason label when no category is found.
+        from dreamspharmaapp.models import CreditNote
+        expense_qs = (
+            CreditNote.objects
+            .filter(status='APPROVED', amount__gt=0)
+            .values('item_code', 'reason')
+            .annotate(total_expense=Sum('amount'))
+        )
+
+        expense_aggregated = {}
+        for row in expense_qs:
+            item_code = row.get('item_code', '')
+            cat_info = product_category_map.get(item_code)
+            if cat_info:
+                label = cat_info['name']
+            else:
+                # Use the human-readable reason as the bucket label
+                reason_map = {
+                    'DAMAGED': 'Damaged Products',
+                    'EXPIRED': 'Expired / Near Expiry',
+                    'WRONG_ITEM': 'Wrong Item',
+                    'BILLING': 'Billing Issues',
+                    'OTHER': 'Other',
+                }
+                label = reason_map.get(row.get('reason', ''), 'Other')
+            expense_aggregated[label] = expense_aggregated.get(label, 0) + float(row['total_expense'] or 0)
+
+        total_expense = sum(expense_aggregated.values()) or 1
+        expense_by_category = [
+            {
+                'category': cat,
+                'amount': round(amt, 2),
+                'percentage': round((amt / total_expense) * 100, 1),
+            }
+            for cat, amt in sorted(expense_aggregated.items(), key=lambda x: -x[1])
+        ]
+
+        # ── Assemble payload ─────────────────────────────────────────────────────
         stats_data = {
             'total_retailers': total_retailers,
             'retailers_change_percentage': calc_pct(total_retailers, prev_retailers),
             'retailers_change_text': get_trend_text(total_retailers, prev_retailers),
-            
+
             'pending_kyc': pending_kyc,
             'pending_kyc_change': pending_kyc - prev_pending_kyc,
             'pending_kyc_change_text': f"{pending_kyc - prev_pending_kyc} from last week",
-            
+
             'total_orders': total_orders,
             'orders_change_percentage': calc_pct(curr_week_orders, prev_week_orders),
             'orders_change_text': get_trend_text(curr_week_orders, prev_week_orders),
@@ -276,113 +349,39 @@ class DashboardStatisticsView(APIView):
             'top_selling_product': top_selling_product,
             'top_selling_change_percentage': calc_pct(current_week_qty, prev_week_qty),
 
-            # Daily Order Volume Graph (Last 7 days)
+            # Graph data
             'daily_order_volume': [],
-            
-            # Orders by Status Pie Chart
-            'orders_by_status': []
+            'orders_by_status': [],
+
+            # ── NEW ──────────────────────────────────────────────────────────────
+            'income_by_category': income_by_category,
+            'expense_by_category': expense_by_category,
         }
 
-        # Populate Daily Order Volume
+        # Daily Order Volume (last 7 days)
         for i in range(6, -1, -1):
-            date = (now - timedelta(days=i)).date()
-            count = SalesOrder.objects.filter(ord_date=date).count()
+            d = (now - timedelta(days=i)).date()
+            count = SalesOrder.objects.filter(ord_date=d).count()
             stats_data['daily_order_volume'].append({
-                'date': date.strftime('%b %d'),
-                'orders': count
+                'date': d.strftime('%b %d'),
+                'orders': count,
             })
 
-        # Populate Status Distribution
+        # Orders by Status
         status_counts = {
-            'Pending': SalesOrder.objects.filter(ord_conversion_flag=False).count(),
-            'Confirmed': SalesOrder.objects.filter(ord_conversion_flag=True, invoices__isnull=True).count(),
+            'Pending':    SalesOrder.objects.filter(ord_conversion_flag=False).count(),
+            'Confirmed':  SalesOrder.objects.filter(ord_conversion_flag=True, invoices__isnull=True).count(),
             'Dispatched': SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False).distinct().count(),
-            'Delivered': SalesOrder.objects.filter(dc_conversion_flag=True).count(),
+            'Delivered':  SalesOrder.objects.filter(dc_conversion_flag=True).count(),
         }
-        
         total_stat_orders = sum(status_counts.values())
         for status_label, count in status_counts.items():
             pct = round((count / total_stat_orders * 100), 1) if total_stat_orders > 0 else 0
             stats_data['orders_by_status'].append({
                 'status': status_label,
                 'count': count,
-                'percentage': pct
+                'percentage': pct,
             })
-
-        # Income/Expense by Category (for donut chart)
-        income_expense_data = {}
-        
-        # Calculate Income by Category (from invoices)
-        invoice_details = InvoiceDetail.objects.select_related(
-            'invoice__sales_order'
-        ).filter(
-            invoice__sales_order__ord_date__gte=timezone.now().date() - timedelta(days=30)
-        ).values(
-            'product_name'
-        ).annotate(
-            total_income=Sum('item_total', output_field=DecimalField())
-        )
-        
-        for detail in invoice_details:
-            product_name = detail['product_name']
-            income = float(detail['total_income'] or 0)
-            
-            if product_name not in income_expense_data:
-                income_expense_data[product_name] = {'income': 0, 'expense': 0}
-            income_expense_data[product_name]['income'] += income
-        
-        # Calculate Expense by Category (from credit notes - refunds)
-        credit_notes = CreditNote.objects.filter(
-            status__in=['APPROVED', 'DELIVERED'],
-            created_at__gte=timezone.now().date() - timedelta(days=30)
-        ).values('product_name').annotate(
-            total_refund=Sum('amount', output_field=DecimalField())
-        )
-        
-        for note in credit_notes:
-            product_name = note['product_name']
-            expense = float(note['total_refund'] or 0)
-            
-            if product_name not in income_expense_data:
-                income_expense_data[product_name] = {'income': 0, 'expense': 0}
-            income_expense_data[product_name]['expense'] += expense
-        
-        # Format for donut chart
-        income_by_category = []
-        expense_by_category = []
-        
-        for product_name, values in sorted(income_expense_data.items()):
-            if values['income'] > 0:
-                income_by_category.append({
-                    'name': product_name,
-                    'value': round(values['income'], 2),
-                    'percentage': 0  # Will calculate after
-                })
-            if values['expense'] > 0:
-                expense_by_category.append({
-                    'name': product_name,
-                    'value': round(values['expense'], 2),
-                    'percentage': 0  # Will calculate after
-                })
-        
-        # Calculate percentages
-        total_income = sum(item['value'] for item in income_by_category)
-        total_expense = sum(item['value'] for item in expense_by_category)
-        
-        for item in income_by_category:
-            item['percentage'] = round((item['value'] / total_income * 100), 1) if total_income > 0 else 0
-        
-        for item in expense_by_category:
-            item['percentage'] = round((item['value'] / total_expense * 100), 1) if total_expense > 0 else 0
-        
-        # Sort by value descending and take top 5
-        income_by_category = sorted(income_by_category, key=lambda x: x['value'], reverse=True)[:5]
-        expense_by_category = sorted(expense_by_category, key=lambda x: x['value'], reverse=True)[:5]
-        
-        stats_data['income_by_category'] = income_by_category
-        stats_data['expense_by_category'] = expense_by_category
-        stats_data['total_income'] = round(total_income, 2)
-        stats_data['total_expense'] = round(total_expense, 2)
 
         serializer = DashboardStatisticsSerializer(stats_data)
         return Response({
