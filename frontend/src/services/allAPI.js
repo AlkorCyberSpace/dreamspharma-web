@@ -274,3 +274,9 @@ export const getReportSummaryApi = () => {
 export const markCODDeliveredAPI = (data) => {
   return axiosInstance.post("superadmin/orders/cod-delivered/", data);
 };
+
+// SuperAdmin - Update Order Status (Confirmed/Dispatched)
+export const updateOrderStatusAPI = (data) => {
+  return axiosInstance.post("superadmin/orders/update-status/", data);
+};
+
