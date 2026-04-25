@@ -8,10 +8,10 @@ from django.utils import timezone
 from django.http import HttpResponse
 import openpyxl
 from io import BytesIO
-from django.db.models import Sum, Count, Q, Avg, Max
+from django.db.models import Sum, Count, Q, Avg, Max, F, DecimalField
 from django.utils.dateparse import parse_date
 from datetime import timedelta, date
-from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem
+from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem, InvoiceDetail, CreditNote
 from .models import AuditLog, AdminNotification
 from .serializers import (
     RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer,
@@ -307,6 +307,81 @@ class DashboardStatisticsView(APIView):
                 'count': count,
                 'percentage': pct
             })
+
+        # Income/Expense by Category (for donut chart)
+        income_expense_data = {}
+        
+        # Calculate Income by Category (from invoices)
+        invoice_details = InvoiceDetail.objects.select_related(
+            'invoice__sales_order'
+        ).filter(
+            invoice__sales_order__ord_date__gte=timezone.now().date() - timedelta(days=30)
+        ).values(
+            'product_name'
+        ).annotate(
+            total_income=Sum('item_total', output_field=DecimalField())
+        )
+        
+        for detail in invoice_details:
+            product_name = detail['product_name']
+            income = float(detail['total_income'] or 0)
+            
+            if product_name not in income_expense_data:
+                income_expense_data[product_name] = {'income': 0, 'expense': 0}
+            income_expense_data[product_name]['income'] += income
+        
+        # Calculate Expense by Category (from credit notes - refunds)
+        credit_notes = CreditNote.objects.filter(
+            status__in=['APPROVED', 'DELIVERED'],
+            created_at__gte=timezone.now().date() - timedelta(days=30)
+        ).values('product_name').annotate(
+            total_refund=Sum('amount', output_field=DecimalField())
+        )
+        
+        for note in credit_notes:
+            product_name = note['product_name']
+            expense = float(note['total_refund'] or 0)
+            
+            if product_name not in income_expense_data:
+                income_expense_data[product_name] = {'income': 0, 'expense': 0}
+            income_expense_data[product_name]['expense'] += expense
+        
+        # Format for donut chart
+        income_by_category = []
+        expense_by_category = []
+        
+        for product_name, values in sorted(income_expense_data.items()):
+            if values['income'] > 0:
+                income_by_category.append({
+                    'name': product_name,
+                    'value': round(values['income'], 2),
+                    'percentage': 0  # Will calculate after
+                })
+            if values['expense'] > 0:
+                expense_by_category.append({
+                    'name': product_name,
+                    'value': round(values['expense'], 2),
+                    'percentage': 0  # Will calculate after
+                })
+        
+        # Calculate percentages
+        total_income = sum(item['value'] for item in income_by_category)
+        total_expense = sum(item['value'] for item in expense_by_category)
+        
+        for item in income_by_category:
+            item['percentage'] = round((item['value'] / total_income * 100), 1) if total_income > 0 else 0
+        
+        for item in expense_by_category:
+            item['percentage'] = round((item['value'] / total_expense * 100), 1) if total_expense > 0 else 0
+        
+        # Sort by value descending and take top 5
+        income_by_category = sorted(income_by_category, key=lambda x: x['value'], reverse=True)[:5]
+        expense_by_category = sorted(expense_by_category, key=lambda x: x['value'], reverse=True)[:5]
+        
+        stats_data['income_by_category'] = income_by_category
+        stats_data['expense_by_category'] = expense_by_category
+        stats_data['total_income'] = round(total_income, 2)
+        stats_data['total_expense'] = round(total_expense, 2)
 
         serializer = DashboardStatisticsSerializer(stats_data)
         return Response({
