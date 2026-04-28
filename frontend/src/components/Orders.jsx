@@ -1,9 +1,61 @@
 import React, { useEffect, useState } from 'react';
 import { Search, ChevronDown, Eye, X, Check, Download } from 'lucide-react';
-import { getOrdersApi } from '../services/allAPI';
+import { getOrdersApi, markCODDeliveredAPI, updateOrderStatusAPI, getSuperAdminProfileAPI } from '../services/allAPI';
 
-const OrderDetailModal = ({ order, onClose }) => {
+const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
+  const [confirming, setConfirming] = useState(false);
   if (!order) return null;
+
+  const handleConfirmOrder = async () => {
+    try {
+      setConfirming(true);
+      const data = {
+        order_id: order.id,
+        status: 'delivered'
+      };
+      const response = await markCODDeliveredAPI(data);
+
+      if (response.data.success) {
+        alert(response.data.message || "Order marked as delivered successfully!");
+        onOrderConfirmed();
+        onClose();
+      } else {
+        alert(response.data.error || "Failed to mark order as delivered.");
+      }
+    } catch (error) {
+      console.error("Error marking order as delivered:", error);
+      const errorMessage = error.response?.data?.error || "An error occurred. Please try again.";
+      alert(errorMessage);
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleUpdateStatus = async (newStatus) => {
+    try {
+      setConfirming(true);
+      const data = {
+        order_id: order.id,
+        status: newStatus
+      };
+      const response = await updateOrderStatusAPI(data);
+
+      if (response.data.success) {
+        alert(response.data.message || `Order ${newStatus} successfully!`);
+        onOrderConfirmed();
+        onClose();
+      } else {
+        alert(response.data.error || `Failed to update status.`);
+      }
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      alert(error.response?.data?.error || "An error occurred. Please try again.");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+
 
   const timelineSteps = [
     { key: 'Created', label: 'Created' },
@@ -119,11 +171,41 @@ const OrderDetailModal = ({ order, onClose }) => {
         </div>
 
         {/* Footer Actions */}
-        <div className="px-8 py-6 border-t border-gray-100">
-          <button className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#505050] hover:bg-gray-50 transition-colors">
+        <div className="px-8 py-6 border-t border-gray-100 flex gap-4">
+          <button className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#505050] hover:bg-gray-50 transition-colors">
             <Download size={18} />
             Download Invoice
           </button>
+          {order.status === 'Pending' && (
+            <button
+              onClick={() => handleUpdateStatus('confirmed')}
+              disabled={confirming}
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#127690] text-white rounded-xl text-sm font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-900/10 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              {confirming ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check size={18} className="group-hover:scale-110 transition-transform" />
+              )}
+              {confirming ? 'Confirming...' : 'Confirm Order'}
+            </button>
+          )}
+
+          {order.status === 'Confirmed' && (
+            <button
+              onClick={() => handleUpdateStatus('dispatched')}
+              disabled={confirming}
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#127690] text-white rounded-xl text-sm font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-900/10 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              {confirming ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check size={18} className="group-hover:scale-110 transition-transform" />
+              )}
+              {confirming ? 'Dispatching...' : 'Dispatch Order'}
+            </button>
+          )}
+
         </div>
       </div>
     </div>
@@ -135,40 +217,56 @@ const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [adminId, setAdminId] = useState(null);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await getOrdersApi();
+
+      // Map API response to component format
+      if (response?.data?.results) {
+        const mappedOrders = response.data.results.map(order => ({
+          id: order.id,
+          retailer: order.retailer,
+          retailer_id: order.retailer_id,
+          date: order.date,
+          items: order.items,
+          total: order.total,
+          payment: order.payment,
+          payment_status: order.payment_status,
+          status: order.status,
+          payment_id: order.payment_id,
+          erpRef: order.erpRef,
+          detailedTimeline: order.detailedTimeline || [],
+          detailedItems: order.detailedItems || []
+        }));
+        setOrders(mappedOrders);
+        setError(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch orders:", error);
+      setError("Failed to load orders. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    fetchOrders();
+
+    // Fetch Admin Profile for ID
+    const fetchAdminProfile = async () => {
       try {
-        setLoading(true);
-        const response = await getOrdersApi();
-        
-        // Map API response to component format
-        if (response?.data?.results) {
-          const mappedOrders = response.data.results.map(order => ({
-            id: order.id,
-            retailer: order.retailer,
-            retailer_id: order.retailer_id,
-            date: order.date,
-            items: order.items,
-            total: order.total,
-            payment: order.payment,
-            payment_status: order.payment_status,
-            status: order.status,
-            erpRef: order.erpRef,
-            detailedTimeline: order.detailedTimeline || [],
-            detailedItems: order.detailedItems || []
-          }));
-          setOrders(mappedOrders);
-          setError(null);
+        const response = await getSuperAdminProfileAPI();
+        if (response.status === 200) {
+          setAdminId(response.data.profile.id);
         }
-      } catch (error) {
-        console.error("Failed to fetch orders:", error);
-        setError("Failed to load orders. Please try again.");
-      } finally {
-        setLoading(false);
+      } catch (err) {
+        console.error("Failed to fetch admin profile:", err);
       }
     };
-    fetchOrders();
+    fetchAdminProfile();
   }, []);
   const getStatusStyles = (status) => {
     switch (status) {
@@ -204,6 +302,15 @@ const Orders = () => {
           }
           .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #D1D5DB;
+          }
+          .sticky-action-column {
+            position: sticky;
+            right: 0;
+            z-index: 10;
+            box-shadow: -4px 0 6px -4px rgba(0, 0, 0, 0.1);
+          }
+          tr:hover .sticky-action-column {
+            background-color: #EEF2F6 !important;
           }
         `}
       </style>
@@ -250,7 +357,7 @@ const Orders = () => {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <p className="text-red-500 font-medium">{error}</p>
-              <button 
+              <button
                 onClick={() => window.location.reload()}
                 className="mt-4 px-4 py-2 bg-[#127690] text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition-colors"
               >
@@ -277,7 +384,7 @@ const Orders = () => {
                   <th className="px-6">Payment</th>
                   <th className="px-6 text-center">Status</th>
                   <th className="px-6">ERP Ref</th>
-                  <th className="px-6 text-center">Actions</th>
+                  <th className="px-6 text-center sticky-action-column bg-[#DCE4EA] z-20 border-l border-gray-200">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -295,7 +402,7 @@ const Orders = () => {
                       </span>
                     </td>
                     <td className="px-6 text-sm text-gray-500 font-medium">{order.erpRef}</td>
-                    <td className="px-6 text-center">
+                    <td className={`px-6 text-center sticky-action-column ${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"}`}>
                       <button
                         onClick={() => setSelectedOrder(order)}
                         className="text-[#127690] hover:text-teal-600 transition-colors"
@@ -309,11 +416,13 @@ const Orders = () => {
             </table>
           </div>
         )}
-      <OrderDetailModal
-        order={selectedOrder}
-        onClose={() => setSelectedOrder(null)}
-      />
-    </div>
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          userId={adminId}
+          onOrderConfirmed={fetchOrders}
+        />
+      </div>
     </div>
   );
 };

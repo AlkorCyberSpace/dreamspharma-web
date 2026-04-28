@@ -125,15 +125,16 @@ class RejectKYCSerializer(serializers.Serializer):
 
 class DashboardStatisticsSerializer(serializers.Serializer):
     """Serializer for dashboard statistics with week-over-week comparisons"""
-    # KPI Cards
+
+    # ── KPI Cards ────────────────────────────────────────────────────────────────
     total_retailers = serializers.IntegerField(read_only=True)
     retailers_change_percentage = serializers.FloatField(read_only=True)
     retailers_change_text = serializers.CharField(read_only=True)
-    
+
     pending_kyc = serializers.IntegerField(read_only=True)
     pending_kyc_change = serializers.IntegerField(read_only=True)
     pending_kyc_change_text = serializers.CharField(read_only=True)
-    
+
     total_orders = serializers.IntegerField(read_only=True)
     orders_change_percentage = serializers.FloatField(read_only=True)
     orders_change_text = serializers.CharField(read_only=True)
@@ -145,11 +146,31 @@ class DashboardStatisticsSerializer(serializers.Serializer):
     top_selling_product = serializers.CharField(read_only=True)
     top_selling_change_percentage = serializers.FloatField(read_only=True)
 
-    # Graph Data
+    # ── Graph / Chart Data ───────────────────────────────────────────────────────
     daily_order_volume = serializers.ListField(child=serializers.DictField(), read_only=True)
-    
-    # Pie Chart Data
     orders_by_status = serializers.ListField(child=serializers.DictField(), read_only=True)
+
+    # ── NEW: Income & Expense breakdown ──────────────────────────────────────────
+    # Each item in the list is a dict:
+    #   { "category": str, "amount": float, "percentage": float }
+    income_by_category = serializers.ListField(
+        child=serializers.DictField(),
+        read_only=True,
+        default=list,
+        help_text=(
+            "Income aggregated by product category. "
+            "Each entry: {category, amount, percentage}."
+        ),
+    )
+    expense_by_category = serializers.ListField(
+        child=serializers.DictField(),
+        read_only=True,
+        default=list,
+        help_text=(
+            "Approved credit-note expenses aggregated by product category (or reason). "
+            "Each entry: {category, amount, percentage}."
+        ),
+    )
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -197,7 +218,7 @@ class SuperAdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile_image', 'phone_number']
-        read_only_fields = ['id', 'username']
+        read_only_fields = ['id']
 
 
 class SuperAdminProfileImageSerializer(serializers.ModelSerializer):

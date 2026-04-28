@@ -1,9 +1,0 @@
-authtoken: 3CCiBom6dWZ1Ud0aBQ52CVNodD3_SoYT1Usk5iHheWXZjztx
-version: "2"
-tunnels:
-  django:
-    proto: http
-    addr: 8000
-  other_app:
-    proto: http
-    addr: 44000

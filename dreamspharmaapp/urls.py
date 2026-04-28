@@ -8,6 +8,8 @@ from .notification_views import (
     RetailerNotificationDetailView,
     RetailerNotificationCountView
 )
+from .invoice_views import InvoiceDownloadView
+
 
 urlpatterns = [
     # SuperAdmin Authentication
@@ -112,10 +114,26 @@ urlpatterns = [
     # Related products (category-based, user-specific)
     path('products/<str:product_id>/related/<int:user_id>/', views.related_products, name='related-products'),
     path('orders/<int:user_id>/', views.RetailerOrdersView.as_view(), name='retailer-orders'),
+    path('orders/<str:order_id>/invoice/', InvoiceDownloadView.as_view(), name='download-invoice'),
     path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
     
     # ==================== RETAILER NOTIFICATIONS ENDPOINTS ====================
     path('retailer-notifications/count/', RetailerNotificationCountView.as_view(), name='retailer-notification-count'),
     path('retailer-notifications/<str:notification_id>/', RetailerNotificationDetailView.as_view(), name='retailer-notification-detail'),
     path('retailer-notifications/', RetailerNotificationsListView.as_view(), name='retailer-notifications-list'),
+    
+    # ==================== CREDIT NOTE ENDPOINTS ====================
+    # Retailer endpoints
+    path('credit-notes/order-products/<int:user_id>/', views.GetProductsByOrderView.as_view(), name='credit-note-order-products'),
+    path('credit-notes/create/<int:user_id>/', views.RetailerCreditNoteCreateView.as_view(), name='credit-note-create'),
+    path('credit-notes/<int:user_id>/', views.RetailerCreditNoteListView.as_view(), name='credit-note-list'),
+    
+    # Admin endpoints
+    path('admin/credit-notes/', views.AdminCreditNoteListView.as_view(), name='admin-credit-note-list'),
+    path('admin/credit-notes/<str:credit_note_id>/', views.AdminCreditNoteDetailView.as_view(), name='admin-credit-note-detail'),
+    path('admin/credit-notes/<str:credit_note_id>/approve/', views.AdminCreditNoteApproveView.as_view(), name='admin-credit-note-approve'),
+    path('admin/credit-notes/<str:credit_note_id>/reject/', views.AdminCreditNoteRejectView.as_view(), name='admin-credit-note-reject'),
+    
+    # ==================== WALLET ENDPOINTS ====================
+    path('wallet/<int:user_id>/', views.RetailerWalletView.as_view(), name='retailer-wallet'),
 ]

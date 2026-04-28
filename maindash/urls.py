@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from dreamspharmaapp.views import SuperAdminUpdateOrderStatusView
 
 urlpatterns = [
     # SuperAdmin - Dashboard Statistics
@@ -39,7 +40,9 @@ urlpatterns = [
 
     # ==================== ORDER MANAGEMENT ====================
     path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
+    path('superadmin/orders/update-status/', SuperAdminUpdateOrderStatusView.as_view(), name='superadmin-update-order-status'),
     path('superadmin/orders/cod-delivered/', views.SuperAdminMarkCODDeliveredView.as_view(), name='superadmin-mark-cod-delivered'),
+
 
     # ==================== OFFERS & BANNERS ENDPOINTS ====================
     # Offers Management (SuperAdmin)
@@ -54,11 +57,13 @@ urlpatterns = [
     path('superadmin/notifications/', views.AdminNotificationListView.as_view(), name='superadmin-notifications'),
     path('superadmin/notifications/<int:notification_id>/mark-read/', views.AdminNotificationMarkReadView.as_view(), name='superadmin-notification-mark-read'),
 
+
     # ==================== REPORTS & ANALYTICS ====================
     path('superadmin/reports/summary/', views.ReportSummaryView.as_view(), name='superadmin-report-summary'),
     path('superadmin/reports/kyc/', views.KYCStatusReportView.as_view(), name='superadmin-report-kyc'),
     path('superadmin/reports/orders/', views.OrderReportView.as_view(), name='superadmin-report-orders'),
     path('superadmin/reports/retailer-activity/', views.RetailerActivityReportView.as_view(), name='superadmin-report-retailer-activity'),
     path('superadmin/reports/revenue/', views.RevenueReportView.as_view(), name='superadmin-report-revenue'),
+    path('superadmin/reports/refund-trends/', views.RefundTrendsView.as_view(), name='superadmin-report-refund-trends'),
 ]
    

@@ -8,10 +8,11 @@ from django.utils import timezone
 from django.http import HttpResponse
 import openpyxl
 from io import BytesIO
-from django.db.models import Sum, Count, Q, Avg, Max
+from django.db.models import Sum, Count, Q, Avg, Max, F, DecimalField
+from django.db.models.functions import TruncMonth, TruncYear
 from django.utils.dateparse import parse_date
 from datetime import timedelta, date
-from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem
+from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem, InvoiceDetail, CreditNote
 from .models import AuditLog, AdminNotification
 from .serializers import (
     RetailerKYCDetailSerializer, ApproveKYCSerializer, RejectKYCSerializer,
@@ -186,55 +187,157 @@ class DashboardStatisticsView(APIView):
             return Response({
                 'error': 'Only Super Admin can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
         now = timezone.now()
         last_7_days = now - timedelta(days=7)
         prev_7_days = now - timedelta(days=14)
 
-        # 1. Total Retailers (Approved Only as requested)
+        # 1. Total Retailers (Approved Only)
         total_retailers = User.objects.filter(role='RETAILER', is_kyc_approved=True).count()
         prev_retailers = User.objects.filter(role='RETAILER', is_kyc_approved=True, created_at__lt=last_7_days).count()
-        
+
         # 2. Pending KYC
         pending_kyc = KYC.objects.filter(status='PENDING').count()
         prev_pending_kyc = KYC.objects.filter(status='PENDING', submitted_at__lt=last_7_days).count()
-        
+
         # 3. Total Orders
         total_orders = SalesOrder.objects.count()
         prev_total_orders = SalesOrder.objects.filter(created_at__lt=last_7_days).count()
         curr_week_orders = SalesOrder.objects.filter(created_at__gte=last_7_days).count()
         prev_week_orders = SalesOrder.objects.filter(created_at__gte=prev_7_days, created_at__lt=last_7_days).count()
-        
-        # 4. Orders in Dispatch (Invoice exists but not Delivered)
+
+        # 4. Orders in Dispatch
         orders_in_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False).distinct().count()
         prev_dispatch = SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False, created_at__lt=last_7_days).distinct().count()
 
         # 5. Top Selling Product
-        top_product_entry = SalesOrderItem.objects.filter(created_at__gte=last_7_days).values(
-            'item_code', 'item_name'
-        ).annotate(total_qty=Sum('total_loose_qty')).order_by('-total_qty').first()
-        
-        top_selling_product = top_product_entry['item_name'] if top_product_entry else "N/A"
-        
-        # Calculate Percentages
+        from django.db import connection
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT soi.item_code, im.item_name, SUM(soi.total_loose_qty) as total_qty
+            FROM dreamspharmaapp_salesorderitem soi
+            LEFT JOIN dreamspharmaapp_itemmaster im ON soi.item_code = im.item_code
+            JOIN dreamspharmaapp_salesorder so ON soi.sales_order_id = so.id
+            WHERE so.ord_date >= %s
+            AND (im.item_name IS NOT NULL AND im.item_name != '')
+            GROUP BY soi.item_code, im.item_name
+            ORDER BY total_qty DESC
+            LIMIT 1
+        """, [last_7_days.date()])
+
+        top_product_entry = None
+        columns = [col[0] for col in cursor.description]
+        for row in cursor.fetchall():
+            top_product_entry = dict(zip(columns, row))
+
+        top_selling_product = (top_product_entry['item_name'] or 'N/A') if top_product_entry else "N/A"
+        current_week_qty = top_product_entry['total_qty'] if top_product_entry else 0
+
+        prev_week_qty = 0
+        if top_product_entry and top_product_entry.get('item_code'):
+            prev_product = SalesOrderItem.objects.filter(
+                sales_order__ord_date__gte=prev_7_days.date(),
+                sales_order__ord_date__lt=last_7_days.date(),
+                item_code=top_product_entry['item_code']
+            ).aggregate(total=Sum('total_loose_qty'))['total'] or 0
+            prev_week_qty = prev_product if prev_product else 0
+
+        # ── Helpers ──────────────────────────────────────────────────────────────
         def calc_pct(curr, prev):
-            if prev == 0: return 100.0 if curr > 0 else 0.0
+            if prev == 0:
+                return 100.0 if curr > 0 else 0.0
             return round(((curr - prev) / prev) * 100, 1)
 
         def get_trend_text(curr, prev):
             diff = curr - prev
             return f"{'+' if diff >= 0 else ''}{diff} from last week"
 
-        # Preparing stats payload
+        # ── 6. Income by Category ─────────────────────────────────────────────────
+        # Aggregate SalesOrderItem.item_total grouped by the Category assigned to
+        # each product via ProductInfo.  Only items that have a category assigned
+        # are included; the rest are bucketed as "Uncategorised".
+        income_by_category_qs = (
+            SalesOrderItem.objects
+            .filter(item_total__isnull=False)
+            .values('item_code')
+            .annotate(total_income=Sum('item_total'))
+        )
+
+        # Build a mapping: item_code → (category_id, category_name)
+        from dreamspharmaapp.models import ProductInfo, Category
+        product_category_map = {}
+        for pi in ProductInfo.objects.select_related('category').filter(category__isnull=False):
+            product_category_map[pi.item_id] = {
+                'id': pi.category_id,
+                'name': pi.category.name,
+            }
+
+        income_aggregated = {}
+        for row in income_by_category_qs:
+            cat_info = product_category_map.get(row['item_code'], {'id': None, 'name': 'Uncategorised'})
+            cat_name = cat_info['name']
+            income_aggregated[cat_name] = income_aggregated.get(cat_name, 0) + float(row['total_income'] or 0)
+
+        total_income = sum(income_aggregated.values()) or 1  # avoid divide-by-zero
+        income_by_category = [
+            {
+                'category': cat,
+                'amount': round(amt, 2),
+                'percentage': round((amt / total_income) * 100, 1),
+            }
+            for cat, amt in sorted(income_aggregated.items(), key=lambda x: -x[1])
+        ]
+
+        # ── 7. Expense by Category ────────────────────────────────────────────────
+        # Aggregate approved CreditNote.amount grouped by the Category of the
+        # returned product (matched via item_code → ProductInfo → Category).
+        # Fall back to reason label when no category is found.
+        from dreamspharmaapp.models import CreditNote
+        expense_qs = (
+            CreditNote.objects
+            .filter(status='APPROVED', amount__gt=0)
+            .values('item_code', 'reason')
+            .annotate(total_expense=Sum('amount'))
+        )
+
+        expense_aggregated = {}
+        for row in expense_qs:
+            item_code = row.get('item_code', '')
+            cat_info = product_category_map.get(item_code)
+            if cat_info:
+                label = cat_info['name']
+            else:
+                # Use the human-readable reason as the bucket label
+                reason_map = {
+                    'DAMAGED': 'Damaged Products',
+                    'EXPIRED': 'Expired / Near Expiry',
+                    'WRONG_ITEM': 'Wrong Item',
+                    'BILLING': 'Billing Issues',
+                    'OTHER': 'Other',
+                }
+                label = reason_map.get(row.get('reason', ''), 'Other')
+            expense_aggregated[label] = expense_aggregated.get(label, 0) + float(row['total_expense'] or 0)
+
+        total_expense = sum(expense_aggregated.values()) or 1
+        expense_by_category = [
+            {
+                'category': cat,
+                'amount': round(amt, 2),
+                'percentage': round((amt / total_expense) * 100, 1),
+            }
+            for cat, amt in sorted(expense_aggregated.items(), key=lambda x: -x[1])
+        ]
+
+        # ── Assemble payload ─────────────────────────────────────────────────────
         stats_data = {
             'total_retailers': total_retailers,
             'retailers_change_percentage': calc_pct(total_retailers, prev_retailers),
             'retailers_change_text': get_trend_text(total_retailers, prev_retailers),
-            
+
             'pending_kyc': pending_kyc,
             'pending_kyc_change': pending_kyc - prev_pending_kyc,
             'pending_kyc_change_text': f"{pending_kyc - prev_pending_kyc} from last week",
-            
+
             'total_orders': total_orders,
             'orders_change_percentage': calc_pct(curr_week_orders, prev_week_orders),
             'orders_change_text': get_trend_text(curr_week_orders, prev_week_orders),
@@ -244,39 +347,40 @@ class DashboardStatisticsView(APIView):
             'dispatch_change_text': get_trend_text(orders_in_dispatch, prev_dispatch),
 
             'top_selling_product': top_selling_product,
-            'top_selling_change_percentage': 12.5, # Placeholder or specific logic
+            'top_selling_change_percentage': calc_pct(current_week_qty, prev_week_qty),
 
-            # Daily Order Volume Graph (Last 7 days)
+            # Graph data
             'daily_order_volume': [],
-            
-            # Orders by Status Pie Chart
-            'orders_by_status': []
+            'orders_by_status': [],
+
+            # ── NEW ──────────────────────────────────────────────────────────────
+            'income_by_category': income_by_category,
+            'expense_by_category': expense_by_category,
         }
 
-        # Populate Daily Order Volume
+        # Daily Order Volume (last 7 days)
         for i in range(6, -1, -1):
-            date = (now - timedelta(days=i)).date()
-            count = SalesOrder.objects.filter(ord_date=date).count()
+            d = (now - timedelta(days=i)).date()
+            count = SalesOrder.objects.filter(ord_date=d).count()
             stats_data['daily_order_volume'].append({
-                'date': date.strftime('%b %d'),
-                'orders': count
+                'date': d.strftime('%b %d'),
+                'orders': count,
             })
 
-        # Populate Status Distribution
+        # Orders by Status
         status_counts = {
-            'Pending': SalesOrder.objects.filter(ord_conversion_flag=False).count(),
-            'Confirmed': SalesOrder.objects.filter(ord_conversion_flag=True, invoices__isnull=True).count(),
+            'Pending':    SalesOrder.objects.filter(ord_conversion_flag=False).count(),
+            'Confirmed':  SalesOrder.objects.filter(ord_conversion_flag=True, invoices__isnull=True).count(),
             'Dispatched': SalesOrder.objects.filter(invoices__isnull=False, dc_conversion_flag=False).distinct().count(),
-            'Delivered': SalesOrder.objects.filter(dc_conversion_flag=True).count(),
+            'Delivered':  SalesOrder.objects.filter(dc_conversion_flag=True).count(),
         }
-        
         total_stat_orders = sum(status_counts.values())
         for status_label, count in status_counts.items():
             pct = round((count / total_stat_orders * 100), 1) if total_stat_orders > 0 else 0
             stats_data['orders_by_status'].append({
                 'status': status_label,
                 'count': count,
-                'percentage': pct
+                'percentage': pct,
             })
 
         serializer = DashboardStatisticsSerializer(stats_data)
@@ -323,8 +427,9 @@ class ChangePasswordView(APIView):
 
 class GetSuperAdminProfileView(APIView):
     """
-    API endpoint for super admin to get profile information.
+    API endpoint for super admin to get and update profile information.
     GET /api/superadmin/profile/ - Get super admin profile info (username, email, phone, image)
+    PUT /api/superadmin/profile/ - Update super admin profile info (email, first_name, last_name, phone_number)
     """
     permission_classes = [IsAuthenticated]
 
@@ -342,6 +447,50 @@ class GetSuperAdminProfileView(APIView):
             'message': 'Profile information fetched successfully',
             'profile': serializer.data
         }, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        """Update profile information for super admin"""
+        # Check if user is a superadmin
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = SuperAdminProfileSerializer(
+            request.user,
+            data=request.data,
+            partial=True
+        )
+        
+        if serializer.is_valid():
+            try:
+                serializer.save()
+                
+                # ── Audit log ──
+                log_audit(
+                    action='Profile Updated',
+                    performed_by_user=request.user,
+                    target_entity=request.user.username,
+                    details='Super admin updated their profile information',
+                    category='Profile',
+                )
+                
+                logger.info(f"[PROFILE_UPDATED] User: {request.user.username}")
+                
+                return Response({
+                    'message': 'Profile updated successfully',
+                    'profile': serializer.data
+                }, status=status.HTTP_200_OK)
+            except Exception as e:
+                logger.error(f"Error updating profile: {str(e)}")
+                return Response({
+                    'error': f'Error updating profile: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'error': 'Profile update failed',
+            'details': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProfileImageView(APIView):
@@ -946,6 +1095,23 @@ class OfferListCreateView(APIView):
         if category_id:
             offers = offers.filter(category_id=category_id)
         
+        # Auto-inactivate expired offers before returning
+        for offer in offers:
+            offer.auto_inactivate_if_expired()
+        
+        # Refresh queryset to get updated status
+        offers = Offer.objects.all()
+        if placement:
+            offers = offers.filter(placement=placement)
+        if status_filter:
+            try:
+                status_bool = status_filter.lower() == 'true'
+                offers = offers.filter(status=status_bool)
+            except:
+                pass
+        if category_id:
+            offers = offers.filter(category_id=category_id)
+        
         # Serialize with request context
         serializer = OfferListSerializer(offers, many=True, context={'request': request})
         
@@ -1028,6 +1194,9 @@ class OfferDetailView(APIView):
                 'status': 'error',
                 'message': 'Offer not found'
             }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Auto-inactivate if expired
+        offer.auto_inactivate_if_expired()
         
         serializer = OfferSerializer(offer)
         return Response({
@@ -1285,14 +1454,23 @@ class SuperAdminOrdersView(APIView):
             if status_filter in status_map:
                 orders = orders.filter(**status_map[status_filter])
 
-        # Search by order_id, patient_name, or cust_name
+        # Search by order_id, patient_name, cust_name, or retailer shop_name (via KYC)
         if search:
             from django.db.models import Q
-            orders = orders.filter(
+            # First get matching order_ids from direct order fields
+            direct_matches = orders.filter(
                 Q(order_id__icontains=search) |
                 Q(patient_name__icontains=search) |
                 Q(cust_name__icontains=search)
             )
+            
+            # Also search by retailer shop_name via KYC
+            kyc_matches = KYC.objects.filter(shop_name__icontains=search).values_list('user_id', flat=True)
+            shop_name_orders = SalesOrder.objects.filter(user_id__in=kyc_matches)
+            
+            # Combine both querysets
+            order_ids = set(direct_matches.values_list('id', flat=True)) | set(shop_name_orders.values_list('id', flat=True))
+            orders = SalesOrder.objects.filter(id__in=order_ids).order_by('-created_at')
 
         results = []
         for order in orders:
@@ -1342,19 +1520,41 @@ class SuperAdminOrdersView(APIView):
                     'status': 'completed'
                 })
                 
-            retailer_id = order.store_id if order.store_id else 'RET001' # Fallback for display
-            if order.user_id and order.user_id.isdigit():
+            # Get retailer shop name from KYC 
+            retailer_shop_name = 'Unknown Retailer'
+            retailer_id = order.store_id if order.store_id else 'RET001'
+            retailer_user = None
+            
+            # Try to find the retailer user
+            if order.user_id:
                 try:
-                    retailer_user = get_user_model().objects.get(id=int(order.user_id))
-                    if hasattr(retailer_user, 'kyc') and retailer_user.kyc.user_id:
-                        retailer_id = retailer_user.kyc.user_id
-                except:
+                    if order.user_id.isdigit():
+                        retailer_user = get_user_model().objects.get(id=int(order.user_id))
+                        # Get shop name from KYC
+                        if hasattr(retailer_user, 'kyc') and retailer_user.kyc and retailer_user.kyc.shop_name:
+                            retailer_shop_name = retailer_user.kyc.shop_name
+                            if retailer_user.kyc.user_id:
+                                retailer_id = retailer_user.kyc.user_id
+                        # Fallback: use retailer username if no KYC shop_name
+                        elif retailer_shop_name == 'Unknown Retailer':
+                            retailer_shop_name = retailer_user.username
+                except (ValueError, get_user_model().DoesNotExist):
+                    pass
+            
+            # Final fallback: check if we can find KYC with c2_code
+            if retailer_shop_name == 'Unknown Retailer' and order.c2_code:
+                try:
+                    kyc = KYC.objects.filter(user__c2_code=order.c2_code).first()
+                    if kyc and kyc.shop_name:
+                        retailer_shop_name = kyc.shop_name
+                        retailer_id = kyc.user.c2_code or retailer_id
+                except Exception:
                     pass
 
             results.append({
                 'id': order.order_id,
                 'retailer_id': retailer_id,
-                'retailer': order.cust_name or order.patient_name,
+                'retailer': retailer_shop_name,
                 'date': order.ord_date.strftime('%Y - %m - %d') if order.ord_date else '', # Figma format
                 'items': order.items.count(),
                 'total': str(order.order_total),
@@ -1551,43 +1751,75 @@ class ReportSummaryView(APIView):
         if request.user.role != 'SUPERADMIN':
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Time selection
+        # ── Date range (default: current month MTD) ───────────────────────────
         start_date_str = request.query_params.get('start_date')
-        end_date_str = request.query_params.get('end_date')
+        end_date_str   = request.query_params.get('end_date')
 
         if start_date_str and end_date_str:
             start_date = parse_date(start_date_str)
-            end_date = parse_date(end_date_str)
+            end_date   = parse_date(end_date_str)
+            if not start_date or not end_date:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         else:
-            # Default to current month MTD
-            today = timezone.now().date()
-            start_date = today.replace(day=1)
-            end_date = today
+            today      = timezone.now().date()
+            start_date = today.replace(day=1)   # 1st of this month
+            end_date   = today                  # today (MTD)
 
-        # Queries
-        orders = SalesOrder.objects.filter(ord_date__range=[start_date, end_date])
-        
-        total_revenue = orders.aggregate(total=Sum('order_total'))['total'] or 0.0
+        # ── MTD order queryset ────────────────────────────────────────────────
+        orders = SalesOrder.objects.filter(
+            ord_date__gte=start_date,
+            ord_date__lte=end_date
+        )
+
+        # 1. Total Orders (MTD)
         total_orders = orders.count()
-        avg_order_value = orders.aggregate(avg=Avg('order_total'))['avg'] or 0.0
-        active_retailers = orders.values('user_id').distinct().count()
 
-        # Previous month comparison (simplified)
-        prev_start = (start_date - timedelta(days=30)).replace(day=1)
-        prev_end = (start_date - timedelta(days=1))
-        prev_orders = SalesOrder.objects.filter(ord_date__range=[prev_start, prev_end])
-        prev_revenue = prev_orders.aggregate(total=Sum('order_total'))['total'] or 0.0
-        
-        rev_change = ((float(total_revenue) - float(prev_revenue)) / float(prev_revenue) * 100) if float(prev_revenue) > 0 else 0
+        # 2. Total Revenue (MTD) – sum of order_total
+        total_revenue = float(orders.aggregate(total=Sum('order_total'))['total'] or 0.0)
+
+        # 3. Avg Order Value – revenue ÷ orders (avoids Django Avg() skipping NULL rows)
+        avg_order_value = round(total_revenue / total_orders, 2) if total_orders > 0 else 0.0
+
+        # ── Active Retailers in period ────────────────────────────────────────
+        valid_retailer_ids = set(
+            str(uid) for uid in User.objects.filter(role='RETAILER').values_list('id', flat=True)
+        )
+        active_retailers = len(set(
+            uid for uid in orders.values_list('user_id', flat=True).distinct()
+            if uid and uid in valid_retailer_ids
+        ))
+
+        # ── Previous month (full calendar month before start_date) ────────────
+        prev_end   = start_date - timedelta(days=1)   # last day of previous month
+        prev_start = prev_end.replace(day=1)          # 1st day of previous month
+
+        prev_orders       = SalesOrder.objects.filter(ord_date__gte=prev_start, ord_date__lte=prev_end)
+        prev_total_orders = prev_orders.count()
+        prev_revenue      = float(prev_orders.aggregate(total=Sum('order_total'))['total'] or 0.0)
+        prev_avg          = round(prev_revenue / prev_total_orders, 2) if prev_total_orders > 0 else 0.0
+
+        def calc_change_pct(curr, prev_val):
+            if prev_val > 0:
+                return round((curr - prev_val) / prev_val * 100, 1)
+            return 100.0 if curr > 0 else 0.0
 
         return Response({
             'success': True,
+            'period': {
+                'start_date': str(start_date),
+                'end_date':   str(end_date),
+            },
             'data': {
-                'total_revenue': float(total_revenue),
-                'total_orders': total_orders,
-                'avg_order_value': float(avg_order_value),
-                'active_retailers': active_retailers,
-                'revenue_change_percentage': round(rev_change, 1)
+                'total_revenue':               total_revenue,
+                'total_orders':                total_orders,
+                'avg_order_value':             avg_order_value,
+                'active_retailers':            active_retailers,
+                'revenue_change_percentage':   calc_change_pct(total_revenue,   prev_revenue),
+                'orders_change_percentage':    calc_change_pct(total_orders,    prev_total_orders),
+                'avg_order_change_percentage': calc_change_pct(avg_order_value, prev_avg),
             }
         })
 
@@ -1729,6 +1961,145 @@ class RevenueReportView(APIView, ExcelExportMixin):
             'success': True,
             'data': revenue_list
         })
+
+
+class RefundTrendsView(APIView):
+    """
+    Refund/Credit Note trends by month and year.
+    GET /api/superadmin/reports/refund-trends/?view=monthly&year=2026
+    
+    Query Parameters:
+    - view: 'monthly' (current year or specified year) or 'yearly' (last N years)
+    - year: Year for monthly view (default: current year)
+    - months: Number of months for monthly view (default: 12)
+    - years: Number of years for yearly view (default: 3)
+    
+    Returns:
+    - Monthly view: [{"month": "October", "count": 35, "amount": 5000.50}, ...]
+    - Yearly view: [{"year": 2024, "count": 180, "amount": 25000.00}, ...]
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({
+                'error': 'Only Super Admin can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        view_type = request.query_params.get('view', 'monthly').lower()
+        
+        if view_type == 'monthly':
+            return self._get_monthly_trends(request)
+        elif view_type == 'yearly':
+            return self._get_yearly_trends(request)
+        else:
+            return Response({
+                'error': "Invalid view. Must be 'monthly' or 'yearly'"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_monthly_trends(self, request):
+        """Get monthly refund trends"""
+        try:
+            year = int(request.query_params.get('year', timezone.now().year))
+            months = int(request.query_params.get('months', 12))
+        except ValueError:
+            return Response({
+                'error': 'Invalid year or months parameter'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate date range
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=30 * months)
+        
+        # Get credit notes grouped by month
+        monthly_data = CreditNote.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            count=Count('credit_note_id'),
+            amount=Sum('amount', output_field=DecimalField())
+        ).order_by('month')
+        
+        # Format response with month names
+        month_names = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December']
+        
+        trends = []
+        for item in monthly_data:
+            if item['month']:
+                month_index = item['month'].month - 1
+                month_name = month_names[month_index]
+                month_short = month_names[month_index][:3]
+                
+                trends.append({
+                    'month': month_name,
+                    'month_short': month_short,
+                    'month_num': item['month'].month,
+                    'year': item['month'].year,
+                    'count': item['count'] or 0,
+                    'amount': float(item['amount'] or 0)
+                })
+        
+        return Response({
+            'success': True,
+            'view': 'monthly',
+            'year_displayed': year,
+            'total_months': len(trends),
+            'trends': trends,
+            'summary': {
+                'total_refunds': sum(t['count'] for t in trends),
+                'total_amount': sum(t['amount'] for t in trends)
+            }
+        }, status=status.HTTP_200_OK)
+
+    def _get_yearly_trends(self, request):
+        """Get yearly refund trends"""
+        try:
+            num_years = int(request.query_params.get('years', 3))
+        except ValueError:
+            return Response({
+                'error': 'Invalid years parameter'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate date range
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=365 * num_years)
+        
+        # Get credit notes grouped by year
+        yearly_data = CreditNote.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).annotate(
+            year=TruncYear('created_at')
+        ).values('year').annotate(
+            count=Count('credit_note_id'),
+            amount=Sum('amount', output_field=DecimalField())
+        ).order_by('year')
+        
+        trends = []
+        for item in yearly_data:
+            if item['year']:
+                trends.append({
+                    'year': item['year'].year,
+                    'count': item['count'] or 0,
+                    'amount': float(item['amount'] or 0)
+                })
+        
+        return Response({
+            'success': True,
+            'view': 'yearly',
+            'years_displayed': num_years,
+            'total_years': len(trends),
+            'trends': trends,
+            'summary': {
+                'total_refunds': sum(t['count'] for t in trends),
+                'total_amount': sum(t['amount'] for t in trends)
+            }
+        }, status=status.HTTP_200_OK)
+
+
 class DailyVolumeGraphView(APIView):
     """
     API endpoint for getting daily volume graph data and top statistics.
