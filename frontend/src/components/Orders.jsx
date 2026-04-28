@@ -384,7 +384,7 @@ const Orders = () => {
                   <th className="px-6">Payment</th>
                   <th className="px-6 text-center">Status</th>
                   <th className="px-6">ERP Ref</th>
-                  <th className="px-6 text-center sticky-action-column bg-[#DCE4EA] z-20 border-l border-gray-200">Actions</th>
+                  <th className="px-2 text-center sticky-action-column bg-[#DCE4EA] z-20 ">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
