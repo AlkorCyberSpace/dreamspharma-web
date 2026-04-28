@@ -136,4 +136,5 @@ urlpatterns = [
     
     # ==================== WALLET ENDPOINTS ====================
     path('wallet/<int:user_id>/', views.RetailerWalletView.as_view(), name='retailer-wallet'),
+    path('wallet/apply/<int:user_id>/', views.ApplyWalletToOrderView.as_view(), name='apply-wallet-to-order'),
 ]

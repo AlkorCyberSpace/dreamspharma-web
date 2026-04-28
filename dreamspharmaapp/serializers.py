@@ -2010,6 +2010,7 @@ class CreditNoteCreateSerializer(serializers.ModelSerializer):
         fields = [
             'reference_invoice', 'order_id', 'product_name',
             'item_code', 'quantity', 'quantity_to_return',
+            'amount', 'sale_rate',
             'reason', 'additional_notes', 'upload_image',
             'retailer_confirmed'
         ]
@@ -2027,6 +2028,17 @@ class CreditNoteCreateSerializer(serializers.ModelSerializer):
                 "Return quantity cannot exceed original quantity"
             )
         return data
+    
+    def create(self, validated_data):
+        # If you're recalculating here, use sale_rate from validated_data
+        sale_rate = validated_data.get('sale_rate', 0)
+        qty_to_return = validated_data.get('quantity_to_return', 0)
+        
+        # Only calculate amount if sale_rate is provided (frontend can also send amount directly)
+        if sale_rate and qty_to_return:
+            validated_data['amount'] = sale_rate * qty_to_return
+        
+        return super().create(validated_data)
 
 
 class CreditNoteListSerializer(serializers.ModelSerializer):
@@ -2050,7 +2062,7 @@ class CreditNoteListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'credit_note_id', 'retailer_name', 'shop_name',
             'reference_invoice', 'order_id', 'product_name',
-            'quantity', 'quantity_to_return', 'amount',
+            'quantity', 'quantity_to_return', 'sale_rate', 'amount',
             'reason', 'reason_display', 'status', 'status_display',
             'additional_notes', 'upload_image',
             'admin_remarks', 'reviewed_at', 'created_at'
@@ -2082,7 +2094,7 @@ class CreditNoteDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'credit_note_id', 'retailer_name', 'shop_name',
             'reference_invoice', 'order_id', 'product_name',
-            'item_code', 'quantity', 'quantity_to_return', 'amount',
+            'item_code', 'quantity', 'quantity_to_return', 'sale_rate', 'amount',
             'reason', 'additional_notes', 'upload_image_url',
             'status', 'admin_remarks', 'reviewed_by_name',
             'reviewed_at', 'retailer_confirmed', 'created_at'

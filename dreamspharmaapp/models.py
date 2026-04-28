@@ -813,6 +813,7 @@ class CreditNote(models.Model):
     quantity_to_return = models.IntegerField(default=0)
     
     # Credit details
+    sale_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Unit price per item")
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     reason = models.CharField(max_length=20, choices=REASON_CHOICES)
     additional_notes = models.TextField(blank=True)
