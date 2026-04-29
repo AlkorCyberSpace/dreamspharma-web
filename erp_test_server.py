@@ -6,7 +6,7 @@ Usage:
     pip install flask
     python erp_test_server.py
 
-Server will run on: http://192.168.1.63:8000/
+Server will run on: http://192.168.1.45:8000/
 """
 
 from flask import Flask, request, jsonify
@@ -249,6 +249,150 @@ ORDERS = {
                         "sgstAmt": "0.00",
                         "igstPer": "18.00",
                         "igstAmt": "16.20",
+                        "cessPer": "0.00",
+                        "cessAmt": "0.00"
+                    }
+                ]
+            }
+        ]
+    },
+    "00120260422110652A765CAD1": {
+        "orderId": "00120260422110652A765CAD1",
+        "custCode": "GC02",
+        "customerName": "Test Retailer",
+        "fromGstNo": "07NQQAE5107K2ZW",
+        "toGstNo": "07NQQAE5107K2ZW",
+        "customerType": "Un - Registered",
+        "doctorName": "-",
+        "documentPk": "26001540100",
+        "brCode": "001",
+        "tranYear": "26",
+        "tranPrefix": "6",
+        "tranSrno": "100",
+        "createdDate": "2026-04-27",
+        "billTotal": "542.50",
+        "invoices": [
+            {
+                "docNo": "001/26/S/250",
+                "docDate": "2026-04-27",
+                "docStatus": "Invoice Created",
+                "createdBy": "SYSTEM",
+                "docDiscount": "0.00",
+                "docTotal": "542.50",
+                "detail": [
+                    {
+                        "productId": "I00003",
+                        "productName": "DOLO 250MG SUSP",
+                        "hsnCode": "30049090",
+                        "qtyPerBox": "1",
+                        "batch": "DOLN096",
+                        "qty": "10.000",
+                        "expiryDate": "2027-11-01",
+                        "mrp": "75.030",
+                        "saleRate": "56.270",
+                        "discAmt": "188.30",
+                        "discPer": "25.00",
+                        "itemTotal": "562.700",
+                        "cgstPer": "0.00",
+                        "cgstAmt": "0.00",
+                        "sgstPer": "0.00",
+                        "sgstAmt": "0.00",
+                        "igstPer": "5.00",
+                        "igstAmt": "28.14",
+                        "cessPer": "0.00",
+                        "cessAmt": "0.00"
+                    },
+                    {
+                        "productId": "I00017",
+                        "productName": "AMALGIN",
+                        "hsnCode": "30049099",
+                        "qtyPerBox": "1",
+                        "batch": "AMG001",
+                        "qty": "5.000",
+                        "expiryDate": "2027-12-01",
+                        "mrp": "85.500",
+                        "saleRate": "72.675",
+                        "discAmt": "64.13",
+                        "discPer": "15.00",
+                        "itemTotal": "363.375",
+                        "cgstPer": "0.00",
+                        "cgstAmt": "0.00",
+                        "sgstPer": "0.00",
+                        "sgstAmt": "0.00",
+                        "igstPer": "5.00",
+                        "igstAmt": "18.17",
+                        "cessPer": "0.00",
+                        "cessAmt": "0.00"
+                    }
+                ]
+            }
+        ]
+    },
+    "TEST-COD-34BE5317": {
+        "orderId": "TEST-COD-34BE5317",
+        "custCode": "GC02",
+        "customerName": "Test Retailer COD",
+        "fromGstNo": "07NQQAE5107K2ZW",
+        "toGstNo": "07NQQAE5107K2ZW",
+        "customerType": "Un - Registered",
+        "doctorName": "-",
+        "documentPk": "26001540101",
+        "brCode": "001",
+        "tranYear": "26",
+        "tranPrefix": "6",
+        "tranSrno": "101",
+        "createdDate": "2026-04-28",
+        "billTotal": "542.50",
+        "invoices": [
+            {
+                "docNo": "001/26/S/999",
+                "docDate": "2026-04-28",
+                "docStatus": "Invoice Created",
+                "createdBy": "SYSTEM",
+                "docDiscount": "0.00",
+                "docTotal": "542.50",
+                "detail": [
+                    {
+                        "productId": "I00003",
+                        "productName": "DOLO 250MG SUSP",
+                        "hsnCode": "30049090",
+                        "qtyPerBox": "1",
+                        "batch": "DOLN096",
+                        "qty": "10.000",
+                        "expiryDate": "2027-11-01",
+                        "mrp": "75.030",
+                        "saleRate": "56.270",
+                        "discAmt": "188.30",
+                        "discPer": "25.00",
+                        "itemTotal": "562.700",
+                        "cgstPer": "0.00",
+                        "cgstAmt": "0.00",
+                        "sgstPer": "0.00",
+                        "sgstAmt": "0.00",
+                        "igstPer": "5.00",
+                        "igstAmt": "28.14",
+                        "cessPer": "0.00",
+                        "cessAmt": "0.00"
+                    },
+                    {
+                        "productId": "I00017",
+                        "productName": "AMALGIN",
+                        "hsnCode": "30049099",
+                        "qtyPerBox": "1",
+                        "batch": "AMG001",
+                        "qty": "5.000",
+                        "expiryDate": "2027-12-01",
+                        "mrp": "85.500",
+                        "saleRate": "72.675",
+                        "discAmt": "64.13",
+                        "discPer": "15.00",
+                        "itemTotal": "363.375",
+                        "cgstPer": "0.00",
+                        "cgstAmt": "0.00",
+                        "sgstPer": "0.00",
+                        "sgstAmt": "0.00",
+                        "igstPer": "5.00",
+                        "igstAmt": "18.17",
                         "cessPer": "0.00",
                         "cessAmt": "0.00"
                     }
@@ -548,6 +692,178 @@ def get_order_status():
         }), 500
 
 
+@app.route('/ws_c2_services_get_invoice', methods=['GET', 'POST'])
+def get_invoice():
+    """Get Invoice Details for an Order"""
+    try:
+        if request.method == 'GET':
+            data = request.args.to_dict()
+        else:
+            data = request.get_json() or request.args.to_dict()
+        
+        order_id = data.get('orderId')
+        doc_no = data.get('docNo')
+        
+        print(f"[INVOICE] Request for order: {order_id}, doc_no: {doc_no}")
+        
+        if not order_id:
+            return jsonify({
+                "code": "400",
+                "message": "orderId is required"
+            }), 400
+        
+        order = ORDERS.get(str(order_id))
+        
+        if not order:
+            return jsonify({
+                "code": "404",
+                "message": f"Order {order_id} not found"
+            }), 404
+        
+        # Get invoices for the order
+        invoices = order.get("invoices", [])
+        
+        if not invoices:
+            return jsonify({
+                "code": "404",
+                "message": f"No invoices found for order {order_id}"
+            }), 404
+        
+        # If specific doc_no requested, filter it
+        if doc_no:
+            invoices = [inv for inv in invoices if inv.get("docNo") == doc_no]
+            if not invoices:
+                return jsonify({
+                    "code": "404",
+                    "message": f"Invoice {doc_no} not found for order {order_id}"
+                }), 404
+        
+        return jsonify({
+            "code": "200",
+            "orderId": order_id,
+            "invoices": invoices
+        })
+    except Exception as e:
+        print(f"[INVOICE ERROR] {str(e)}")
+        return jsonify({
+            "code": "500",
+            "message": str(e)
+        }), 500
+
+
+@app.route('/create_test_invoice', methods=['POST', 'GET'])
+def create_test_invoice():
+    """Create a test invoice for an order (for testing purposes)"""
+    try:
+        if request.method == 'GET':
+            data = request.args.to_dict()
+        else:
+            data = request.get_json() or request.args.to_dict()
+        
+        order_id = data.get('orderId', '00120260427055141517EC06F')
+        doc_no = data.get('docNo', '001/26/S/250')
+        doc_total = float(data.get('docTotal', '542.50'))
+        
+        print(f"[CREATE INVOICE] Creating invoice for order: {order_id}, doc_no: {doc_no}")
+        
+        # Create or update order if it doesn't exist
+        if str(order_id) not in ORDERS:
+            ORDERS[str(order_id)] = {
+                "orderId": str(order_id),
+                "custCode": "GC02",
+                "customerName": "Test Retailer",
+                "fromGstNo": "07NQQAE5107K2ZW",
+                "toGstNo": "07NQQAE5107K2ZW",
+                "customerType": "Un - Registered",
+                "doctorName": "-",
+                "documentPk": "26001540100",
+                "brCode": "001",
+                "tranYear": "26",
+                "tranPrefix": "6",
+                "tranSrno": "100",
+                "createdDate": datetime.now().strftime("%Y-%m-%d"),
+                "billTotal": str(doc_total),
+                "invoices": []
+            }
+        
+        # Create invoice object
+        invoice = {
+            "docNo": doc_no,
+            "docDate": datetime.now().strftime("%Y-%m-%d"),
+            "docStatus": "Invoice Created",
+            "createdBy": "SYSTEM",
+            "docDiscount": "0.00",
+            "docTotal": str(doc_total),
+            "detail": [
+                {
+                    "productId": "I00003",
+                    "productName": "DOLO 250MG SUSP",
+                    "hsnCode": "30049090",
+                    "qtyPerBox": "1",
+                    "batch": "DOLN096",
+                    "qty": "10.000",
+                    "expiryDate": "2027-11-01",
+                    "mrp": "75.030",
+                    "saleRate": "56.270",
+                    "discAmt": "188.30",
+                    "discPer": "25.00",
+                    "itemTotal": "562.700",
+                    "cgstPer": "0.00",
+                    "cgstAmt": "0.00",
+                    "sgstPer": "0.00",
+                    "sgstAmt": "0.00",
+                    "igstPer": "5.00",
+                    "igstAmt": "28.14",
+                    "cessPer": "0.00",
+                    "cessAmt": "0.00"
+                },
+                {
+                    "productId": "I00017",
+                    "productName": "AMALGIN",
+                    "hsnCode": "30049099",
+                    "qtyPerBox": "1",
+                    "batch": "AMG001",
+                    "qty": "5.000",
+                    "expiryDate": "2027-12-01",
+                    "mrp": "85.500",
+                    "saleRate": "72.675",
+                    "discAmt": "64.13",
+                    "discPer": "15.00",
+                    "itemTotal": "363.375",
+                    "cgstPer": "0.00",
+                    "cgstAmt": "0.00",
+                    "sgstPer": "0.00",
+                    "sgstAmt": "0.00",
+                    "igstPer": "5.00",
+                    "igstAmt": "18.17",
+                    "cessPer": "0.00",
+                    "cessAmt": "0.00"
+                }
+            ]
+        }
+        
+        # Add or replace invoice in order
+        ORDERS[str(order_id)]["invoices"] = [invoice]
+        ORDERS[str(order_id)]["billTotal"] = str(doc_total)
+        
+        print(f"[CREATE INVOICE SUCCESS] Created invoice {doc_no} for order {order_id}")
+        
+        return jsonify({
+            "code": "200",
+            "type": "createTestInvoice",
+            "message": f"Test invoice {doc_no} created successfully for order {order_id}",
+            "orderId": order_id,
+            "invoice": invoice
+        }), 201
+    except Exception as e:
+        print(f"[CREATE INVOICE ERROR] {str(e)}")
+        return jsonify({
+            "code": "500",
+            "type": "createTestInvoice",
+            "message": str(e)
+        }), 500
+
+
 @app.route('/')
 def home():
     """Home page with API documentation"""
@@ -611,10 +927,28 @@ def home():
             <pre>?c2Code=03C000&storeId=001&apiKey=YOUR_API_KEY&orderId=aditya001</pre>
         </div>
         
+        <div class="endpoint">
+            <span class="method post">POST</span> <code>/create_test_invoice</code>
+            <p>Create Test Invoice (For Testing Purposes)</p>
+            <pre>{
+  "orderId": "00120260427055141517EC06F",
+  "docNo": "001/26/S/250",
+  "docTotal": "542.50"
+}</pre>
+        </div>
+        
         <h2>Quick Test:</h2>
         <p>Try <a href="/ws_c2_services_get_master_data?c2Code=03C000&storeId=001&apiKey=test">/ws_c2_services_get_master_data?c2Code=03C000&storeId=001&apiKey=test</a></p>
         <p>Try <a href="/ws_c2_services_fetch_stock?c2Code=03C000&storeId=001&apiKey=test">/ws_c2_services_fetch_stock?c2Code=03C000&storeId=001&apiKey=test</a></p>
         <p>Try <a href="/ws_c2_services_get_orderstatus?c2Code=03C000&storeId=001&apiKey=test&orderId=aditya001">/ws_c2_services_get_orderstatus?orderId=aditya001</a></p>
+        <p><strong>Create Test Invoice (POST with JSON body):</strong></p>
+        <pre>curl -X POST http://localhost:44000/create_test_invoice \
+  -H "Content-Type: application/json" \
+  -d '{
+    "orderId": "00120260427055141517EC06F",
+    "docNo": "001/26/S/250",
+    "docTotal": "542.50"
+  }'</pre>
     </body>
     </html>
     """
