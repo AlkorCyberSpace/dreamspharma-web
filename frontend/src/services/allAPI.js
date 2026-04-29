@@ -266,8 +266,11 @@ export const getOrdersApi = (params) => {
 }
 
 
-export const getReportSummaryApi = () => {
-  return axiosInstance.get('superadmin/reports/summary/')
+export const getReportSummaryApi = (startDate, endDate) => {
+  const params = {};
+  if (startDate) params.start_date = startDate;
+  if (endDate) params.end_date = endDate;
+  return axiosInstance.get('superadmin/reports/summary/', { params })
 }
 
 // SuperAdmin - Mark COD Order as Delivered/Paid
@@ -279,4 +282,10 @@ export const markCODDeliveredAPI = (data) => {
 export const updateOrderStatusAPI = (data) => {
   return axiosInstance.post("superadmin/orders/update-status/", data);
 };
-
+// Reports - Download Order Report Excel
+export const downloadOrderReportExcelAPI = (params) => {
+  return axiosInstance.get("superadmin/reports/orders/", {
+    params: { ...params, export: "excel" },
+    responseType: "blob", // Important for handling binary data (Excel)
+  });
+};

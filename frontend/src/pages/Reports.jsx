@@ -11,7 +11,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { getReportSummaryApi } from "../services/allAPI";
+import axiosInstance, { getReportSummaryApi, downloadOrderReportExcelAPI } from "../services/allAPI";
 
 export default function Reports() {
   const [summary, setSummary] = useState({})
@@ -32,29 +32,83 @@ export default function Reports() {
 
   const [loading, setLoading] = useState(true);
 
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
+  const fetchReportSummary = async (startDate = null, endDate = null) => {
+    setLoading(true);
+    try {
+      const response = await getReportSummaryApi(startDate, endDate);
+      setSummary(response.data?.data || {});
+    } catch (err) {
+      console.error("Error fetching summary:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchReportSummary = async () => {
-      try {
-        const response = await getReportSummaryApi();
-        console.log("Full response:", response);
-        console.log("Data:", response.data);
-        // Extract the nested 'data' object from the response
-        setSummary(response.data?.data || {});
-
-      } catch (err) {
-        console.error("Error fetching summary:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchReportSummary();
   }, []);
+
+  const handleApplyFilter = () => {
+    const start = new Date(selectedYear, selectedMonth, 1).toISOString().split('T')[0];
+    const end = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0];
+    fetchReportSummary(start, end);
+  };
+
+  const handleDownloadExcel = async (title) => {
+    const start = new Date(selectedYear, selectedMonth, 1).toISOString().split('T')[0];
+    const end = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0];
+
+    const typeMap = {
+      "Order Report": "orders",
+      "Revenue Report": "revenue",
+      "Refund Report": "refund-trends",
+      "Retailer Activity Report": "retailer-activity",
+      "KYC Status Report": "kyc",
+      "Product Performance Report": "orders"
+    };
+
+    const path = typeMap[title];
+    if (!path) return;
+
+    try {
+      let response;
+      if (title === "Order Report") {
+        response = await downloadOrderReportExcelAPI({ start_date: start, end_date: end });
+      } else {
+        response = await axiosInstance.get(`superadmin/reports/${path}/`, {
+          params: { start_date: start, end_date: end, export: 'excel' },
+          responseType: 'blob'
+        });
+      }
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${title.replace(/ /g, '_').toLowerCase()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error("Error downloading report:", err);
+    }
+  };
+
   /* ---------- Stat Card ---------- */
 
   const StatCard = ({ title, value, growth, icon, index = 0 }) => {
     const isLight = index % 2 === 0;
-    
+
     // Determine if growth is positive or negative
     const growthStr = String(growth);
     const isNegative = growthStr.includes("-");
@@ -86,14 +140,17 @@ export default function Reports() {
 
   /* ---------- Report Card ---------- */
 
-  const ReportCard = ({ title, desc }) => (
-    <div className="flex justify-between items-center bg-white p-5 rounded-xl shadow border border-gray-100">
+  const ReportCard = ({ title, desc, onDownload }) => (
+    <div className="flex justify-between items-center bg-white p-5 rounded-xl shadow border border-gray-100 transition-all hover:shadow-md hover:border-[#2e7d88]/20">
       <div>
         <h4 className="font-semibold text-gray-700">{title}</h4>
         <p className="text-sm text-gray-400">{desc}</p>
       </div>
 
-      <button className="flex items-center gap-2 bg-[#2e7d88] hover:bg-[#24656d] text-white px-4 py-2 rounded-lg text-sm">
+      <button 
+        onClick={() => onDownload(title)}
+        className="flex items-center gap-2 bg-[#2e7d88] hover:bg-[#24656d] text-white px-4 py-2 rounded-lg text-sm transition-all shadow-sm active:scale-95"
+      >
         <Download size={16} />
         Excel
       </button>
@@ -179,9 +236,8 @@ export default function Reports() {
 
       {/* ---------- CHARTS ---------- */}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
 
-        {/* Revenue Chart */}
         <div className="bg-white p-6 rounded-xl shadow border border-gray-100">
           <h3 className="font-semibold text-gray-700 mb-4">
             Preview - Homepage Banner
@@ -206,7 +262,6 @@ export default function Reports() {
           </ResponsiveContainer>
         </div>
 
-        {/* Refund Chart */}
         <div className="bg-white p-6 rounded-xl shadow border border-gray-100">
           <h3 className="font-semibold text-gray-700 mb-4">
             Refund Trends
@@ -227,44 +282,87 @@ export default function Reports() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </div> */}
 
       {/* ---------- CUSTOM REPORTS ---------- */}
 
-      <div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-5">
-          Generate Custom Reports
-        </h2>
+      <div className="mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h2 className="text-xl font-bold text-gray-800">
+            Generate Custom Reports
+          </h2>
+          
+          <div className="flex items-center gap-3 bg-white p-1.5 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 px-3 border-r border-gray-100">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Timeframe</span>
+            </div>
+            
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="bg-transparent text-gray-700 text-sm font-medium py-1 px-2 outline-none cursor-pointer hover:text-[#2e7d88] transition-colors"
+            >
+              {months.map((month, index) => (
+                <option key={month} value={index}>{month}</option>
+              ))}
+            </select>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="w-px h-4 bg-gray-200"></div>
+
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="bg-transparent text-gray-700 text-sm font-medium py-1 px-2 outline-none cursor-pointer hover:text-[#2e7d88] transition-colors"
+            >
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleApplyFilter}
+              className="bg-[#2e7d88] hover:bg-[#24656d] text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ml-2"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <ReportCard
             title="Order Report"
             desc="Detailed order list with all transactions"
+            onDownload={handleDownloadExcel}
           />
 
           <ReportCard
             title="Revenue Report"
             desc="Financial summary and revenue breakdown"
+            onDownload={handleDownloadExcel}
           />
 
           <ReportCard
             title="Refund Report"
             desc="All refund transactions and approvals"
+            onDownload={handleDownloadExcel}
           />
 
           <ReportCard
             title="Retailer Activity Report"
             desc="Retailer-wise ordering patterns"
+            onDownload={handleDownloadExcel}
           />
 
           <ReportCard
             title="Product Performance Report"
             desc="Best/worst selling products"
+            onDownload={handleDownloadExcel}
           />
 
           <ReportCard
             title="KYC Status Report"
             desc="KYC approval/rejection statistics"
+            onDownload={handleDownloadExcel}
           />
         </div>
       </div>
