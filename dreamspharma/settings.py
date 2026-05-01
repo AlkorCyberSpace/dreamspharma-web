@@ -212,20 +212,25 @@ OTP_EXPIRY_TIME = 600  # 10 minutes in seconds
 EMAIL_HOST='smtp.gmail.com'
 EMAIL_USE_TLS=True
 EMAIL_PORT=587
-EMAIL_HOST_USER='heysoorya1@gmail.com'
-EMAIL_HOST_PASSWORD='ibot dfts yoke orsn'
-DEFAULT_FROM_EMAIL='sooryakr2004@gmail.com'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'heysoorya1@gmail.com')  # Use environment variable
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'ibot dfts yoke orsn')  # Use environment variable
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'sooryakr2004@gmail.com')  # Use environment variable
 
 
 # ==================== ERP INTEGRATION ====================
-# 🔧 CONFIGURE THESE SETTINGS FOR YOUR ERP ENVIRONMENT
-# Change these values when client provides their actual ERP server details
+# 🔧 MULTI-STORE CONFIGURATION
+# ERP settings are now PER-STORE (stored in Store model)
+# Each store has its own: c2_code, store_id, security_key
+# Views fetch these from database instead of hardcoded values
 
-ERP_BASE_URL = 'http://localhost:44000'  # ERP Server IP/URL - CHANGE THIS ⚙️
-ERP_C2_CODE = '03C000'                   # Company code - CHANGE THIS ⚙️
-ERP_STORE_ID = '001'                     # Store ID - CHANGE THIS ⚙️
-ERP_PROD_CODE = '02'                     # Product code
-ERP_SECURITY_KEY = 'TUVVek1EQXhNalE9'    # Security key - CHANGE THIS ⚙️
+ERP_BASE_URL = os.environ.get('ERP_BASE_URL', 'http://localhost:44000')  # ERP Server URL
+
+# ⚠️ Fallback ERP settings (used when no stores in database)
+# In production, these should be set via environment variables or Store model in database
+ERP_C2_CODE = os.environ.get('ERP_C2_CODE', '03C000')
+ERP_STORE_ID = os.environ.get('ERP_STORE_ID', '001')
+ERP_PROD_CODE = os.environ.get('ERP_PROD_CODE', '02')
+ERP_SECURITY_KEY = os.environ.get('ERP_SECURITY_KEY', 'TUVVek1EQXhNalE9')
 
 # Token refresh settings (in hours)
 ERP_TOKEN_REFRESH_HOURS = 23  # Refresh token every 23 hours (before 24-hour expiry)

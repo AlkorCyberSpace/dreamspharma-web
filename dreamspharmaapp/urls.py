@@ -3,6 +3,13 @@ from django.urls import path
 from .views import related_products
 from django.urls import path
 from . import views
+from .store_views import (
+    find_nearest_store,
+    find_nearby_stores,
+    get_store_details,
+    get_store_erp_config,
+    StoreViewSet
+)
 from .notification_views import (
     RetailerNotificationsListView,
     RetailerNotificationDetailView,
@@ -12,6 +19,14 @@ from .invoice_views import InvoiceDownloadView
 
 
 urlpatterns = [
+    # ==================== STORE ENDPOINTS ====================
+    path('stores/', StoreViewSet.as_view({'get': 'list'}), name='stores-list'),
+    path('stores/<int:pk>/', StoreViewSet.as_view({'get': 'retrieve'}), name='stores-detail'),
+    path('stores/find-nearest/', find_nearest_store, name='find-nearest-store'),
+    path('stores/find-nearby/', find_nearby_stores, name='find-nearby-stores'),
+    path('stores/<int:store_id>/details/', get_store_details, name='store-details'),
+    path('stores/<int:store_id>/erp-config/', get_store_erp_config, name='store-erp-config'),
+    
     # SuperAdmin Authentication
     path('auth/login/', views.SuperAdminLoginView.as_view(), name='superadmin-login'),
     # Retailer Authentication
@@ -81,7 +96,7 @@ urlpatterns = [
     path('address/<int:user_id>/<int:address_id>/', views.UpdateAddressView.as_view(), name='update-address'),
     path('address/<int:user_id>/<int:address_id>/delete/', views.DeleteAddressView.as_view(), name='delete-address'),
     path('address/<int:user_id>/<int:address_id>/default/', views.SetDefaultAddressView.as_view(), name='set-default-address'),
-    path('checkout/preview/', views.OrderConfirmationPreviewView.as_view(), name='checkout-preview'),
+    path('checkout/preview/<int:user_id>/', views.OrderConfirmationPreviewView.as_view(), name='checkout-preview'),
     path('checkout/address/', views.CheckoutWithAddressView.as_view(), name='checkout-with-address'),
     
     # ==================== NOTIFICATIONS ENDPOINTS ====================
@@ -135,6 +150,7 @@ urlpatterns = [
     path('admin/credit-notes/<str:credit_note_id>/reject/', views.AdminCreditNoteRejectView.as_view(), name='admin-credit-note-reject'),
     
     # ==================== WALLET ENDPOINTS ====================
+    # Wallet applied during sales order creation now - see CreateSalesOrderView
+    # Legacy endpoint deprecated - use use_wallet parameter in /erp/ws_c2_services_create_sale_order
     path('wallet/<int:user_id>/', views.RetailerWalletView.as_view(), name='retailer-wallet'),
-    path('wallet/apply/<int:user_id>/', views.ApplyWalletToOrderView.as_view(), name='apply-wallet-to-order'),
 ]

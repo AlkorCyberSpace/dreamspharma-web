@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from .models import (
-    KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
+    KYC, OTP, APIToken, Store, ItemMaster, Stock, GLCustomer, 
     SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
     Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address,
     Category, Offer, RetailerNotification, CreditNote, RetailerWallet, WalletTransaction
@@ -616,6 +616,10 @@ class CreateSalesOrderRequestSerializer(serializers.Serializer):
     
     # ==================== PAYMENT MODE ====================
     paymentMode = serializers.ChoiceField(choices=['COD', 'RAZORPAY'], required=False, default='COD', help_text="Payment mode: 'COD' (Cash on Delivery) or 'RAZORPAY'")
+    
+    # ==================== WALLET ====================
+    use_wallet = serializers.BooleanField(required=False, default=False, help_text="Apply wallet balance to this order")
+    user_id = serializers.IntegerField(required=False, help_text="Retailer user ID (required if use_wallet=True)")
     
     def validate_materialInfo(self, value):
         """Validate materialInfo if provided"""
@@ -1998,6 +2002,81 @@ class RetailerNotificationCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         return RetailerNotification.objects.create(**validated_data)
+
+
+# ==================== STORE SERIALIZERS ====================
+
+class StoreSerializer(serializers.ModelSerializer):
+    """Serializer for Store model - complete details"""
+    erp_config = serializers.SerializerMethodField()
+    distance = serializers.FloatField(required=False, allow_null=True, help_text="Distance from customer location (calculated dynamically)")
+    
+    class Meta:
+        model = Store
+        fields = [
+            'id', 'name', 'address', 'city', 'state', 'pincode',
+            'latitude', 'longitude', 'c2_code', 'store_id', 'prod_code',
+            'phone', 'email', 'manager_name', 'manager_phone',
+            'is_active', 'is_primary', 'erp_config', 'distance', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'erp_config']
+    
+    def get_erp_config(self, obj):
+        """Return ERP configuration for the store"""
+        return obj.get_erp_config()
+
+
+class StoreListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing stores"""
+    distance = serializers.FloatField(required=False, allow_null=True)
+    
+    class Meta:
+        model = Store
+        fields = [
+            'id', 'name', 'city', 'state', 'pincode', 'phone',
+            'is_active', 'is_primary', 'distance'
+        ]
+
+
+class LocationInputSerializer(serializers.Serializer):
+    """Serializer for location request - to find nearest store"""
+    latitude = serializers.FloatField(required=False, allow_null=True, help_text="Customer latitude")
+    longitude = serializers.FloatField(required=False, allow_null=True, help_text="Customer longitude")
+    pincode = serializers.CharField(required=False, allow_blank=True, help_text="Customer pincode (if lat/lon not available)")
+    radius = serializers.IntegerField(required=False, default=10, help_text="Search radius in km (for nearby stores)")
+    
+    def validate(self, data):
+        """Ensure either lat/lon or pincode is provided"""
+        lat = data.get('latitude')
+        lon = data.get('longitude')
+        pincode = data.get('pincode')
+        
+        if not pincode and (lat is None or lon is None):
+            raise serializers.ValidationError(
+                "Either provide latitude/longitude OR pincode"
+            )
+        
+        return data
+
+
+class NearestStoreResponseSerializer(serializers.Serializer):
+    """Serializer for nearest store response"""
+    store_id = serializers.IntegerField()
+    store_name = serializers.CharField()
+    address = serializers.CharField()
+    city = serializers.CharField()
+    state = serializers.CharField()
+    pincode = serializers.CharField()
+    phone = serializers.CharField(allow_blank=True)
+    distance = serializers.FloatField(allow_null=True)
+    c2_code = serializers.CharField()
+    erp_store_id = serializers.CharField()
+    prod_code = serializers.CharField()
+
+
+class NearbyStoresResponseSerializer(serializers.Serializer):
+    """Serializer for list of nearby stores"""
+    stores = NearestStoreResponseSerializer(many=True)
 
 
 # ==================== CREDIT NOTE SERIALIZERS ====================

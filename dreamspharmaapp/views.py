@@ -20,18 +20,14 @@ import string
 import base64
 import requests
 from datetime import datetime
+from decimal import Decimal
 import logging
 import uuid
 import json
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import FCMDevice
 
 logger = logging.getLogger(__name__)
 
-from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address, Category, ProductView, SearchHistory, CreditNote, RetailerWallet, WalletTransaction
+from .models import CustomUser, KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail, Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address, Category, ProductView, SearchHistory, CreditNote, RetailerWallet, WalletTransaction, FCMDevice
 from .serializers import (
     CustomUserSerializer, UserRegistrationSerializer, KYCSerializer, 
     KYCSubmitSerializer, SuperAdminLoginSerializer, RetailerLoginSerializer,
@@ -1100,10 +1096,28 @@ class GetItemMasterView(APIView):
     
     def get(self, request, user_id=None):
         try:
-            # 🎯 Use auto-generated token ONLY - NO apiKey from request accepted
-            from .erp_token_service import get_erp_token_for_request
+            # 🎯 Get store-specific ERP config based on location
+            from .erp_service import ERPService
+            from .erp_token_service import get_erp_token_for_store_config
             
-            api_key = get_erp_token_for_request()
+            # Get customer location or store ID
+            latitude = request.query_params.get('latitude')
+            longitude = request.query_params.get('longitude')
+            store_id = request.query_params.get('storeId')
+            
+            # Select store based on location or store_id
+            if latitude and longitude:
+                store_info = ERPService.get_nearest_store_config(latitude, longitude)
+            elif store_id:
+                store_info = ERPService.get_config_by_store_id(store_id)
+            else:
+                store_info = ERPService._get_fallback_config()
+            
+            erp_config = store_info['erp_config']
+            logger.info(f"[GET_ITEM_MASTER] Using store: {store_info.get('store_name')} | Store ID: {erp_config['store_id']}")
+            
+            # ✅ STEP 2 & 3: Generate token PER STORE with storeId
+            api_key = get_erp_token_for_store_config(erp_config)
             if not api_key:
                 return Response({
                     'code': '503',
@@ -1111,21 +1125,20 @@ class GetItemMasterView(APIView):
                     'message': 'ERP service temporarily unavailable - token generation failed'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            logger.info(f"[GET_ITEM_MASTER] Using auto-generated token")
+            logger.info(f"[GET_ITEM_MASTER] ✓ Token generated for store {erp_config['store_id']}")
             
             try:
-                # FETCH DIRECTLY FROM ERP SERVER (configurable in settings.py)
-                erp_base_url = settings.ERP_BASE_URL
-                erp_server_url = f"{erp_base_url}/ws_c2_services_get_master_data"
+                # FETCH DIRECTLY FROM ERP SERVER
+                erp_server_url = f"{erp_config['base_url']}/ws_c2_services_get_master_data"
                 
                 logger.info(f"[GET_ITEM_MASTER] Fetching from ERP: {erp_server_url}")
                 
-                # Build complete parameters for ERP API
+                # Build complete parameters for ERP API (using store-specific config)
                 erp_params = {
                     'apiKey': api_key,
-                    'prodCode': settings.ERP_PROD_CODE,
-                    'c2Code': settings.ERP_C2_CODE,
-                    'storeId': settings.ERP_STORE_ID
+                    'prodCode': erp_config['prod_code'],
+                    'c2Code': erp_config['c2_code'],
+                    'storeId': erp_config['store_id']
                 }
                 
                 erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
@@ -1239,9 +1252,11 @@ class GetItemMasterView(APIView):
                     'type': 'getMasterData',
                     'data': items,
                     'message': f'Fetched {len(items)} items from ERP server',
-                    'c2Code': settings.ERP_C2_CODE,
-                    'storeId': settings.ERP_STORE_ID,
-                    'prodCode': settings.ERP_PROD_CODE
+                    'c2Code': erp_config['c2_code'],
+                    'storeId': erp_config['store_id'],
+                    'prodCode': erp_config['prod_code'],
+                    'storeName': store_info.get('store_name'),
+                    'distanceKm': store_info.get('distance_km')
                 }, status=status.HTTP_200_OK)
             
             except requests.exceptions.ConnectionError:
@@ -1506,10 +1521,28 @@ class FetchStockView(APIView):
     
     def get(self, request):
         try:
-            # 🎯 Use auto-generated token ONLY - NO apiKey from request accepted
-            from .erp_token_service import get_erp_token_for_request
+            # 🎯 Get store-specific ERP config based on location
+            from .erp_service import ERPService
+            from .erp_token_service import get_erp_token_for_store_config
             
-            api_key = get_erp_token_for_request()
+            # Get customer location or store ID
+            latitude = request.query_params.get('latitude')
+            longitude = request.query_params.get('longitude')
+            store_id = request.query_params.get('storeId')
+            
+            # Select store based on location or store_id
+            if latitude and longitude:
+                store_info = ERPService.get_nearest_store_config(latitude, longitude)
+            elif store_id:
+                store_info = ERPService.get_config_by_store_id(store_id)
+            else:
+                store_info = ERPService._get_fallback_config()
+            
+            erp_config = store_info['erp_config']
+            logger.info(f"[FETCH_STOCK] Using store: {store_info.get('store_name')} | Store ID: {erp_config['store_id']}")
+            
+            # ✅ STEP 2 & 3: Generate token PER STORE with storeId
+            api_key = get_erp_token_for_store_config(erp_config)
             if not api_key:
                 return Response({
                     'code': '503',
@@ -1517,21 +1550,20 @@ class FetchStockView(APIView):
                     'message': 'ERP service temporarily unavailable - token generation failed'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            logger.info(f"[FETCH_STOCK] Using auto-generated token")
-            
-            store_id = request.query_params.get('storeId')
+            logger.info(f"[FETCH_STOCK] ✓ Token generated for store {erp_config['store_id']}")
             
             try:
                 # FETCH DIRECTLY FROM ERP SERVER (real-time stock data)
-                erp_base_url = settings.ERP_BASE_URL
-                erp_server_url = f"{erp_base_url}/ws_c2_services_fetch_stock"
+                erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
                 
                 logger.info(f"[FETCH_STOCK] Fetching from ERP: {erp_server_url}")
                 
-                # Build ERP request parameters
-                erp_params = {'apiKey': api_key}
-                if store_id:
-                    erp_params['storeId'] = store_id
+                # Build ERP request parameters (using store-specific config)
+                erp_params = {
+                    'apiKey': api_key,
+                    'storeId': erp_config['store_id'],
+                    'c2Code': erp_config['c2_code']
+                }
                 
                 erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
                 
@@ -1603,8 +1635,28 @@ class CreateSalesOrderView(APIView):
                 'message': f'Invalid payment mode: {payment_mode}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        from .erp_token_service import get_erp_token_for_request
-        api_key = get_erp_token_for_request()
+        # 🎯 Get store-specific ERP config based on location or storeId
+        from .erp_service import ERPService
+        from .erp_token_service import get_erp_token_for_store_config
+        
+        # Get customer location or store ID from request
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        store_id = request.data.get('storeId')
+        
+        # Select store based on location or store_id
+        if latitude and longitude:
+            store_info = ERPService.get_nearest_store_config(latitude, longitude)
+        elif store_id:
+            store_info = ERPService.get_config_by_store_id(store_id)
+        else:
+            store_info = ERPService._get_fallback_config()
+        
+        erp_config = store_info['erp_config']
+        logger.info(f"[CREATE_ORDER] Using store: {store_info.get('store_name')} | Store ID: {erp_config['store_id']}")
+        
+        # ✅ STEP 2 & 3: Generate token PER STORE with storeId
+        api_key = get_erp_token_for_store_config(erp_config)
         if not api_key:
             return Response({
                 'code': '503',
@@ -1654,20 +1706,13 @@ class CreateSalesOrderView(APIView):
                     s = str(val).strip()
                     return s if s else None
 
-                # ── ERP config ──
-                store_id_val = safe_str(
-                    serializer.validated_data.get('storeId'),
-                    settings.ERP_STORE_ID
-                )
+                order_total = safe_float(serializer.validated_data.get('orderTotal'))
+
+                # ── ERP config (from store database) ──
+                store_id_val = safe_str(erp_config['store_id'])
                 store_id = store_id_val.zfill(3)
-                c2_code = safe_str(
-                    serializer.validated_data.get('c2Code'),
-                    settings.ERP_C2_CODE
-                )
-                prod_code = safe_str(
-                    serializer.validated_data.get('prodCode'),
-                    settings.ERP_PROD_CODE
-                )
+                c2_code = safe_str(erp_config['c2_code'])
+                prod_code = safe_str(erp_config['prod_code'])
 
                 # ── Generate order ID ──
                 date_str = timezone.now().strftime('%Y%m%d')
@@ -1702,7 +1747,7 @@ class CreateSalesOrderView(APIView):
                     dr_reg_no=safe_str(serializer.validated_data.get('drRegNo')),
                     dr_office_code=safe_str(serializer.validated_data.get('drOfficeCode'), '-'),
                     dman_code=safe_str(serializer.validated_data.get('dmanCode'), '-'),
-                    order_total=safe_float(serializer.validated_data.get('orderTotal')),
+                    order_total=order_total,
                     order_disc_per=safe_float(serializer.validated_data.get('orderDiscPer')),
                     ref_no=serializer.validated_data.get('refNo') or None,
                     remark=serializer.validated_data.get('remark') or None,
@@ -1717,7 +1762,7 @@ class CreateSalesOrderView(APIView):
                     tran_year=str(timezone.now().year % 100),
                     tran_prefix='6',
                     tran_srno='1',
-                    bill_total=safe_float(serializer.validated_data.get('orderTotal')),
+                    bill_total=order_total,
                 )
 
                 logger.info(f"[ORDER_DEBUG] order_kwargs built successfully")
@@ -1844,6 +1889,51 @@ class CreateSalesOrderView(APIView):
                 sales_order.save()
                 logger.info(f"[ORDER_DEBUG] document_pk: {sales_order.document_pk}")
 
+                # ── WALLET DEDUCTION (inside atomic transaction) ──
+                wallet_deducted = Decimal('0')
+                use_wallet = serializer.validated_data.get('use_wallet', False)
+                wallet_user_id = serializer.validated_data.get('user_id')
+
+                if use_wallet and wallet_user_id:
+                    try:
+                        wallet_user = CustomUser.objects.get(id=wallet_user_id, role='RETAILER')
+                        from .wallet_service import debit_wallet
+                        
+                        wallet, _ = RetailerWallet.objects.get_or_create(retailer=wallet_user)
+                        order_total = Decimal(str(sales_order.order_total))
+                        wallet_applicable = min(wallet.balance, order_total)
+
+                        if wallet_applicable > 0:
+                            result = debit_wallet(
+                                retailer=wallet_user,
+                                amount=wallet_applicable,
+                                source='ORDER_PAYMENT',
+                                order=sales_order,
+                                description=f'Wallet applied to order {sales_order.order_id}'
+                            )
+                            if result['success']:
+                                wallet_deducted = wallet_applicable
+                                # Update bill total to reflect wallet deduction
+                                sales_order.bill_total = max(
+                                    Decimal('0'),
+                                    Decimal(str(sales_order.bill_total)) - wallet_deducted
+                                )
+                                sales_order.save()
+                                logger.info(
+                                    f"[WALLET_ORDER] Order: {sales_order.order_id} | "
+                                    f"Deducted: ₹{wallet_deducted} | "
+                                    f"Remaining to pay: ₹{sales_order.bill_total}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"[WALLET_ORDER] Deduction failed for order "
+                                    f"{sales_order.order_id}: {result['error']}"
+                                )
+                    except CustomUser.DoesNotExist:
+                        logger.warning(f"[WALLET_ORDER] User {wallet_user_id} not found, skipping wallet")
+                    except Exception as we:
+                        logger.error(f"[WALLET_ORDER] Error applying wallet: {str(we)}")
+
                 # ── SYNC ORDER TO ERP SERVER ──
                 # Build ERP payload with all items
                 erp_material_info = []
@@ -1963,9 +2053,12 @@ class CreateSalesOrderView(APIView):
                     'type': 'SaleOrderCreate',
                     'message': f'Document No. : {sales_order.document_pk} successfully processed.',
                     'paymentMode': payment_mode,
+                    'walletApplied': str(wallet_deducted),
+                    'amountToPay': str(sales_order.bill_total),
                     'paymentDetails': {
                         'mode': payment_mode,
                         'amount': str(sales_order.bill_total),
+                        'walletDeducted': str(wallet_deducted),
                         'currency': 'INR'
                     },
                     'config': {
@@ -4260,7 +4353,7 @@ class OrderConfirmationPreviewView(APIView):
     """Get order confirmation preview with delivery address before payment"""
     permission_classes = [AllowAny]
     
-    def post(self, request):
+    def post(self, request, user_id):
         """Get order preview with selected address"""
         try:
             serializer = SelectAddressSerializer(data=request.data)
@@ -4273,9 +4366,18 @@ class OrderConfirmationPreviewView(APIView):
             
             address_id = serializer.validated_data['address_id']
             
+            # Get user from user_id parameter
+            try:
+                user = CustomUser.objects.get(id=user_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': 'User not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
             # Verify address belongs to user
             try:
-                address = Address.objects.get(id=address_id, user=request.user, is_active=True)
+                address = Address.objects.get(id=address_id, user=user, is_active=True)
             except Address.DoesNotExist:
                 return Response({
                     'success': False,
@@ -4284,7 +4386,7 @@ class OrderConfirmationPreviewView(APIView):
             
             # Get user's cart
             try:
-                cart = Cart.objects.get(user=request.user)
+                cart = Cart.objects.get(user=user)
             except Cart.DoesNotExist:
                 return Response({
                     'success': False,
@@ -4323,7 +4425,15 @@ class OrderConfirmationPreviewView(APIView):
             platform_fee = float(cart.platform_fee)
             amount_payable = cart.get_grand_total()
             
-            logger.info(f"[CHECKOUT_PREVIEW] User {request.user.username} generated order preview with address ID {address_id}")
+            # For pre-order wallet preview, apply wallet in this orderflow
+            wallet, _ = RetailerWallet.objects.get_or_create(retailer=user)
+            wallet_balance = float(wallet.balance)
+            
+            # Cart total approach: calculate wallet applicable based on grand total
+            wallet_applicable = min(wallet_balance, amount_payable)
+            amount_after_wallet = max(0, amount_payable - wallet_applicable)
+            
+            logger.info(f"[CHECKOUT_PREVIEW] User {user.username} generated order preview with address ID {address_id}")
             
             return Response({
                 'success': True,
@@ -4340,12 +4450,17 @@ class OrderConfirmationPreviewView(APIView):
                         'platform_fee': platform_fee,
                         'amount_payable': amount_payable
                     },
+                    'wallet_info': {
+                        'wallet_balance': wallet_balance,
+                        'wallet_applicable': wallet_applicable,
+                        'amount_after_wallet': amount_after_wallet
+                    },
                     'item_count': len(cart_items)
                 }
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
-            logger.error(f"[PREVIEW_ERROR] Error generating order preview for user {request.user.username}: {str(e)}")
+            logger.error(f"[PREVIEW_ERROR] Error generating order preview for user {user_id}: {str(e)}")
             return Response({
                 'success': False,
                 'message': f'Error generating order preview: {str(e)}'

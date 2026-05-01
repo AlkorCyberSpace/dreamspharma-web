@@ -170,6 +170,58 @@ class APIToken(models.Model):
         ordering = ['-created_at']
 
 
+class Store(models.Model):
+    """Store locations with ERP integration details"""
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255, unique=True, help_text="Store name (e.g., DreamsPharma - Bangalore")
+    address = models.TextField(help_text="Full address of the store")
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    pincode = models.CharField(max_length=10)
+    
+    # GPS Location
+    latitude = models.FloatField(help_text="Store latitude")
+    longitude = models.FloatField(help_text="Store longitude")
+    
+    # ERP Integration
+    c2_code = models.CharField(max_length=20, unique=True, help_text="Unique C2 code for this store (e.g., 03C000)")
+    store_id = models.CharField(max_length=20, unique=True, help_text="Store ID for ERP (e.g., 001)")
+    prod_code = models.CharField(max_length=20, default="02", help_text="Production code for ERP")
+    security_key = models.CharField(max_length=255, help_text="Security key for ERP API calls")
+    
+    # Status & Contact
+    phone = models.CharField(max_length=15, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    manager_name = models.CharField(max_length=255, blank=True, null=True)
+    manager_phone = models.CharField(max_length=15, blank=True, null=True)
+    
+    is_active = models.BooleanField(default=True, help_text="Is this store active for orders")
+    is_primary = models.BooleanField(default=False, help_text="Primary/default store")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.name} (ID: {self.store_id})"
+    
+    def get_erp_config(self):
+        """Get ERP configuration for this store"""
+        return {
+            'c2_code': self.c2_code,
+            'store_id': self.store_id,
+            'prod_code': self.prod_code,
+            'security_key': self.security_key
+        }
+    
+    class Meta:
+        ordering = ['-is_primary', 'name']
+        verbose_name = "Store"
+        verbose_name_plural = "Stores"
+        indexes = [
+            models.Index(fields=['is_active', 'pincode']),
+        ]
+
+
 class ItemMaster(models.Model):
     """Product/Item master data"""
     item_code = models.CharField(max_length=50, unique=True, primary_key=True)
