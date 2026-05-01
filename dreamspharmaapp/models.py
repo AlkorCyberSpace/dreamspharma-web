@@ -5,6 +5,9 @@ from django.utils import timezone
 import random
 import string
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CustomUser(AbstractUser):
     ROLE_CHOICES = (
@@ -179,9 +182,9 @@ class Store(models.Model):
     state = models.CharField(max_length=100)
     pincode = models.CharField(max_length=10)
     
-    # GPS Location
-    latitude = models.FloatField(help_text="Store latitude")
-    longitude = models.FloatField(help_text="Store longitude")
+    # GPS Location (auto-geocoded from pincode if not provided)
+    latitude = models.FloatField(null=True, blank=True, help_text="Store latitude (auto-geocoded from pincode if not provided)")
+    longitude = models.FloatField(null=True, blank=True, help_text="Store longitude (auto-geocoded from pincode if not provided)")
     
     # ERP Integration
     c2_code = models.CharField(max_length=20, unique=True, help_text="Unique C2 code for this store (e.g., 03C000)")
@@ -212,6 +215,48 @@ class Store(models.Model):
             'prod_code': self.prod_code,
             'security_key': self.security_key
         }
+    
+    def auto_geocode_from_pincode(self):
+        """
+        Auto-geocode coordinates from pincode if latitude/longitude are missing
+        Uses forward geocoding with pincode to get coordinates
+        """
+        # Skip if coordinates already provided
+        if self.latitude and self.longitude:
+            return True
+        
+        # Skip if no pincode
+        if not self.pincode:
+            logger.warning(f"Store {self.name}: No pincode provided, cannot auto-geocode")
+            return False
+        
+        try:
+            from .geocoding import forward_geocode
+            
+            # Forward geocode using pincode
+            result = forward_geocode(
+                pincode=self.pincode,
+                city=self.city,
+                state=self.state
+            )
+            
+            self.latitude = result['latitude']
+            self.longitude = result['longitude']
+            
+            logger.info(f"Store {self.name}: Auto-geocoded from pincode {self.pincode} → ({self.latitude}, {self.longitude})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Store {self.name}: Auto-geocoding failed for pincode {self.pincode}: {str(e)}")
+            return False
+    
+    def save(self, *args, **kwargs):
+        """Override save to auto-geocode from pincode if coordinates missing"""
+        # Auto-geocode if coordinates are missing
+        if (not self.latitude or not self.longitude) and self.pincode:
+            self.auto_geocode_from_pincode()
+        
+        super().save(*args, **kwargs)
     
     class Meta:
         ordering = ['-is_primary', 'name']
