@@ -617,6 +617,10 @@ class CreateSalesOrderRequestSerializer(serializers.Serializer):
     # ==================== PAYMENT MODE ====================
     paymentMode = serializers.ChoiceField(choices=['COD', 'RAZORPAY'], required=False, default='COD', help_text="Payment mode: 'COD' (Cash on Delivery) or 'RAZORPAY'")
     
+    # ==================== WALLET ====================
+    use_wallet = serializers.BooleanField(required=False, default=False, help_text="Set true to apply wallet balance to this order")
+    wallet_amount = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0.00, help_text="Amount to deduct from wallet (leave 0 to auto-calculate from balance)")
+    
     def validate_materialInfo(self, value):
         """Validate materialInfo if provided"""
         if value and len(value) > 0:
