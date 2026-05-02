@@ -91,7 +91,7 @@ def send_push_notification(user, title, body, data=None):
 
 # ==================== INVOICE SYNC FROM ERP ====================
 
-def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=5):
+def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
     """
     Fetch invoice details from ERP server after sales order creation
     
@@ -105,7 +105,7 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=5):
         order_id: Order ID created in sales order
         c2_code: Customer C2 code
         store_id: Store identifier
-        max_retries: Maximum retry attempts (default 5, ~10 seconds total)
+        max_retries: Maximum retry attempts (default 10, ~60+ seconds total with exponential backoff)
     """
     try:
         from .models import SalesOrder, Invoice, InvoiceDetail
@@ -136,23 +136,25 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=5):
                 }
                 
                 logger.info(f"[INVOICE_SYNC] Attempting to fetch invoices | Order: {order_id} | Attempt: {retry_count + 1}/{max_retries}")
+                logger.debug(f"[INVOICE_SYNC] Request details | URL: {url} | Payload: {payload}")
                 
                 response = requests.get(url, params=payload, timeout=10)
                 
                 if response.status_code == 200:
                     data = response.json()
+                    logger.debug(f"[INVOICE_SYNC] ERP Response: {data}")
                     
                     if data.get('code') == '200':
                         invoices_data = data.get('invoices', [])
                         
                         if invoices_data:
-                            logger.info(f"[INVOICE_SYNC] ✓ SUCCESS | Found {len(invoices_data)} invoice(s) for order {order_id}")
+                            logger.info(f"[INVOICE_SYNC] [SUCCESS] Found {len(invoices_data)} invoice(s) for order {order_id}")
                             break
                         else:
                             logger.info(f"[INVOICE_SYNC] No invoices found yet | Order: {order_id} | Will retry...")
                     else:
                         logger.warning(f"[INVOICE_SYNC] ERP returned non-200 code: {data.get('code')} | Message: {data.get('message')}")
-                        break
+                        # Don't break - retry on non-200 code as ERP might still be processing
                 else:
                     logger.warning(f"[INVOICE_SYNC] HTTP {response.status_code} | Response: {response.text[:200]}")
             
@@ -165,14 +167,14 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=5):
             
             retry_count += 1
             if retry_count < max_retries and not invoices_data:
-                # Wait before retry (exponential backoff: 1s, 2s, 4s, etc.)
-                wait_time = min(2 ** retry_count, 8)  # Cap at 8 seconds
-                logger.info(f"[INVOICE_SYNC] Retrying in {wait_time}s...")
+                # Wait before retry (exponential backoff: 2s, 4s, 8s, 15s, 15s, ...)
+                wait_time = min(2 ** (retry_count + 1), 15)  # Cap at 15 seconds
+                logger.info(f"[INVOICE_SYNC] Retrying in {wait_time}s... (Attempt {retry_count}/{max_retries})")
                 time.sleep(wait_time)
         
         # Store invoices if found
         if not invoices_data:
-            logger.warning(f"[INVOICE_SYNC] No invoices found after {max_retries} attempts for order {order_id}")
+            logger.warning(f"[INVOICE_SYNC] No invoices found after {max_retries} attempts for order {order_id}. Will attempt manual sync later.")
             return False
         
         # Get the sales order

@@ -1909,7 +1909,7 @@ class CreateSalesOrderView(APIView):
                         erp_data = erp_response.json()
                         if erp_data.get('code') == '200':
                             logger.info(
-                                f"[ERP_SYNC] ✓ Order {sales_order.order_id} accepted by ERP | "
+                                f"[ERP_SYNC] [SUCCESS] Order {sales_order.order_id} accepted by ERP | "
                                 f"ERP documentPk: {erp_data.get('documentDetails', [{}])[0].get('documentPk')}"
                             )
                             erp_sync_success = True
@@ -2082,14 +2082,15 @@ class GetOrderStatusView(APIView):
     
     def get(self, request):
         # Parse request parameters
-        c2_code = request.query_params.get('c2Code')
-        store_id = request.query_params.get('storeId')
+        # c2Code and storeId default to backend settings (no need to send them)
+        c2_code = request.query_params.get('c2Code', settings.ERP_C2_CODE)
+        store_id = request.query_params.get('storeId', settings.ERP_STORE_ID)
         order_id = request.query_params.get('orderId')
         
-        if not all([c2_code, store_id, order_id]):
+        if not order_id:
             return Response({
                 'code': '400',
-                'message': 'Missing required parameters (c2Code, storeId, orderId)'
+                'message': 'Missing required parameter: orderId'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # 🎯 Use auto-generated token from background service
@@ -2690,19 +2691,8 @@ class AddToWishlistView(APIView):
                         'message': 'ERP service temporarily unavailable. Please try again.'
                     }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
                 
-                # Check stock availability BEFORE adding to wishlist
-                stock_status = get_item_stock_status(item_code)
-                if not stock_status['available']:
-                    logger.warning(f"User {user_id} tried to wishlist unavailable item {item_code} - Status: {stock_status['status']}")
-                    return Response({
-                        'success': False,
-                        'message': f'Item is {stock_status["status"]}',
-                        'status': stock_status['status'],
-                        'available_qty': stock_status['qty'],
-                        'is_expired': stock_status.get('is_expired')
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
                 # Update ItemMaster cache with fresh ERP data (essential fields only)
+                # NOTE: Out-of-stock items CAN be wishlisted - stock check happens at cart stage
                 item = update_itemmaster_cache(item_code, item_data)
                 
                 if not item:
@@ -2820,7 +2810,29 @@ class MoveToCartView(APIView):
                 'message': 'Item not found in wishlist'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Get or create cart and add item
+        # Check stock availability before moving to cart
+        quantity = serializer.validated_data.get('quantity', wishlist_item.quantity)
+        stock_status = get_item_stock_status(item_code)
+        
+        if not stock_status['available']:
+            logger.warning(f"User {request.user.id} tried to move unavailable item {item_code} from wishlist to cart - Status: {stock_status['status']}")
+            return Response({
+                'success': False,
+                'message': f'Cannot add to cart. Item is {stock_status["status"]}',
+                'status': stock_status['status'],
+                'available_qty': stock_status['qty'],
+                'is_expired': stock_status.get('is_expired')
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if requested quantity is available
+        if quantity > stock_status['qty']:
+            logger.warning(f"User {request.user.id} requested {quantity} units but only {stock_status['qty']} available for {item_code}")
+            return Response({
+                'success': False,
+                'message': f'Only {stock_status["qty"]} units available',
+                'requested': quantity,
+                'available_qty': stock_status['qty']
+            }, status=status.HTTP_400_BAD_REQUEST)
         cart, _ = Cart.objects.get_or_create(user=request.user)
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
@@ -5982,6 +5994,10 @@ class RetailerOrdersView(APIView):
             # ── Build items list ──
             items_data = []
             for order_item in order.items.all():
+                # Skip items with empty product codes
+                if not order_item.item_code or str(order_item.item_code).strip() == "":
+                    logger.debug(f"[RETAILER_ORDERS] Skipping order item {order_item.id} with empty code")
+                    continue
 
                 image_url = None
                 subheading = ""
@@ -6016,8 +6032,8 @@ class RetailerOrdersView(APIView):
                 except ItemMaster.DoesNotExist:
                     # Item not yet synced to local DB from ERP
                     logger.warning(
-                        f"[RETAILER_ORDERS] ItemMaster not found for: "
-                        f"{order_item.item_code}"
+                        f"[RETAILER_ORDERS] ItemMaster not found for code: {order_item.item_code} "
+                        f"(Order: {order.order_id})"
                     )
                 except Exception as e:
                     logger.error(
@@ -6434,12 +6450,17 @@ class RetailerCreditNoteCreateView(APIView):
                 'errors': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Auto-calculate amount from invoice if available
+        # Calculate amount: use sale_rate if provided, else auto-calculate from invoice
         amount = 0.00
-        invoice_ref = serializer.validated_data.get('reference_invoice')
+        sale_rate = serializer.validated_data.get('sale_rate', 0)
         qty_to_return = serializer.validated_data.get('quantity_to_return', 0)
+        invoice_ref = serializer.validated_data.get('reference_invoice')
         
-        if invoice_ref:
+        # Priority 1: If sale_rate is provided by frontend, use it
+        if sale_rate and qty_to_return:
+            amount = float(sale_rate) * qty_to_return
+        # Priority 2: Try to auto-calculate from invoice if available
+        elif invoice_ref:
             try:
                 invoice = Invoice.objects.filter(
                     sales_order__user_id=str(user_id)
@@ -7003,6 +7024,100 @@ class RetailerWalletView(APIView):
             'data': {
                 'balance': str(wallet.balance),
                 'transactions': transactions_data
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class ApplyWalletToOrderView(APIView):
+    """
+    POST /api/wallet/apply/<user_id>/
+    Apply wallet balance to an order during checkout
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id, role='RETAILER')
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Retailer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        order_id = request.data.get('order_id')
+        use_wallet = request.data.get('use_wallet', False)
+
+        if not order_id:
+            return Response({
+                'success': False,
+                'message': 'order_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            order = SalesOrder.objects.get(
+                order_id=order_id,
+                user_id=str(user_id)
+            )
+        except SalesOrder.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Order not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        from .models import RetailerWallet
+        wallet, _ = RetailerWallet.objects.get_or_create(retailer=user)
+
+        order_total = float(order.order_total)
+        wallet_balance = float(wallet.balance)
+
+        if not use_wallet or wallet_balance <= 0:
+            return Response({
+                'success': True,
+                'data': {
+                    'order_total': order_total,
+                    'wallet_balance': wallet_balance,
+                    'wallet_applied': 0,
+                    'amount_to_pay': order_total,
+                    'wallet_used': False
+                }
+            }, status=status.HTTP_200_OK)
+
+        # Calculate deduction
+        wallet_applied = min(wallet_balance, order_total)
+        amount_to_pay = max(0, order_total - wallet_applied)
+
+        # Deduct wallet
+        from .wallet_service import debit_wallet
+        result = debit_wallet(
+            retailer=user,
+            amount=wallet_applied,
+            source='ORDER_PAYMENT',
+            order=order,
+            description=f'Wallet used for order {order_id}'
+        )
+
+        if not result['success']:
+            return Response({
+                'success': False,
+                'message': result['error']
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(
+            f"[WALLET_ORDER] User: {user.username} | "
+            f"Order: {order_id} | "
+            f"Wallet Applied: ₹{wallet_applied} | "
+            f"Amount to Pay: ₹{amount_to_pay}"
+        )
+
+        return Response({
+            'success': True,
+            'data': {
+                'order_total': order_total,
+                'wallet_balance': wallet_balance,
+                'wallet_applied': wallet_applied,
+                'amount_to_pay': amount_to_pay,
+                'remaining_wallet_balance': float(result['new_balance']),
+                'wallet_used': True
             }
         }, status=status.HTTP_200_OK)
 
