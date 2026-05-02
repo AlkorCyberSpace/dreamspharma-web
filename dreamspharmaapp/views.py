@@ -1232,16 +1232,83 @@ class GetItemMasterView(APIView):
                         except ItemMaster.DoesNotExist:
                             pass
                 
-                logger.info(f"[GET_ITEM_MASTER] Fetched {len(items)} items from ERP server with product enhancements")
-                
+                total_count = len(items)
+                logger.info(f"[GET_ITEM_MASTER] Fetched {total_count} items from ERP server with product enhancements")
+
+                # ─────────────────────────────────────────────────────────────
+                # ✅ SERVER-SIDE PAGINATION
+                # The ERP returns all products at once. Django acts as the
+                # pagination layer so the Flutter app only receives ONE page.
+                #
+                # Accepted query params:
+                #   page      – 1-indexed page number  (default: 1)
+                #   page_size – items per page          (default: 10, max: 100)
+                #   pageSize  – alias for page_size     (Flutter convention)
+                #
+                # If neither param is supplied the full list is returned for
+                # backwards-compatibility (admin / legacy clients).
+                # ─────────────────────────────────────────────────────────────
+                raw_page      = request.query_params.get('page')
+                raw_page_size = request.query_params.get('page_size') or request.query_params.get('pageSize')
+
+                if raw_page is not None or raw_page_size is not None:
+                    # Validate and clamp values
+                    try:
+                        page = max(1, int(raw_page or 1))
+                    except (ValueError, TypeError):
+                        page = 1
+
+                    try:
+                        page_size = min(max(1, int(raw_page_size or 10)), 100)
+                    except (ValueError, TypeError):
+                        page_size = 10
+
+                    total_pages = (total_count + page_size - 1) // page_size  # ceiling division
+                    start       = (page - 1) * page_size
+                    end         = start + page_size
+                    paged_items = items[start:end]
+
+                    logger.info(
+                        f"[GET_ITEM_MASTER] Pagination → page={page}/{total_pages}, "
+                        f"page_size={page_size}, returning {len(paged_items)} items"
+                    )
+
+                    return Response({
+                        'code': '200',
+                        'type': 'getMasterData',
+                        'data': paged_items,
+                        'pagination': {
+                            'total_count':  total_count,
+                            'total_pages':  total_pages,
+                            'current_page': page,
+                            'page_size':    page_size,
+                            'has_next':     page < total_pages,
+                            'has_previous': page > 1,
+                        },
+                        'message': f'Page {page} of {total_pages} ({len(paged_items)} items)',
+                        'c2Code':   settings.ERP_C2_CODE,
+                        'storeId':  settings.ERP_STORE_ID,
+                        'prodCode': settings.ERP_PROD_CODE,
+                    }, status=status.HTTP_200_OK)
+
+                # No pagination params – return full list (legacy / admin use)
+                logger.info(f"[GET_ITEM_MASTER] No pagination params – returning all {total_count} items")
                 return Response({
                     'code': '200',
                     'type': 'getMasterData',
                     'data': items,
-                    'message': f'Fetched {len(items)} items from ERP server',
-                    'c2Code': settings.ERP_C2_CODE,
-                    'storeId': settings.ERP_STORE_ID,
-                    'prodCode': settings.ERP_PROD_CODE
+                    'pagination': {
+                        'total_count':  total_count,
+                        'total_pages':  1,
+                        'current_page': 1,
+                        'page_size':    total_count,
+                        'has_next':     False,
+                        'has_previous': False,
+                    },
+                    'message': f'Fetched {total_count} items from ERP server',
+                    'c2Code':   settings.ERP_C2_CODE,
+                    'storeId':  settings.ERP_STORE_ID,
+                    'prodCode': settings.ERP_PROD_CODE,
                 }, status=status.HTTP_200_OK)
             
             except requests.exceptions.ConnectionError:
