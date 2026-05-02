@@ -33,6 +33,23 @@ class CustomUser(AbstractUser):
 
     is_kyc_approved = models.BooleanField(default=False)
     first_login_otp_verified = models.BooleanField(default=False, help_text="Tracks if user has completed first login OTP verification")
+    
+    # Store preference (auto-selected at login from location)
+    preferred_store = models.ForeignKey(
+        'Store',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customers',
+        help_text="User's nearest/preferred store for orders"
+    )
+    
+    # Last known location
+    last_latitude = models.FloatField(null=True, blank=True, help_text="User's last GPS latitude")
+    last_longitude = models.FloatField(null=True, blank=True, help_text="User's last GPS longitude")
+    last_location_update = models.DateTimeField(null=True, blank=True)
+    location_pincode = models.CharField(max_length=6, null=True, blank=True, help_text="User's delivery pincode")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -267,6 +284,75 @@ class Store(models.Model):
         ]
 
 
+class ProductStore(models.Model):
+    """
+    Link products to stores with store-specific pricing and inventory.
+    CRITICAL for multi-store with different stock per store.
+    """
+    product = models.ForeignKey(
+        'ItemMaster',
+        on_delete=models.CASCADE,
+        related_name='store_variants'
+    )
+    store = models.ForeignKey(
+        Store,
+        on_delete=models.CASCADE,
+        related_name='products'
+    )
+    
+    # Store-specific pricing
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Price in this store (can vary by store)"
+    )
+    sale_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    
+    # Store-specific inventory (CRITICAL for concurrent users)
+    stock_quantity = models.IntegerField(
+        default=0,
+        help_text="Real-time stock count in this store"
+    )
+    reorder_level = models.IntegerField(
+        default=10,
+        help_text="Minimum stock threshold"
+    )
+    
+    # Availability
+    is_available = models.BooleanField(
+        default=True,
+        help_text="Can customers order this in this store?"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('product', 'store')  # One entry per product-store
+        indexes = [
+            models.Index(fields=['store', 'is_available']),
+            models.Index(fields=['product', 'store']),
+        ]
+        verbose_name = "Product Store Variant"
+        verbose_name_plural = "Product Store Variants"
+    
+    def __str__(self):
+        return f"{self.product.item_name} @ {self.store.name} - ₹{self.price}"
+    
+    def is_low_stock(self):
+        """Check if stock is below reorder level"""
+        return self.stock_quantity <= self.reorder_level
+    
+    def in_stock(self):
+        """Check if product is in stock and available"""
+        return self.stock_quantity > 0 and self.is_available
+
+
 class ItemMaster(models.Model):
     """Product/Item master data"""
     item_code = models.CharField(max_length=50, unique=True, primary_key=True)
@@ -443,7 +529,28 @@ class Address(models.Model):
 class SalesOrder(models.Model):
     """Sales Order document"""
     c2_code = models.CharField(max_length=20, blank=True, default='')
-    store_id = models.CharField(max_length=20, blank=True, default='')
+    store_id = models.CharField(max_length=20, blank=True, default='', help_text="ERP Store ID for API responses and ERP integration")
+    
+    # Link to Store model (NEW for multi-store)
+    fulfilling_store = models.ForeignKey(
+        Store,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='orders',
+        help_text="Which store fulfilled this order"
+    )
+    
+    # Order status tracking (NEW for production)
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
     order_id = models.CharField(max_length=100, unique=True)
     ip_no = models.CharField(max_length=100, blank=True, default='', help_text="Patient/Customer IP number")
     mobile_no = models.CharField(max_length=15, blank=True, default='')
@@ -485,6 +592,69 @@ class SalesOrder(models.Model):
     document_pk = models.CharField(max_length=100, unique=True, blank=True, null=True)
     bill_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     
+    # ==================== PRODUCTION FIELDS FOR 100+ CONCURRENT USERS ====================
+    
+    # Celery async task tracking (REPLACE daemon threads)
+    celery_task_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Celery task ID for async order processing"
+    )
+    task_started_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When async task started processing"
+    )
+    
+    # Invoice sync tracking (replace daemon thread polling)
+    invoice_sync_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending Invoice'),
+            ('syncing', 'Syncing with ERP'),
+            ('found', 'Invoice Found'),
+            ('failed', 'Sync Failed'),
+        ],
+        default='pending',
+        help_text="Status of invoice retrieval from ERP"
+    )
+    invoice_sync_attempts = models.IntegerField(
+        default=0,
+        help_text="Number of times tried to fetch invoice (auto-retry max 10)"
+    )
+    last_invoice_sync_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Last time invoice sync was attempted"
+    )
+    invoice_sync_error = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Error message if invoice sync failed"
+    )
+    
+    # Stock reservation tracking (metadata only - SELECT_FOR_UPDATE handles actual locking)
+    is_stock_reserved = models.BooleanField(
+        default=False,
+        help_text="Just metadata - actual locking handled by SELECT_FOR_UPDATE in checkout view"
+    )
+    reserved_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When stock reservation was attempted"
+    )
+    
+    # Confirmation tracking
+    confirmation_email_sent = models.BooleanField(
+        default=False,
+        help_text="Whether order confirmation email was sent"
+    )
+    email_sent_at = models.DateTimeField(
+        blank=True,
+        null=True
+    )
+    
     def save(self, *args, **kwargs):
         """Auto-generate order_id if not provided"""
         if not self.order_id:
@@ -494,8 +664,28 @@ class SalesOrder(models.Model):
     def __str__(self):
         return f"Order {self.order_id} - {self.patient_name}"
     
+    def is_invoice_pending(self):
+        """Check if invoice sync is still pending"""
+        return self.invoice_sync_status == 'pending' and self.invoice_sync_attempts < 10
+    
     class Meta:
         ordering = ['-ord_date', '-ord_time']
+        # ✅ Indexes for 100+ concurrent users
+        indexes = [
+            models.Index(fields=['status', 'created_at']),      # Track pending orders
+            models.Index(fields=['fulfilling_store', 'status']),            # Orders by store
+            models.Index(fields=['user_id', 'created_at']),      # User's orders
+            models.Index(fields=['invoice_sync_status']),        # Find pending invoices
+            models.Index(fields=['is_stock_reserved']),          # Track reservations
+            models.Index(fields=['c2_code', 'store_id', 'order_id']),  # ERP lookup
+        ]
+        # Prevent order duplicates (retry protection)
+        constraints = [
+            models.UniqueConstraint(
+                fields=['order_id', 'c2_code'],
+                name='unique_order_per_erp_store'
+            )
+        ]
 
 
 class SalesOrderItem(models.Model):
@@ -569,9 +759,100 @@ class InvoiceDetail(models.Model):
     
     def __str__(self):
         return f"{self.product_name} (Invoice: {self.invoice.doc_no})"
+
+
+class InvoiceSyncLog(models.Model):
+    """
+    ✅ REPLACE DAEMON THREADS: Track invoice polling attempts
+    Instead of spawning 100+ daemon threads (memory intensive),
+    use Celery tasks to poll invoices async every 5 minutes
+    """
+    sales_order = models.ForeignKey(
+        SalesOrder,
+        on_delete=models.CASCADE,
+        related_name='invoice_sync_logs'
+    )
+    
+    attempt_number = models.IntegerField(help_text="Which attempt (1-10)")
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('checking', 'Checking ERP'),
+            ('found', 'Invoice Found'),
+            ('not_ready', 'Not Ready Yet'),
+            ('failed', 'Failed'),
+        ],
+        default='pending'
+    )
+    celery_task_id = models.CharField(max_length=255, blank=True, null=True)
+    error_message = models.TextField(blank=True, null=True)
+    
+    checked_at = models.DateTimeField(auto_now_add=True)
+    next_check_at = models.DateTimeField(
+        help_text="When to check again (exponential backoff: 5min, 10min, 20min...)"
+    )
+    
+    def __str__(self):
+        return f"Invoice sync attempt #{self.attempt_number} for order {self.sales_order.order_id}"
     
     class Meta:
-        ordering = ['id']
+        ordering = ['sales_order', 'attempt_number']
+        indexes = [
+            models.Index(fields=['status', 'next_check_at']),  # Find orders ready to retry
+            models.Index(fields=['sales_order']),
+        ]
+
+
+class ProductCache(models.Model):
+    """
+    ✅ CACHE ERP PRODUCTS: Reduce API calls to ERP from 100+ per minute to 1 every 5-10 min
+    Instead of updating on every product view,
+    cache ERP data and update periodically via Celery task
+    """
+    item_code = models.CharField(max_length=50, unique=True)
+    store = models.ForeignKey(
+        Store,
+        on_delete=models.CASCADE,
+        related_name='product_cache'
+    )
+    
+    # Cached ERP data
+    item_name = models.CharField(max_length=255)
+    mrp = models.DecimalField(max_digits=10, decimal_places=2)
+    std_disc = models.DecimalField(max_digits=5, decimal_places=2)
+    stock_qty = models.IntegerField(default=0)
+    
+    # Cache metadata
+    cached_at = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField(
+        help_text="When this cache entry expires (5-10 min TTL)"
+    )
+    is_valid = models.BooleanField(
+        default=True,
+        help_text="Whether this cache is still valid"
+    )
+    
+    def is_expired(self):
+        """Check if cache has expired"""
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+    
+    def __str__(self):
+        return f"{self.item_name} @ {self.store.name}"
+    
+    class Meta:
+        ordering = ['-cached_at']
+        indexes = [
+            models.Index(fields=['store', 'is_valid', 'expires_at']),  # Find valid cache
+            models.Index(fields=['item_code', 'store']),  # Fast product lookup
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['item_code', 'store'],
+                name='unique_product_per_store_cache'
+            )
+        ]
 
 
 # ==================== CART & WISHLIST MODELS ====================
@@ -624,6 +905,8 @@ class CartItem(models.Model):
     batch_no = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # ✅ Optimistic locking to prevent race conditions in cart updates
+    version = models.IntegerField(default=1, help_text="Version for optimistic locking")
     
     def get_item_total_mrp(self):
         """Calculate total MRP for this item"""
@@ -651,6 +934,9 @@ class CartItem(models.Model):
     class Meta:
         unique_together = ('cart', 'item')
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['cart', 'updated_at']),  # Fast cart item queries
+        ]
     
     def __str__(self):
         return f"{self.item.item_name} x {self.quantity}"
@@ -973,10 +1259,28 @@ class RetailerWallet(models.Model):
         decimal_places=2,
         default=0.00
     )
+    # ✅ Prevent race conditions on wallet updates (100+ concurrent users)
+    version = models.IntegerField(
+        default=1,
+        help_text="Version for optimistic locking on concurrent wallet updates"
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.retailer.username} - ₹{self.balance}"
+    
+    class Meta:
+        # ✅ Ensure wallet balance consistency
+        constraints = [
+            models.UniqueConstraint(
+                fields=['retailer'],
+                name='one_wallet_per_user'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['retailer']),
+            models.Index(fields=['balance']),
+        ]
 
 
 class WalletTransaction(models.Model):

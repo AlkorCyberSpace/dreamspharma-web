@@ -93,8 +93,11 @@ def extract_location_from_request(request):
             return latitude, longitude
     
     # ✅ METHOD 3: Try query parameters (GET)
-    latitude = request.query_params.get('latitude')
-    longitude = request.query_params.get('longitude')
+    # Use request.GET for raw WSGI requests (middleware compatibility)
+    # request.query_params is only available in DRF views
+    query_params = getattr(request, 'query_params', None) or request.GET
+    latitude = query_params.get('latitude')
+    longitude = query_params.get('longitude')
     if latitude and longitude:
         logger.debug(f"[LOCATION] Extracted from query: lat={latitude}, lon={longitude}")
         return latitude, longitude
