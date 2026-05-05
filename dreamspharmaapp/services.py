@@ -237,21 +237,21 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                     except Exception as e:
                         logger.error(f"[INVOICE_SYNC] Failed to store line item: {str(e)}")
                 
-                logger.info(f"[INVOICE_SYNC] ✓ Invoice stored | DocNo: {doc_no} | Items: {len(details)}")
+                logger.info(f"[INVOICE_SYNC] [OK] Invoice stored | DocNo: {doc_no} | Items: {len(details)}")
                 stored_count += 1
                 
             except Exception as e:
                 logger.error(f"[INVOICE_SYNC] Failed to store invoice: {str(e)}")
         
         if stored_count > 0:
-            logger.info(f"[INVOICE_SYNC] ✓ COMPLETE | Stored {stored_count} invoice(s) for order {order_id}")
+            logger.info(f"[INVOICE_SYNC] [OK] COMPLETE | Stored {stored_count} invoice(s) for order {order_id}")
             return True
         else:
             logger.warning(f"[INVOICE_SYNC] Failed to store any invoices for order {order_id}")
             return False
     
     except Exception as e:
-        logger.error(f"[INVOICE_SYNC] ✗ FAILED | Order: {order_id} | Error: {str(e)}")
+        logger.error(f"[INVOICE_SYNC] [FAIL] FAILED | Order: {order_id} | Error: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
         return False
@@ -310,7 +310,7 @@ def fetch_order_status_from_erp(order_id, c2_code, store_id):
         if response.status_code == 200:
             data = response.json()
             if data.get('code') == '200':
-                logger.info(f"[ORDER_STATUS] ✓ Successfully fetched order {order_id}")
+                logger.info(f"[ORDER_STATUS] [OK] Successfully fetched order {order_id}")
                 return data
             else:
                 logger.warning(f"[ORDER_STATUS] ERP error: {data.get('message')}")

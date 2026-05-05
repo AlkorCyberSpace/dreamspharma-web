@@ -1059,7 +1059,7 @@ class TokenRefreshView(APIView):
 
 class GenerateTokenView(APIView):
     """
-    ⚠️ DEPRECATED - Use auto-generated token instead!
+    [DEPRECATED] Use auto-generated token instead!
     
     This endpoint is NO LONGER NEEDED
     Tokens are now automatically generated and cached in the background
@@ -1072,7 +1072,7 @@ class GenerateTokenView(APIView):
         return Response({
             'code': '200',
             'type': 'generateToken',
-            'message': '⚠️ DEPRECATED: Token generation is now automatic. No manual call needed.',
+            'message': '[DEPRECATED] Token generation is now automatic. No manual call needed.',
             'note': 'All ERP endpoints auto-generate tokens in background.',
             'apiKey': 'AUTO_GENERATED_BY_BACKEND'
         }, status=status.HTTP_200_OK)
@@ -1125,7 +1125,7 @@ class GetItemMasterView(APIView):
                     'message': 'ERP service temporarily unavailable - token generation failed'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            logger.info(f"[GET_ITEM_MASTER] ✓ Token generated for store {erp_config['store_id']}")
+            logger.info(f"[GET_ITEM_MASTER] [OK] Token generated for store {erp_config['store_id']}")
             
             try:
                 # FETCH DIRECTLY FROM ERP SERVER
@@ -1550,7 +1550,7 @@ class FetchStockView(APIView):
                     'message': 'ERP service temporarily unavailable - token generation failed'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            logger.info(f"[FETCH_STOCK] ✓ Token generated for store {erp_config['store_id']}")
+            logger.info(f"[FETCH_STOCK] [OK] Token generated for store {erp_config['store_id']}")
             
             try:
                 # FETCH DIRECTLY FROM ERP SERVER (real-time stock data)
@@ -2263,7 +2263,7 @@ class GetOrderStatusView(APIView):
                 if sync_success:
                     # Retrieve invoices again after sync
                     invoices = Invoice.objects.filter(sales_order=sales_order)
-                    logger.info(f"[ORDER_STATUS] ✓ Successfully synced {invoices.count()} invoice(s)")
+                    logger.info(f"[ORDER_STATUS] [OK] Successfully synced {invoices.count()} invoice(s)")
                 else:
                     logger.warning(f"[ORDER_STATUS] Failed to sync invoices from ERP for order {order_id}")
             
@@ -2284,7 +2284,7 @@ class GetOrderStatusView(APIView):
             response_data['invoices'] = invoice_serializer.data
             
             # Log successful retrieval
-            logger.info(f"[ORDER_STATUS] ✓ Retrieved order status | Order: {order_id} | Invoices: {invoices.count()}")
+            logger.info(f"[ORDER_STATUS] [OK] Retrieved order status | Order: {order_id} | Invoices: {invoices.count()}")
             
             return Response(response_data, status=status.HTTP_200_OK)
         

@@ -65,7 +65,7 @@ def generate_erp_token_for_store(store_config):
             if data.get('code') == '200' and data.get('apiKey'):
                 token = data.get('apiKey')
                 logger.info(
-                    f"[ERP_TOKEN] [STORE {store_config['store_id']}] ✓ Token generated successfully"
+                    f"[ERP_TOKEN] [STORE {store_config['store_id']}] [OK] Token generated successfully"
                 )
                 return {
                     'token': token,
@@ -74,23 +74,23 @@ def generate_erp_token_for_store(store_config):
                 }
             else:
                 logger.error(
-                    f"[ERP_TOKEN] [STORE {store_config['store_id']}] ✗ ERP error: {data.get('message')}"
+                    f"[ERP_TOKEN] [STORE {store_config['store_id']}] [FAIL] ERP error: {data.get('message')}"
                 )
                 return None
         else:
             logger.error(
-                f"[ERP_TOKEN] [STORE {store_config['store_id']}] ✗ HTTP {response.status_code}"
+                f"[ERP_TOKEN] [STORE {store_config['store_id']}] [FAIL] HTTP {response.status_code}"
             )
             return None
             
     except requests.exceptions.Timeout:
-        logger.error(f"[ERP_TOKEN] [STORE {store_config['store_id']}] ✗ Timeout")
+        logger.error(f"[ERP_TOKEN] [STORE {store_config['store_id']}] [FAIL] Timeout")
         return None
     except requests.exceptions.ConnectionError:
-        logger.error(f"[ERP_TOKEN] [STORE {store_config['store_id']}] ✗ Connection failed")
+        logger.error(f"[ERP_TOKEN] [STORE {store_config['store_id']}] [FAIL] Connection failed")
         return None
     except Exception as e:
-        logger.error(f"[ERP_TOKEN] [STORE {store_config['store_id']}] ✗ Error: {str(e)}")
+        logger.error(f"[ERP_TOKEN] [STORE {store_config['store_id']}] [FAIL] Error: {str(e)}")
         return None
 
 
@@ -137,7 +137,7 @@ def get_cached_erp_token_for_store(store_config):
             expiry_time = datetime.fromisoformat(cached_expiry)
             if timezone.now() < (expiry_time - timedelta(hours=1)):
                 logger.info(
-                    f"[ERP_TOKEN] [STORE {store_id}] ✓ Using cached token "
+                    f"[ERP_TOKEN] [STORE {store_id}] [OK] Using cached token "
                     f"(valid until {cached_expiry})"
                 )
                 return cached_token
@@ -157,10 +157,10 @@ def get_cached_erp_token_for_store(store_config):
         cache.set(cache_key, token, cache_timeout)
         cache.set(expiry_key, new_expiry.isoformat(), cache_timeout)
         
-        logger.info(f"[ERP_TOKEN] [STORE {store_id}] ✓ Cached new token for 24 hours")
+        logger.info(f"[ERP_TOKEN] [STORE {store_id}] [OK] Cached new token for 24 hours")
         return token
     
-    logger.warning(f"[ERP_TOKEN] [STORE {store_id}] ✗ Failed to generate new token")
+    logger.warning(f"[ERP_TOKEN] [STORE {store_id}] [FAIL] Failed to generate new token")
     return None
 
 
@@ -251,12 +251,12 @@ def refresh_erp_token_for_store(store_config):
         save_token_to_db(store_config, token)
         
         logger.info(
-            f"[ERP_TOKEN] [REFRESH] ✓ Token refresh successful for store {store_id}"
+            f"[ERP_TOKEN] [REFRESH] [OK] Token refresh successful for store {store_id}"
         )
         return True
     else:
         logger.error(
-            f"[ERP_TOKEN] [REFRESH] ✗ Token refresh failed for store {store_config['store_id']}"
+            f"[ERP_TOKEN] [REFRESH] [FAIL] Token refresh failed for store {store_config['store_id']}"
         )
         return False
 
@@ -347,7 +347,7 @@ def get_erp_token_for_store_config(store_config):
     
     logger.critical(
         f"[ERP_TOKEN] [STORE {store_config['store_id']}] "
-        f"⚠️ CRITICAL: No valid token available!"
+        f"[CRITICAL] No valid token available!"
     )
     return None
 
@@ -399,9 +399,9 @@ def initialize_erp_token():
             # Initialize fallback single-store token
             token = get_cached_erp_token()
             if token:
-                logger.info(f"[ERP_TOKEN] [INIT] ✓ Fallback token initialized")
+                logger.info(f"[ERP_TOKEN] [INIT] [OK] Fallback token initialized")
             else:
-                logger.error(f"[ERP_TOKEN] [INIT] ✗ Failed to initialize fallback token")
+                logger.error(f"[ERP_TOKEN] [INIT] [FAIL] Failed to initialize fallback token")
             return
         
         # Generate tokens for each store
@@ -420,14 +420,14 @@ def initialize_erp_token():
             token = get_cached_erp_token_for_store(store_config)
             if token:
                 success_count += 1
-                logger.info(f"[ERP_TOKEN] [INIT] ✓ Store {store.store_id} token ready")
+                logger.info(f"[ERP_TOKEN] [INIT] [OK] Store {store.store_id} token ready")
             else:
                 fail_count += 1
-                logger.error(f"[ERP_TOKEN] [INIT] ✗ Failed to initialize token for store {store.store_id}")
+                logger.error(f"[ERP_TOKEN] [INIT] [FAIL] Failed to initialize token for store {store.store_id}")
         
         logger.info(
             f"[ERP_TOKEN] [INIT] Initialization complete: "
-            f"{success_count} stores ✓, {fail_count} stores ✗"
+            f"{success_count} stores OK, {fail_count} stores FAIL"
         )
         
     except Exception as e:

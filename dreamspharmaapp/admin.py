@@ -26,7 +26,7 @@ class StoreAdmin(admin.ModelAdmin):
         }),
         ('ERP Configuration', {
             'fields': ('c2_code', 'store_id', 'prod_code', 'security_key'),
-            'description': '⚠️ Keep these values secure - obtained from ERP provider'
+            'description': '[IMPORTANT] Keep these values secure - obtained from ERP provider'
         }),
         ('Contact Information', {
             'fields': ('phone', 'email', 'manager_name', 'manager_phone')

@@ -237,7 +237,7 @@ def get_store_context(request, required=True):
         # Find nearest store for location
         store_ctx = get_store_context_from_location(latitude, longitude)
         
-        logger.info(f"[STORE_CONTEXT] ✓ Store context ready: {store_ctx.to_dict()}")
+        logger.info(f"[STORE_CONTEXT] [OK] Store context ready: {store_ctx.to_dict()}")
         return store_ctx
         
     except StoreContextError:
