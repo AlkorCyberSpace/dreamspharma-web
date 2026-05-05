@@ -17,6 +17,24 @@ from .serializers import (
 from .store_manager import StoreLocationManager
 
 
+
+
+
+
+class AdminStoreViewSet(viewsets.ModelViewSet):
+    """
+    Admin CRUD operations for Stores/Warehouses
+    """
+    queryset = Store.objects.all().order_by('-is_primary', 'name')
+    serializer_class = StoreSerializer
+    # Replace IsSuperAdmin with IsAuthenticated and manual check if IsSuperAdmin doesn't exist
+    permission_classes = [IsAuthenticated]
+    
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not request.user.role == 'SUPERADMIN':
+            self.permission_denied(request, message="Only SuperAdmins can manage warehouses/stores.")
+
 class StoreViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Store management
