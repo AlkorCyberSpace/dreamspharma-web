@@ -8,7 +8,8 @@ from .store_views import (
     find_nearby_stores,
     get_store_details,
     get_store_erp_config,
-    StoreViewSet
+    StoreViewSet,
+    AdminStoreViewSet
 )
 from .notification_views import (
     RetailerNotificationsListView,
@@ -20,6 +21,10 @@ from .invoice_views import InvoiceDownloadView
 
 urlpatterns = [
     # ==================== STORE ENDPOINTS ====================
+    # Admin Store / Warehouse CRUD
+    path('admin/warehouses/', AdminStoreViewSet.as_view({'get': 'list', 'post': 'create'}), name='admin-warehouses-list'),
+    path('admin/warehouses/<int:pk>/', AdminStoreViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='admin-warehouses-detail'),
+
     path('stores/', StoreViewSet.as_view({'get': 'list'}), name='stores-list'),
     path('stores/<int:pk>/', StoreViewSet.as_view({'get': 'retrieve'}), name='stores-detail'),
     path('stores/find-nearest/', find_nearest_store, name='find-nearest-store'),

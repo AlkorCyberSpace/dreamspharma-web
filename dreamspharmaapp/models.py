@@ -1189,6 +1189,15 @@ class CreditNote(models.Model):
     reference_invoice = models.CharField(max_length=100, blank=True)
     order_id = models.CharField(max_length=100, blank=True)
     
+    # Store where the return/credit applies
+    store = models.ForeignKey(
+        Store,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='credit_notes'
+    )
+    
     # Product details
     product_name = models.CharField(max_length=255)
     item_code = models.CharField(max_length=50, blank=True)

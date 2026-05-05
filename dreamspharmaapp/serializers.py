@@ -2118,6 +2118,17 @@ class CreditNoteCreateSerializer(serializers.ModelSerializer):
         # Only calculate amount if sale_rate is provided (frontend can also send amount directly)
         if sale_rate and qty_to_return:
             validated_data['amount'] = sale_rate * qty_to_return
+            
+        # Auto-assign store based on the order_id
+        order_id = validated_data.get('order_id')
+        if order_id:
+            from .models import SalesOrder
+            try:
+                order = SalesOrder.objects.get(order_id=order_id)
+                if order.fulfilling_store:
+                    validated_data['store'] = order.fulfilling_store
+            except SalesOrder.DoesNotExist:
+                pass
         
         return super().create(validated_data)
 
@@ -2129,6 +2140,8 @@ class CreditNoteListSerializer(serializers.ModelSerializer):
         read_only=True
     )
     shop_name = serializers.SerializerMethodField()
+    store_name = serializers.CharField(source='store.name', read_only=True)
+    store_id = serializers.CharField(source='store.store_id', read_only=True)
     status_display = serializers.CharField(
         source='get_status_display', 
         read_only=True
@@ -2142,6 +2155,7 @@ class CreditNoteListSerializer(serializers.ModelSerializer):
         model = CreditNote
         fields = [
             'id', 'credit_note_id', 'retailer_name', 'shop_name',
+            'store_id', 'store_name',
             'reference_invoice', 'order_id', 'product_name',
             'quantity', 'quantity_to_return', 'sale_rate', 'amount',
             'reason', 'reason_display', 'status', 'status_display',
@@ -2163,6 +2177,8 @@ class CreditNoteDetailSerializer(serializers.ModelSerializer):
         read_only=True
     )
     shop_name = serializers.SerializerMethodField()
+    store_name = serializers.CharField(source='store.name', read_only=True)
+    store_erp_id = serializers.CharField(source='store.store_id', read_only=True)
     reviewed_by_name = serializers.CharField(
         source='reviewed_by.username', 
         read_only=True,
@@ -2174,6 +2190,7 @@ class CreditNoteDetailSerializer(serializers.ModelSerializer):
         model = CreditNote
         fields = [
             'id', 'credit_note_id', 'retailer_name', 'shop_name',
+            'store', 'store_name', 'store_erp_id',
             'reference_invoice', 'order_id', 'product_name',
             'item_code', 'quantity', 'quantity_to_return', 'sale_rate', 'amount',
             'reason', 'additional_notes', 'upload_image_url',

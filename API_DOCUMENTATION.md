@@ -600,3 +600,130 @@ CreditNote ──N:1── CustomUser
 ---
 
 *Generated: 2026-05-04 | DreamsPharma Backend v1.0*
+
+## 18. CRITICAL cURL & RESPONSE EXAMPLES (MULTI-STORE INTEGRATION)
+
+Here are the exact cURL commands and expected JSON responses for the core multi-store flow. These are the most critical endpoints for the frontend to implement correctly.
+
+### A. Find Nearest Store (Run First)
+**cURL:**
+```bash
+curl -X POST "http://127.0.0.1:8000/api/stores/find-nearest/" \
+-H "Content-Type: application/json" \
+-d '{
+  "latitude": 12.93,
+  "longitude": 77.62
+}'
+```
+**Response:**
+```json
+{
+  "success": true,
+  "store": {
+    "store_id": 2,
+    "store_name": "DreamsPharma - Koramangala",
+    "distance": 0.76,
+    "c2_code": "03C001",
+    "erp_store_id": "002"
+  }
+}
+```
+
+### B. Get Products (Store-Specific)
+**cURL:**
+```bash
+curl -X GET "http://127.0.0.1:8000/api/erp/ws_c2_services_get_master_data?storeId=002&page=1&pageSize=10"
+```
+**Response:**
+```json
+{
+  "code": "200",
+  "storeId": "002",
+  "storeName": "Mumbai Branch",
+  "data": [
+    {
+      "c_item_code": "IT001",
+      "itemName": "Paracetamol 500mg",
+      "mrp": 25.50,
+      "std_disc": 10.0,
+      "stockBalQty": 100,
+      "expiryDate": "2027-06-15"
+    }
+  ],
+  "pagination": { "page": 1, "pageSize": 10, "totalItems": 28, "totalPages": 3 }
+}
+```
+
+### C. Add to Cart (Store-Specific)
+**cURL:**
+```bash
+curl -X POST "http://127.0.0.1:8000/api/cart/add/1/" \
+-H "Content-Type: application/json" \
+-d '{
+  "itemCode": "IT001",
+  "quantity": 2,
+  "storeId": "002"
+}'
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Paracetamol 500mg added to cart",
+  "data": {
+    "id": 1,
+    "itemCode": "IT001",
+    "quantity": 2,
+    "availability": "In Stock"
+  }
+}
+```
+
+### D. Add to Wishlist (Store-Specific)
+**cURL:**
+```bash
+curl -X POST "http://127.0.0.1:8000/api/wishlist/add/1/" \
+-H "Content-Type: application/json" \
+-d '{
+  "itemCode": "IT001",
+  "storeId": "002"
+}'
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Added to wishlist"
+}
+```
+
+### E. Create Sales Order (Checkout to ERP)
+**cURL:**
+```bash
+curl -X POST "http://127.0.0.1:8000/api/erp/ws_c2_services_create_sale_order" \
+-H "Content-Type: application/json" \
+-d '{
+  "storeId": "002",
+  "paymentMode": "COD",
+  "mobileNo": "9876543210",
+  "patientName": "John Doe",
+  "orderTotal": 74.90,
+  "use_wallet": false,
+  "materialInfo": [
+    {
+      "item_code": "IT001",
+      "total_loose_qty": 2,
+      "sale_rate": 22.95,
+      "disc_per": 10.0
+    }
+  ]
+}'
+```
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Order created successfully",
+  "order_id": "ORD-20260505-8A7B6C5D"
+}
+```
