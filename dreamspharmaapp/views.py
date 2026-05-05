@@ -2398,6 +2398,7 @@ class AddToCartView(APIView):
         item_code = serializer.validated_data['itemCode']
         quantity = serializer.validated_data.get('quantity', 1)
         batch_no = serializer.validated_data.get('batchNo')
+        store_id = serializer.validated_data.get('storeId')
         # [UPDATED] Token now auto-generated - no need for apiKey from request
         
         # Get user from database
@@ -2408,6 +2409,9 @@ class AddToCartView(APIView):
                 'success': False,
                 'message': 'User not found'
             }, status=status.HTTP_404_NOT_FOUND)
+            
+        if not store_id and user.preferred_store:
+            store_id = user.preferred_store.store_id
         
         # ✅ FIX #3: ATOMIC TRANSACTION - Prevents race condition overselling
         try:
@@ -2420,7 +2424,7 @@ class AddToCartView(APIView):
                     stock_record = None
                 
                 # Fetch fresh item details from ERP - REQUIRED, no fallback
-                item_data = fetch_item_from_erp(item_code)
+                item_data = fetch_item_from_erp(item_code, store_id=store_id)
                 
                 if not item_data:
                     return Response({
@@ -2438,7 +2442,7 @@ class AddToCartView(APIView):
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
                 # Check stock availability - CRITICAL for pharmacy (includes expiry check)
-                stock_status = get_item_stock_status(item_code)
+                stock_status = get_item_stock_status(item_code, store_id=store_id)
                 if not stock_status['available']:
                     logger.warning(f"User {user_id} tried to add unavailable item {item_code} - Status: {stock_status['status']}")
                     return Response({
@@ -2815,13 +2819,18 @@ class AddToWishlistView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         item_code = serializer.validated_data['itemCode']
+        store_id = serializer.validated_data.get('storeId')
+        
+        if not store_id and user.preferred_store:
+            store_id = user.preferred_store.store_id
+            
         # [UPDATED] Token now auto-generated - no need for apiKey from request
         
         # ✅ FIX #3: ATOMIC TRANSACTION - Prevents race conditions
         try:
             with transaction.atomic():
                 # Fetch fresh item details from ERP - REQUIRED, no fallback
-                item_data = fetch_item_from_erp(item_code)
+                item_data = fetch_item_from_erp(item_code, store_id=store_id)
                 
                 if not item_data:
                     return Response({
@@ -3605,23 +3614,38 @@ class LogSearchView(APIView):
 
 # ==================== ERP FETCH UTILITIES ====================
 
-def fetch_item_from_erp(item_code):
+def fetch_item_from_erp(item_code, store_id=None):
     """
     Fetch a specific item from ERP endpoint
     Returns item data dict or None if not found
     ALWAYS FRESH - no cache used here
-    [UPDATED] Now uses auto-generated token automatically
+    [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        from .erp_token_service import get_erp_token_for_request
-        api_key = get_erp_token_for_request()
+        from .erp_token_service import get_erp_token_for_request, get_erp_token_for_store_config
+        from .erp_service import ERPService
+        
+        if store_id:
+            store_info = ERPService.get_config_by_store_id(store_id)
+            if not store_info:
+                store_info = ERPService._get_fallback_config()
+            erp_config = store_info['erp_config']
+            api_key = get_erp_token_for_store_config(erp_config)
+            params = {
+                'apiKey': api_key,
+                'c2Code': erp_config['c2_code'],
+                'storeId': erp_config['store_id']
+            }
+        else:
+            api_key = get_erp_token_for_request()
+            params = {'apiKey': api_key}
+            
         if not api_key:
             logger.error("Could not get auto-generated token")
             return None
         
         # Fetch all items from ERP
         erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_get_master_data"
-        params = {'apiKey': api_key}
         
         response = requests.get(erp_url, params=params, timeout=10)
         response.raise_for_status()
@@ -3729,17 +3753,17 @@ def update_itemmaster_cache(item_code, item_data):
         return None
 
 
-def get_item_stock_status(item_code):
+def get_item_stock_status(item_code, store_id=None):
     """
     Fetch stock availability status for item from ERP
     CRITICAL CHECKS:
     - Stock quantity > 0
     - Expiry date not passed
     Always fresh - no caching
-    [UPDATED] Now uses auto-generated token automatically
+    [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        item_data = fetch_item_from_erp(item_code)
+        item_data = fetch_item_from_erp(item_code, store_id=store_id)
         if not item_data:
             return {'available': False, 'status': 'Not found in ERP', 'qty': 0, 'is_expired': False, 'expiry_date': None}
         

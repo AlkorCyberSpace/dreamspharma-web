@@ -926,6 +926,7 @@ class AddToCartSerializer(serializers.Serializer):
     itemCode = serializers.CharField(max_length=50, min_length=1)
     quantity = serializers.IntegerField(min_value=1, max_value=100, default=1)
     batchNo = serializers.CharField(required=False, allow_null=True)
+    storeId = serializers.CharField(required=False, allow_null=True, allow_blank=True, help_text="Store ID to check specific stock")
     
     def validate_quantity(self, value):
         """Validate quantity is reasonable to prevent spam orders"""
@@ -1035,6 +1036,7 @@ class WishlistSerializer(serializers.ModelSerializer):
 class AddToWishlistSerializer(serializers.Serializer):
     """Serializer for adding item to wishlist"""
     itemCode = serializers.CharField()
+    storeId = serializers.CharField(required=False, allow_null=True, allow_blank=True, help_text="Store ID for specific store details")
 
 
 class MoveToCartSerializer(serializers.Serializer):
