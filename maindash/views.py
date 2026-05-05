@@ -1442,7 +1442,7 @@ class SuperAdminOrdersView(APIView):
 
         orders = SalesOrder.objects.prefetch_related(
             'items', 'payments'
-        ).order_by('-created_at')
+        ).select_related('fulfilling_store').order_by('-created_at')
 
         # Filter by conversion status (maps to frontend status labels)
         if status_filter:
@@ -1562,6 +1562,8 @@ class SuperAdminOrdersView(APIView):
                 'payment_status': payment_status,
                 'status': order_status,
                 'erpRef': order.document_pk or f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else '',
+                'store_name': order.fulfilling_store.name if order.fulfilling_store else 'Unknown Store',
+                'store_id': order.fulfilling_store.store_id if order.fulfilling_store else None,
                 'detailedTimeline': timeline,
                 'detailedItems': items_data,
             })

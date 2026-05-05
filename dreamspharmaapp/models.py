@@ -56,7 +56,7 @@ class CustomUser(AbstractUser):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(email__isnull=False) | models.Q(phone_number__isnull=False),
+                check=models.Q(email__isnull=False) | models.Q(phone_number__isnull=False),
                 name='email_or_phone_required'
             )
         ]

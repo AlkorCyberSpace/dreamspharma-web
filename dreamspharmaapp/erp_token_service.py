@@ -383,6 +383,13 @@ def initialize_erp_token():
                 from .erp_token_service import initialize_erp_token
                 initialize_erp_token()
     """
+    from django.apps import apps
+    
+    # Only initialize if Django apps are fully loaded
+    if not apps.ready:
+        logger.warning(f"[ERP_TOKEN] [INIT] Django apps not ready, deferring initialization...")
+        return
+    
     logger.info(f"[ERP_TOKEN] [INIT] Initializing multi-store ERP token service...")
     
     try:
