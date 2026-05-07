@@ -16,6 +16,19 @@ from .serializers import (
 )
 from .store_manager import StoreLocationManager
 
+# ── Helper: validate user_id without requiring a Bearer token ─────────────────
+def _get_user_by_id(user_id):
+    """
+    Returns the User object for the given user_id, or None if not found.
+    Used by endpoints that authenticate via user_id instead of Bearer token.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    try:
+        return User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return None
+
 
 
 
@@ -53,7 +66,14 @@ class StoreViewSet(viewsets.ModelViewSet):
         return StoreSerializer
     
     def list(self, request, *args, **kwargs):
-        """List all active stores"""
+        """List all active stores — user_id in URL path for auth (no Bearer token)"""
+        user_id = self.kwargs.get('user_id')
+        user = _get_user_by_id(user_id)
+        if not user:
+            return Response(
+                {'success': False, 'message': 'Invalid user_id'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
         stores = self.get_queryset().order_by('-is_primary', 'name')
         serializer = self.get_serializer(stores, many=True)
         return Response({
@@ -63,7 +83,14 @@ class StoreViewSet(viewsets.ModelViewSet):
         })
     
     def retrieve(self, request, *args, **kwargs):
-        """Get store details"""
+        """Get store details — user_id in URL path for auth (no Bearer token)"""
+        user_id = self.kwargs.get('user_id')
+        user = _get_user_by_id(user_id)
+        if not user:
+            return Response(
+                {'success': False, 'message': 'Invalid user_id'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
         store = self.get_object()
         serializer = self.get_serializer(store)
         return Response({
@@ -74,33 +101,26 @@ class StoreViewSet(viewsets.ModelViewSet):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def find_nearest_store(request):
+def find_nearest_store(request, user_id):
     """
-    Find the nearest store to customer location
-    
-    Request:
-    {
-        "latitude": 12.9352,
-        "longitude": 77.6245
-    }
+    Find the nearest store to customer location.
+    Authenticated via user_id in URL path (no Bearer token required).
+
+    URL: /api/stores/find-nearest/{user_id}/
+
+    Request body:
+    { "latitude": 12.9352, "longitude": 77.6245 }
     or
-    {
-        "pincode": "560001"
-    }
-    
-    Response:
-    {
-        "success": true,
-        "store": {
-            "store_id": 1,
-            "store_name": "DreamsPharma - Bangalore",
-            "address": "...",
-            "distance": 2.5,
-            "c2_code": "03C000",
-            "erp_store_id": "001"
-        }
-    }
+    { "pincode": "560001" }
     """
+    # ── user_id-based auth ──────────────────────────────────────────────────
+    user = _get_user_by_id(user_id)
+    if not user:
+        return Response(
+            {'success': False, 'message': 'Invalid user_id'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    # ─────────────────────────────────────────────────────────────────────────
     serializer = LocationInputSerializer(data=request.data)
     
     if not serializer.is_valid():
@@ -151,32 +171,24 @@ def find_nearest_store(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def find_nearby_stores(request):
+def find_nearby_stores(request, user_id):
     """
-    Find all stores near customer location within radius
-    
-    Request:
-    {
-        "latitude": 12.9352,
-        "longitude": 77.6245,
-        "radius": 10  # Optional, default 10 km
-    }
-    
-    Response:
-    {
-        "success": true,
-        "count": 3,
-        "stores": [
-            {
-                "store_id": 1,
-                "store_name": "...",
-                "distance": 2.5,
-                ...
-            },
-            ...
-        ]
-    }
+    Find all stores near customer location within radius.
+    Authenticated via user_id in URL path (no Bearer token required).
+
+    URL: /api/stores/find-nearby/{user_id}/
+
+    Request body:
+    { "latitude": 12.9352, "longitude": 77.6245, "radius": 10 }
     """
+    # ── user_id-based auth ──────────────────────────────────────────────────
+    user = _get_user_by_id(user_id)
+    if not user:
+        return Response(
+            {'success': False, 'message': 'Invalid user_id'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    # ─────────────────────────────────────────────────────────────────────────
     serializer = LocationInputSerializer(data=request.data)
     
     if not serializer.is_valid():
@@ -233,12 +245,13 @@ def find_nearby_stores(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def get_store_details(request, store_id):
+def get_store_details(request, store_id, user_id):
     """
-    Get detailed information about a specific store
-    
-    URL: /api/stores/{store_id}/details/
-    
+    Get detailed information about a specific store.
+    Authenticated via user_id in the URL path (no Bearer token required).
+
+    URL: /api/stores/{store_id}/details/{user_id}/
+
     Response:
     {
         "success": true,
@@ -254,9 +267,18 @@ def get_store_details(request, store_id):
         }
     }
     """
+    # ── user_id-based auth (no Bearer token needed) ───────────────────────────
+    user = _get_user_by_id(user_id)
+    if not user:
+        return Response(
+            {'success': False, 'message': 'Invalid user_id'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+
     store = get_object_or_404(Store, id=store_id, is_active=True)
     serializer = StoreSerializer(store)
-    
+
     return Response({
         'success': True,
         'store': serializer.data
@@ -265,13 +287,13 @@ def get_store_details(request, store_id):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def get_store_erp_config(request, store_id):
+def get_store_erp_config(request, store_id, user_id):
     """
-    Get ERP configuration for a specific store
-    Used internally for ERP API calls
-    
-    URL: /api/stores/{store_id}/erp-config/
-    
+    Get ERP configuration for a specific store.
+    Authenticated via user_id in the URL path (no Bearer token required).
+
+    URL: /api/stores/{store_id}/erp-config/{user_id}/
+
     Response:
     {
         "success": true,
@@ -283,8 +305,17 @@ def get_store_erp_config(request, store_id):
         }
     }
     """
+    # ── user_id-based auth (no Bearer token needed) ───────────────────────────
+    user = _get_user_by_id(user_id)
+    if not user:
+        return Response(
+            {'success': False, 'message': 'Invalid user_id'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+
     store = get_object_or_404(Store, id=store_id, is_active=True)
-    
+
     return Response({
         'success': True,
         'erp_config': store.get_erp_config(),

@@ -25,12 +25,12 @@ urlpatterns = [
     path('admin/warehouses/', AdminStoreViewSet.as_view({'get': 'list', 'post': 'create'}), name='admin-warehouses-list'),
     path('admin/warehouses/<int:pk>/', AdminStoreViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='admin-warehouses-detail'),
 
-    path('stores/', StoreViewSet.as_view({'get': 'list'}), name='stores-list'),
-    path('stores/<int:pk>/', StoreViewSet.as_view({'get': 'retrieve'}), name='stores-detail'),
-    path('stores/find-nearest/', find_nearest_store, name='find-nearest-store'),
-    path('stores/find-nearby/', find_nearby_stores, name='find-nearby-stores'),
-    path('stores/<int:store_id>/details/', get_store_details, name='store-details'),
-    path('stores/<int:store_id>/erp-config/', get_store_erp_config, name='store-erp-config'),
+    path('stores/<int:user_id>/', StoreViewSet.as_view({'get': 'list'}), name='stores-list'),
+    path('stores/<int:pk>/<int:user_id>/', StoreViewSet.as_view({'get': 'retrieve'}), name='stores-detail'),
+    path('stores/find-nearest/<int:user_id>/', find_nearest_store, name='find-nearest-store'),
+    path('stores/find-nearby/<int:user_id>/', find_nearby_stores, name='find-nearby-stores'),
+    path('stores/<int:store_id>/details/<int:user_id>/', get_store_details, name='store-details'),
+    path('stores/<int:store_id>/erp-config/<int:user_id>/', get_store_erp_config, name='store-erp-config'),
     
     # SuperAdmin Authentication
     path('auth/login/', views.SuperAdminLoginView.as_view(), name='superadmin-login'),

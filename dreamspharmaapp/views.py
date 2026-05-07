@@ -1554,7 +1554,8 @@ class FetchStockView(APIView):
             
             try:
                 # FETCH DIRECTLY FROM ERP SERVER (real-time stock data)
-                erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                # Official API uses port 45000 for stock fetching
+                erp_server_url = f"{erp_config['transaction_url']}/ws_c2_services_fetch_stock"
                 
                 logger.info(f"[FETCH_STOCK] Fetching from ERP: {erp_server_url}")
                 
@@ -1723,7 +1724,9 @@ class CreateSalesOrderView(APIView):
 
                 # ── Capture IP from request ──
                 client_ip = safe_ip(get_client_ip(request))
-                user_id_raw = safe_str(serializer.validated_data.get('userId'))
+                
+                # Support both camelCase and snake_case for user_id
+                user_id_raw = safe_str(serializer.validated_data.get('userId') or serializer.validated_data.get('user_id'))
 
                 # ── Build order_kwargs with all safe values ──
                 order_kwargs = dict(
@@ -1763,7 +1766,7 @@ class CreateSalesOrderView(APIView):
                     tran_prefix='6',
                     tran_srno='1',
                     bill_total=order_total,
-                    fulfilling_store_id=store_obj.id,  # ✅ Assign fulfilling store for backend order tracking
+                    fulfilling_store_id=store_info.get('store_db_id'),  # ✅ Assign fulfilling store for backend order tracking
                 )
 
                 logger.info(f"[ORDER_DEBUG] order_kwargs built successfully")
@@ -1824,47 +1827,26 @@ class CreateSalesOrderView(APIView):
 
                 # ✅ PRODUCTION-GRADE CHECKOUT: Validate stock with SELECT_FOR_UPDATE locking
                 # Prevents race conditions when multiple users order the same item simultaneously
-                try:
-                    # Get store object (already validated earlier in the flow)
-                    store_obj = Store.objects.filter(store_id=store_id_val).first()
-                    if not store_obj:
-                        raise ValueError(f"Store {store_id_val} not found")
+                # ✅ Validate each item exists in ItemMaster
+                # (Stock management handled by ERP, not local database)
+                for item_data in material_info:
+                    item_code = safe_str(item_data.get('item_code'))
                     
-                    # Validate each item has sufficient stock (with database-level row locking)
-                    for item_data in material_info:
-                        item_code = safe_str(item_data.get('item_code'))
-                        qty_needed = safe_int(item_data.get('total_loose_qty'))
-                        
-                        # ✅ Lock & verify stock with SELECT_FOR_UPDATE
-                        # This prevents overselling even if only 1 item left
-                        product_store = ProductStore.objects.select_for_update().get(
-                            product__item_code=item_code,
-                            store=store_obj
-                        )
-                        
-                        # Stock check
-                        if product_store.stock_quantity < qty_needed:
-                            raise ValueError(
-                                f"Insufficient stock for {item_code}: "
-                                f"Need {qty_needed}, only {product_store.stock_quantity} available"
-                            )
-                        
-                        # ✅ Deduct stock and save to actually apply the lock changes
-                        product_store.stock_quantity -= qty_needed
-                        product_store.save()
-                    
-                    logger.info(f"[CHECKOUT] Stock validation and deduction passed - database locks released safely")
+                    # Validate item exists in ItemMaster
+                    try:
+                        ItemMaster.objects.get(item_code=item_code)
+                        logger.info(f"[CHECKOUT] Item {item_code} validated in ItemMaster")
+                    except ItemMaster.DoesNotExist:
+                        sales_order.delete()
+                        error_msg = f"Item {item_code} not found in system. Please verify item code."
+                        logger.error(f"[CHECKOUT] Item validation failed: {error_msg}")
+                        return Response({
+                            'code': '400',
+                            'type': 'SaleOrderCreate',
+                            'message': error_msg
+                        }, status=status.HTTP_400_BAD_REQUEST)
                 
-                except (ValueError, ProductStore.DoesNotExist) as stock_error:
-                    # Stock validation failed - reject order before creation
-                    sales_order.delete()
-                    error_msg = str(stock_error) if isinstance(stock_error, ValueError) else f"Item not found in store inventory"
-                    logger.error(f"[CHECKOUT] Stock validation failed: {error_msg}")
-                    return Response({
-                        'code': '400',
-                        'type': 'SaleOrderCreate',
-                        'message': error_msg
-                    }, status=status.HTTP_400_BAD_REQUEST)
+                logger.info(f"[CHECKOUT] All items validated successfully - order can proceed")
 
                 for idx, item in enumerate(material_info):
                     item_seq = safe_int(item.get('item_seq'), idx + 1)
@@ -2107,9 +2089,10 @@ class CreateSalesOrderView(APIView):
                         'currency': 'INR'
                     },
                     'config': {
-                        'c2Code': settings.ERP_C2_CODE,
-                        'storeId': settings.ERP_STORE_ID,
-                        'prodCode': settings.ERP_PROD_CODE,
+                        'c2Code': erp_config['c2_code'],
+                        'storeId': erp_config['store_id'],
+                        'prodCode': erp_config['prod_code'],
+                        'storeName': store_info.get('store_name', 'Default Store'),
                     },
                     'documentDetails': [{
                         'brCode': sales_order.br_code,

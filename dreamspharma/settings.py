@@ -109,7 +109,7 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',           # Anonymous users: 100 requests/hour
+        'anon': '10000/day',          # Anonymous users: Increased for development
         'user': '1000/hour',          # Authenticated users: 1000/hour (general)
         'orders': '10/minute',        # Order creation: 10 orders/minute per user
         'auth': '5/minute',           # Authentication: 5 attempts/minute

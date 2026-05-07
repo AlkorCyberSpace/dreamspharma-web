@@ -73,14 +73,14 @@ class ERPService:
             return ERPService._get_fallback_config()
 
         logger.info(
-            f"[ERP_SERVICE] Nearest store: {nearest.store_name} | "
+            f"[ERP_SERVICE] Nearest store: {nearest.name} | "
             f"Distance: {nearest_distance}km | "
             f"Store ID: {nearest.store_id}"
         )
 
         return {
             'store_db_id': nearest.id,
-            'store_name': nearest.store_name,
+            'store_name': nearest.name,
             'distance_km': nearest_distance,
             'erp_config': {
                 'c2_code': nearest.c2_code,
@@ -103,7 +103,7 @@ class ERPService:
             store = Store.objects.get(store_id=store_id, is_active=True)
             return {
                 'store_db_id': store.id,
-                'store_name': store.store_name,
+                'store_name': store.name,
                 'erp_config': {
                     'c2_code': store.c2_code,
                     'store_id': store.store_id,
