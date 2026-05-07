@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from .models import (
-    KYC, OTP, APIToken, ItemMaster, Stock, GLCustomer, 
+    KYC, OTP, APIToken, Store, ItemMaster, Stock, GLCustomer, 
     SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
     Cart, CartItem, Wishlist, WishlistItem, ProductInfo, ProductImage, Address,
     Category, Offer, RetailerNotification, CreditNote, RetailerWallet, WalletTransaction
@@ -617,6 +617,10 @@ class CreateSalesOrderRequestSerializer(serializers.Serializer):
     # ==================== PAYMENT MODE ====================
     paymentMode = serializers.ChoiceField(choices=['COD', 'RAZORPAY'], required=False, default='COD', help_text="Payment mode: 'COD' (Cash on Delivery) or 'RAZORPAY'")
     
+    # ==================== WALLET ====================
+    use_wallet = serializers.BooleanField(required=False, default=False, help_text="Apply wallet balance to this order")
+    user_id = serializers.IntegerField(required=False, help_text="Retailer user ID (required if use_wallet=True)")
+    
     def validate_materialInfo(self, value):
         """Validate materialInfo if provided"""
         if value and len(value) > 0:
@@ -922,6 +926,7 @@ class AddToCartSerializer(serializers.Serializer):
     itemCode = serializers.CharField(max_length=50, min_length=1)
     quantity = serializers.IntegerField(min_value=1, max_value=100, default=1)
     batchNo = serializers.CharField(required=False, allow_null=True)
+    storeId = serializers.CharField(required=False, allow_null=True, allow_blank=True, help_text="Store ID to check specific stock")
     
     def validate_quantity(self, value):
         """Validate quantity is reasonable to prevent spam orders"""
@@ -1031,6 +1036,7 @@ class WishlistSerializer(serializers.ModelSerializer):
 class AddToWishlistSerializer(serializers.Serializer):
     """Serializer for adding item to wishlist"""
     itemCode = serializers.CharField()
+    storeId = serializers.CharField(required=False, allow_null=True, allow_blank=True, help_text="Store ID for specific store details")
 
 
 class MoveToCartSerializer(serializers.Serializer):
@@ -2000,6 +2006,81 @@ class RetailerNotificationCreateSerializer(serializers.ModelSerializer):
         return RetailerNotification.objects.create(**validated_data)
 
 
+# ==================== STORE SERIALIZERS ====================
+
+class StoreSerializer(serializers.ModelSerializer):
+    """Serializer for Store model - complete details"""
+    erp_config = serializers.SerializerMethodField()
+    distance = serializers.FloatField(required=False, allow_null=True, help_text="Distance from customer location (calculated dynamically)")
+    
+    class Meta:
+        model = Store
+        fields = [
+            'id', 'name', 'address', 'city', 'state', 'pincode',
+            'latitude', 'longitude', 'c2_code', 'store_id', 'prod_code',
+            'phone', 'email', 'manager_name', 'manager_phone',
+            'is_active', 'is_primary', 'erp_config', 'distance', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'erp_config']
+    
+    def get_erp_config(self, obj):
+        """Return ERP configuration for the store"""
+        return obj.get_erp_config()
+
+
+class StoreListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing stores"""
+    distance = serializers.FloatField(required=False, allow_null=True)
+    
+    class Meta:
+        model = Store
+        fields = [
+            'id', 'name', 'city', 'state', 'pincode', 'phone',
+            'is_active', 'is_primary', 'distance'
+        ]
+
+
+class LocationInputSerializer(serializers.Serializer):
+    """Serializer for location request - to find nearest store"""
+    latitude = serializers.FloatField(required=False, allow_null=True, help_text="Customer latitude")
+    longitude = serializers.FloatField(required=False, allow_null=True, help_text="Customer longitude")
+    pincode = serializers.CharField(required=False, allow_blank=True, help_text="Customer pincode (if lat/lon not available)")
+    radius = serializers.IntegerField(required=False, default=10, help_text="Search radius in km (for nearby stores)")
+    
+    def validate(self, data):
+        """Ensure either lat/lon or pincode is provided"""
+        lat = data.get('latitude')
+        lon = data.get('longitude')
+        pincode = data.get('pincode')
+        
+        if not pincode and (lat is None or lon is None):
+            raise serializers.ValidationError(
+                "Either provide latitude/longitude OR pincode"
+            )
+        
+        return data
+
+
+class NearestStoreResponseSerializer(serializers.Serializer):
+    """Serializer for nearest store response"""
+    store_id = serializers.IntegerField()
+    store_name = serializers.CharField()
+    address = serializers.CharField()
+    city = serializers.CharField()
+    state = serializers.CharField()
+    pincode = serializers.CharField()
+    phone = serializers.CharField(allow_blank=True)
+    distance = serializers.FloatField(allow_null=True)
+    c2_code = serializers.CharField()
+    erp_store_id = serializers.CharField()
+    prod_code = serializers.CharField()
+
+
+class NearbyStoresResponseSerializer(serializers.Serializer):
+    """Serializer for list of nearby stores"""
+    stores = NearestStoreResponseSerializer(many=True)
+
+
 # ==================== CREDIT NOTE SERIALIZERS ====================
 
 class CreditNoteCreateSerializer(serializers.ModelSerializer):
@@ -2037,6 +2118,17 @@ class CreditNoteCreateSerializer(serializers.ModelSerializer):
         # Only calculate amount if sale_rate is provided (frontend can also send amount directly)
         if sale_rate and qty_to_return:
             validated_data['amount'] = sale_rate * qty_to_return
+            
+        # Auto-assign store based on the order_id
+        order_id = validated_data.get('order_id')
+        if order_id:
+            from .models import SalesOrder
+            try:
+                order = SalesOrder.objects.get(order_id=order_id)
+                if order.fulfilling_store:
+                    validated_data['store'] = order.fulfilling_store
+            except SalesOrder.DoesNotExist:
+                pass
         
         return super().create(validated_data)
 
@@ -2048,6 +2140,8 @@ class CreditNoteListSerializer(serializers.ModelSerializer):
         read_only=True
     )
     shop_name = serializers.SerializerMethodField()
+    store_name = serializers.CharField(source='store.name', read_only=True)
+    store_id = serializers.CharField(source='store.store_id', read_only=True)
     status_display = serializers.CharField(
         source='get_status_display', 
         read_only=True
@@ -2061,6 +2155,7 @@ class CreditNoteListSerializer(serializers.ModelSerializer):
         model = CreditNote
         fields = [
             'id', 'credit_note_id', 'retailer_name', 'shop_name',
+            'store_id', 'store_name',
             'reference_invoice', 'order_id', 'product_name',
             'quantity', 'quantity_to_return', 'sale_rate', 'amount',
             'reason', 'reason_display', 'status', 'status_display',
@@ -2082,6 +2177,8 @@ class CreditNoteDetailSerializer(serializers.ModelSerializer):
         read_only=True
     )
     shop_name = serializers.SerializerMethodField()
+    store_name = serializers.CharField(source='store.name', read_only=True)
+    store_erp_id = serializers.CharField(source='store.store_id', read_only=True)
     reviewed_by_name = serializers.CharField(
         source='reviewed_by.username', 
         read_only=True,
@@ -2093,6 +2190,7 @@ class CreditNoteDetailSerializer(serializers.ModelSerializer):
         model = CreditNote
         fields = [
             'id', 'credit_note_id', 'retailer_name', 'shop_name',
+            'store', 'store_name', 'store_erp_id',
             'reference_invoice', 'order_id', 'product_name',
             'item_code', 'quantity', 'quantity_to_return', 'sale_rate', 'amount',
             'reason', 'additional_notes', 'upload_image_url',
@@ -2152,4 +2250,74 @@ class RetailerWalletSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'retailer_name', 'balance', 'transactions', 'updated_at'
         ]
+
+
+# ==============================================================================
+# STARTUP LOCATION API SERIALIZERS
+# These are NEW, standalone serializers that do NOT touch any existing workflow.
+# Purpose: Swiggy/Zomato-style "detect my location at app startup" feature.
+# ==============================================================================
+
+class StartupLocationInputSerializer(serializers.Serializer):
+    """
+    Input for the startup POST /api/location/detect/ endpoint.
+    The mobile app sends GPS coordinates; the backend does the rest.
+    """
+    latitude = serializers.FloatField(
+        required=True,
+        help_text="GPS latitude from device (e.g. 12.9716)"
+    )
+    longitude = serializers.FloatField(
+        required=True,
+        help_text="GPS longitude from device (e.g. 77.5946)"
+    )
+    accuracy = serializers.FloatField(
+        required=False,
+        allow_null=True,
+        help_text="GPS accuracy in metres (optional, for logging)"
+    )
+
+    def validate_latitude(self, value):
+        if not (-90 <= value <= 90):
+            raise serializers.ValidationError(
+                "latitude must be between -90 and 90."
+            )
+        return value
+
+    def validate_longitude(self, value):
+        if not (-180 <= value <= 180):
+            raise serializers.ValidationError(
+                "longitude must be between -180 and 180."
+            )
+        return value
+
+
+class StartupLocationResponseSerializer(serializers.Serializer):
+    """
+    Full response returned by POST /api/location/detect/ and
+    GET /api/location/me/ so the mobile app gets everything in one call.
+    """
+    # --- Address info (from reverse-geocoding) ---
+    full_address = serializers.CharField()
+    locality     = serializers.CharField()
+    city         = serializers.CharField()
+    state        = serializers.CharField()
+    pincode      = serializers.CharField()
+    country      = serializers.CharField()
+    latitude     = serializers.FloatField()
+    longitude    = serializers.FloatField()
+
+    # --- Nearest store info ---
+    store_id      = serializers.IntegerField(allow_null=True)
+    store_name    = serializers.CharField(allow_null=True)
+    store_address = serializers.CharField(allow_null=True)
+    store_city    = serializers.CharField(allow_null=True)
+    store_pincode = serializers.CharField(allow_null=True)
+    store_phone   = serializers.CharField(allow_null=True)
+    distance_km   = serializers.FloatField(allow_null=True)
+
+    # --- ERP identifiers the app needs to call fetch-stock / create-order ---
+    erp_c2_code  = serializers.CharField(allow_null=True)
+    erp_store_id = serializers.CharField(allow_null=True)
+    erp_prod_code = serializers.CharField(allow_null=True)
 

@@ -9,7 +9,7 @@ from django.http import HttpResponse
 import openpyxl
 from io import BytesIO
 from django.db.models import Sum, Count, Q, Avg, Max, F, DecimalField
-from django.db.models.functions import TruncMonth, TruncYear
+from django.db.models.functions import TruncDate, TruncWeek, TruncMonth, TruncYear
 from django.utils.dateparse import parse_date
 from datetime import timedelta, date
 from dreamspharmaapp.models import KYC, SalesOrder, Category, ItemMaster, ProductInfo, Offer, Invoice, SalesOrderItem, InvoiceDetail, CreditNote
@@ -1442,7 +1442,7 @@ class SuperAdminOrdersView(APIView):
 
         orders = SalesOrder.objects.prefetch_related(
             'items', 'payments'
-        ).order_by('-created_at')
+        ).select_related('fulfilling_store').order_by('-created_at')
 
         # Filter by conversion status (maps to frontend status labels)
         if status_filter:
@@ -1562,6 +1562,8 @@ class SuperAdminOrdersView(APIView):
                 'payment_status': payment_status,
                 'status': order_status,
                 'erpRef': order.document_pk or f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else '',
+                'store_name': order.fulfilling_store.name if order.fulfilling_store else 'Unknown Store',
+                'store_id': order.fulfilling_store.store_id if order.fulfilling_store else None,
                 'detailedTimeline': timeline,
                 'detailedItems': items_data,
             })
@@ -1825,7 +1827,7 @@ class ReportSummaryView(APIView):
 
 class KYCStatusReportView(APIView, ExcelExportMixin):
     """
-    KYC approval/rejection statistics and record list.
+    Detailed list of KYC applications and their statuses.
     GET /api/superadmin/reports/kyc/
     """
     permission_classes = [IsAuthenticated]
@@ -2176,3 +2178,95 @@ class DailyVolumeGraphView(APIView):
             },
             'graph_data': graph_data
         })
+
+
+class WarehouseOrdersGraphView(APIView):
+    """
+    API endpoint for getting warehouse/store-wise order counts grouped by a specific period.
+    GET /api/superadmin/dashboard/warehouse-orders/?period=month&start_date=2026-01-01&end_date=2026-12-31
+    Periods: date, week, month, year
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        period = request.query_params.get('period', 'month').lower()
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+
+        # Base queryset
+        qs = SalesOrder.objects.filter(fulfilling_store__isnull=False)
+
+        if start_date_str and end_date_str:
+            try:
+                start_date = parse_date(start_date_str)
+                end_date = parse_date(end_date_str)
+                if start_date and end_date:
+                    qs = qs.filter(ord_date__range=[start_date, end_date])
+            except Exception:
+                pass
+
+        # Determine truncation function
+        if period == 'year':
+            trunc_func = TruncYear('ord_date')
+        elif period == 'week':
+            trunc_func = TruncWeek('ord_date')
+        elif period == 'date':
+            trunc_func = TruncDate('ord_date')
+        else: # default to month
+            trunc_func = TruncMonth('ord_date')
+
+        # Annotate, group, and aggregate
+        data = qs.annotate(
+            period_val=trunc_func
+        ).values('period_val', 'fulfilling_store__name').annotate(
+            order_count=Count('id'),
+            revenue=Sum('order_total')
+        ).order_by('period_val', 'fulfilling_store__name')
+
+        # Structure the data for graphing
+        formatted_data = {}
+        for item in data:
+            if not item['period_val']:
+                continue
+            
+            p_val = item['period_val']
+            if period == 'year':
+                p_str = str(p_val.year)
+            elif period == 'month':
+                p_str = p_val.strftime('%Y-%m')
+            else:
+                p_str = p_val.strftime('%Y-%m-%d')
+                
+            store_name = item['fulfilling_store__name']
+            
+            if p_str not in formatted_data:
+                formatted_data[p_str] = {}
+                
+            formatted_data[p_str][store_name] = {
+                'orders': item['order_count'],
+                'revenue': float(item['revenue'] or 0)
+            }
+
+        # Convert to list format suitable for charts (e.g. Recharts)
+        chart_data = []
+        all_stores = set()
+        for p_data in formatted_data.values():
+            all_stores.update(p_data.keys())
+            
+        for p_str in sorted(formatted_data.keys()):
+            entry = {'period': p_str}
+            for store in all_stores:
+                store_data = formatted_data[p_str].get(store, {'orders': 0, 'revenue': 0})
+                entry[f"{store} (Orders)"] = store_data['orders']
+                entry[f"{store} (Revenue)"] = store_data['revenue']
+            chart_data.append(entry)
+
+        return Response({
+            'success': True,
+            'period_type': period,
+            'stores': sorted(list(all_stores)),
+            'data': chart_data
+        }, status=status.HTTP_200_OK)
