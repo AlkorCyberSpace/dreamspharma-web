@@ -109,6 +109,226 @@ ITEMS = [
         "max_disc": 3.00,
         "expiryDate": "2025-01-15",
         "mrp": 12.50
+    },
+    {
+        "c_item_code": "I00201",
+        "itemName": "PAN D 40MG TAB",
+        "itemQtyPerBox": 15,
+        "batchNo": "PAND001",
+        "stockBalQty": 850,
+        "std_disc": 12.50,
+        "max_disc": 2.00,
+        "expiryDate": "2028-05-15",
+        "mrp": 199.00
+    },
+    {
+        "c_item_code": "I00202",
+        "itemName": "LIMCEE 500MG CHEWABLE",
+        "itemQtyPerBox": 15,
+        "batchNo": "LIMC102",
+        "stockBalQty": 1500,
+        "std_disc": 5.00,
+        "max_disc": 0.00,
+        "expiryDate": "2027-12-30",
+        "mrp": 25.50
+    },
+    {
+        "c_item_code": "I00203",
+        "itemName": "ZIFI 200MG TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "ZIF099",
+        "stockBalQty": 400,
+        "std_disc": 18.00,
+        "max_disc": 3.00,
+        "expiryDate": "2027-04-20",
+        "mrp": 115.40
+    },
+    {
+        "c_item_code": "I00204",
+        "itemName": "AZITHRAL 500MG TAB",
+        "itemQtyPerBox": 5,
+        "batchNo": "AZI778",
+        "stockBalQty": 300,
+        "std_disc": 10.00,
+        "max_disc": 1.00,
+        "expiryDate": "2027-09-10",
+        "mrp": 130.00
+    },
+    {
+        "c_item_code": "I00205",
+        "itemName": "CALPOL 500MG TAB",
+        "itemQtyPerBox": 15,
+        "batchNo": "CAL005",
+        "stockBalQty": 2500,
+        "std_disc": 15.00,
+        "max_disc": 2.50,
+        "expiryDate": "2028-01-01",
+        "mrp": 32.00
+    },
+    {
+        "c_item_code": "I00206",
+        "itemName": "MONTEK LC TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "MLC543",
+        "stockBalQty": 600,
+        "std_disc": 20.00,
+        "max_disc": 5.00,
+        "expiryDate": "2027-11-15",
+        "mrp": 185.00
+    },
+    {
+        "c_item_code": "I00207",
+        "itemName": "VORNEL 4MG TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "VOR221",
+        "stockBalQty": 450,
+        "std_disc": 15.00,
+        "max_disc": 2.00,
+        "expiryDate": "2027-03-30",
+        "mrp": 55.00
+    },
+    {
+        "c_item_code": "I00208",
+        "itemName": "TELMA 40MG TAB",
+        "itemQtyPerBox": 15,
+        "batchNo": "TELM01",
+        "stockBalQty": 900,
+        "std_disc": 10.00,
+        "max_disc": 1.00,
+        "expiryDate": "2028-06-20",
+        "mrp": 95.50
+    },
+    {
+        "c_item_code": "I00209",
+        "itemName": "GLYCOMET GP2 TAB",
+        "itemQtyPerBox": 15,
+        "batchNo": "GLYC88",
+        "stockBalQty": 1200,
+        "std_disc": 12.00,
+        "max_disc": 2.00,
+        "expiryDate": "2027-10-10",
+        "mrp": 155.00
+    },
+    {
+        "c_item_code": "I00210",
+        "itemName": "SHELCAL 500MG TAB",
+        "itemQtyPerBox": 15,
+        "batchNo": "SHEL04",
+        "stockBalQty": 2000,
+        "std_disc": 14.00,
+        "max_disc": 3.00,
+        "expiryDate": "2028-04-01",
+        "mrp": 110.00
+    },
+    {
+        "c_item_code": "I00211",
+        "itemName": "OMEE 20MG CAP",
+        "itemQtyPerBox": 20,
+        "batchNo": "OMEE01",
+        "stockBalQty": 3000,
+        "std_disc": 25.00,
+        "max_disc": 5.00,
+        "expiryDate": "2027-12-15",
+        "mrp": 60.00
+    },
+    {
+        "c_item_code": "I00212",
+        "itemName": "CETZINE 10MG TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "CETZ09",
+        "stockBalQty": 1800,
+        "std_disc": 10.00,
+        "max_disc": 1.00,
+        "expiryDate": "2027-08-30",
+        "mrp": 18.50
+    },
+    {
+        "c_item_code": "I00213",
+        "itemName": "AUGMENTIN 625 DUO TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "AUGM05",
+        "stockBalQty": 500,
+        "std_disc": 15.00,
+        "max_disc": 3.00,
+        "expiryDate": "2027-02-15",
+        "mrp": 210.00
+    },
+    {
+        "c_item_code": "I00214",
+        "itemName": "CLAVAM 625 TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "CLAV62",
+        "stockBalQty": 400,
+        "std_disc": 15.00,
+        "max_disc": 2.00,
+        "expiryDate": "2027-05-10",
+        "mrp": 205.00
+    },
+    {
+        "c_item_code": "I00215",
+        "itemName": "COMBIFLAM TAB",
+        "itemQtyPerBox": 20,
+        "batchNo": "COMB01",
+        "stockBalQty": 4000,
+        "std_disc": 10.00,
+        "max_disc": 1.50,
+        "expiryDate": "2028-07-01",
+        "mrp": 45.00
+    },
+    {
+        "c_item_code": "I00216",
+        "itemName": "ALERID 10MG TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "ALER09",
+        "stockBalQty": 1200,
+        "std_disc": 8.00,
+        "max_disc": 0.00,
+        "expiryDate": "2027-09-15",
+        "mrp": 22.00
+    },
+    {
+        "c_item_code": "I00217",
+        "itemName": "DIGENE GEL MINT",
+        "itemQtyPerBox": 1,
+        "batchNo": "DIGE02",
+        "stockBalQty": 350,
+        "std_disc": 15.00,
+        "max_disc": 2.00,
+        "expiryDate": "2028-03-30",
+        "mrp": 145.00
+    },
+    {
+        "c_item_code": "I00218",
+        "itemName": "BENADRYL DR SYRUP",
+        "itemQtyPerBox": 1,
+        "batchNo": "BENA01",
+        "stockBalQty": 200,
+        "std_disc": 10.00,
+        "max_disc": 1.00,
+        "expiryDate": "2027-11-01",
+        "mrp": 120.00
+    },
+    {
+        "c_item_code": "I00219",
+        "itemName": "BETADINE GARGLE",
+        "itemQtyPerBox": 1,
+        "batchNo": "BETA05",
+        "stockBalQty": 150,
+        "std_disc": 5.00,
+        "max_disc": 0.00,
+        "expiryDate": "2027-06-20",
+        "mrp": 180.00
+    },
+    {
+        "c_item_code": "I00220",
+        "itemName": "MEFTAL SPAS TAB",
+        "itemQtyPerBox": 10,
+        "batchNo": "MEFT03",
+        "stockBalQty": 800,
+        "std_disc": 15.00,
+        "max_disc": 2.00,
+        "expiryDate": "2028-02-15",
+        "mrp": 52.00
     }
 ]
 

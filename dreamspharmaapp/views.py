@@ -1245,9 +1245,69 @@ class GetItemMasterView(APIView):
                         except ItemMaster.DoesNotExist:
                             pass
                 
-                logger.info(f"[GET_ITEM_MASTER] Fetched {len(items)} items from ERP server with product enhancements")
-                
-                return Response({
+                total_count = len(items)
+                logger.info(f"[GET_ITEM_MASTER] Fetched {total_count} items from ERP server with product enhancements")
+
+                # ─────────────────────────────────────────────────────────────
+                # ✅ SERVER-SIDE PAGINATION
+                # The ERP returns all products at once. Django acts as the
+                # pagination layer so the Flutter app only receives ONE page.
+                #
+                # Accepted query params:
+                #   page      – 1-indexed page number  (default: 1)
+                #   page_size – items per page          (default: 10, max: 100)
+                #   pageSize  – alias for page_size     (Flutter convention)
+                #
+                # If neither param is supplied the full list is returned for
+                # backwards-compatibility (admin / legacy clients).
+                # ─────────────────────────────────────────────────────────────
+                raw_page      = request.query_params.get('page')
+                raw_page_size = request.query_params.get('page_size') or request.query_params.get('pageSize')
+
+                if raw_page is not None or raw_page_size is not None:
+                    # Validate and clamp values
+                    try:
+                        page = max(1, int(raw_page or 1))
+                    except (ValueError, TypeError):
+                        page = 1
+
+                    try:
+                        page_size = min(max(1, int(raw_page_size or 10)), 100)
+                    except (ValueError, TypeError):
+                        page_size = 10
+
+                    total_pages = (total_count + page_size - 1) // page_size  # ceiling division
+                    start       = (page - 1) * page_size
+                    end         = start + page_size
+                    paged_items = items[start:end]
+
+                    logger.info(
+                        f"[GET_ITEM_MASTER] Pagination -> page={page}/{total_pages}, "
+                        f"page_size={page_size}, returning {len(paged_items)} items"
+                    )
+
+                    return Response({
+                        'code': '200',
+                        'type': 'getMasterData',
+                        'data': paged_items,
+                        'pagination': {
+                            'total_count':  total_count,
+                            'total_pages':  total_pages,
+                            'current_page': page,
+                            'page_size':    page_size,
+                            'has_next':     page < total_pages,
+                            'has_previous': page > 1,
+                        },
+                        'message': f'Page {page} of {total_pages} ({len(paged_items)} items)',
+                        'c2Code':   settings.ERP_C2_CODE,
+                        'storeId':  settings.ERP_STORE_ID,
+                        'prodCode': settings.ERP_PROD_CODE,
+                    }, status=status.HTTP_200_OK)
+
+                # No pagination params – return full list (legacy / admin use)
+                logger.info(f"[GET_ITEM_MASTER] No pagination params – returning all {total_count} items")
+                return Response(
+                    {
                     'code': '200',
                     'type': 'getMasterData',
                     'data': items,
@@ -1256,7 +1316,16 @@ class GetItemMasterView(APIView):
                     'storeId': erp_config['store_id'],
                     'prodCode': erp_config['prod_code'],
                     'storeName': store_info.get('store_name'),
-                    'distanceKm': store_info.get('distance_km')
+                    'distanceKm': store_info.get('distance_km'),
+                    'pagination': {
+                        'total_count':  total_count,
+                        'total_pages':  1,
+                        'current_page': 1,
+                        'page_size':    total_count,
+                        'has_next':     False,
+                        'has_previous': False,
+                    },
+
                 }, status=status.HTTP_200_OK)
             
             except requests.exceptions.ConnectionError:
@@ -1658,6 +1727,12 @@ class CreateSalesOrderView(APIView):
         
         # ✅ STEP 2 & 3: Generate token PER STORE with storeId
         api_key = get_erp_token_for_store_config(erp_config)
+        # ── Wallet intent (extracted before atomic block) ──
+        use_wallet = bool(serializer.validated_data.get('use_wallet', False))
+        wallet_amount_requested = float(serializer.validated_data.get('wallet_amount', 0))
+
+        from .erp_token_service import get_erp_token_for_request
+        api_key = get_erp_token_for_request()
         if not api_key:
             return Response({
                 'code': '503',
@@ -2075,6 +2150,54 @@ class CreateSalesOrderView(APIView):
                 )
                 thread.start()
 
+                # ── Apply wallet deduction (atomic, inside same transaction) ──
+                wallet_applied = 0.0
+                wallet_remaining = 0.0
+                wallet_error = None
+
+                if use_wallet and user_id_raw:
+                    try:
+                        from .models import RetailerWallet
+                        from .wallet_service import debit_wallet
+
+                        retailer_user = CustomUser.objects.filter(id=int(user_id_raw), role='RETAILER').first()
+                        if retailer_user:
+                            w, _ = RetailerWallet.objects.get_or_create(retailer=retailer_user)
+                            current_balance = float(w.balance)
+
+                            # Use requested wallet_amount if provided, else auto-calculate
+                            if wallet_amount_requested > 0:
+                                to_deduct = min(wallet_amount_requested, current_balance, float(sales_order.bill_total))
+                            else:
+                                to_deduct = min(current_balance, float(sales_order.bill_total))
+
+                            if to_deduct > 0:
+                                result = debit_wallet(
+                                    retailer=retailer_user,
+                                    amount=to_deduct,
+                                    source='ORDER_PAYMENT',
+                                    order=sales_order,
+                                    description=f'Wallet applied for order {sales_order.order_id}'
+                                )
+                                if result['success']:
+                                    wallet_applied = to_deduct
+                                    wallet_remaining = float(result['new_balance'])
+                                    # Reduce bill_total by wallet amount applied
+                                    sales_order.bill_total = max(0, float(sales_order.bill_total) - wallet_applied)
+                                    sales_order.save(update_fields=['bill_total'])
+                                    logger.info(
+                                        f"[WALLET_ORDER] User: {user_id_raw} | Order: {sales_order.order_id} | "
+                                        f"Wallet Applied: ₹{wallet_applied} | Remaining: ₹{wallet_remaining} | "
+                                        f"Final Bill: ₹{sales_order.bill_total}"
+                                    )
+                                else:
+                                    wallet_error = result.get('error', 'Wallet deduction failed')
+                                    logger.warning(f"[WALLET_ORDER] Deduction failed: {wallet_error}")
+                        else:
+                            logger.warning(f"[WALLET_ORDER] Retailer user {user_id_raw} not found — skipping wallet")
+                    except Exception as we:
+                        logger.error(f"[WALLET_ORDER] Unexpected error: {str(we)}")
+
                 return Response({
                     'code': '200',
                     'type': 'SaleOrderCreate',
@@ -2087,6 +2210,12 @@ class CreateSalesOrderView(APIView):
                         'amount': str(sales_order.bill_total),
                         'walletDeducted': str(wallet_deducted),
                         'currency': 'INR'
+                    },
+                    'walletDetails': {
+                        'wallet_used': wallet_applied > 0,
+                        'wallet_applied': wallet_applied,
+                        'wallet_remaining_balance': wallet_remaining,
+                        'wallet_error': wallet_error
                     },
                     'config': {
                         'c2Code': erp_config['c2_code'],
@@ -2324,6 +2453,26 @@ class CartView(APIView):
             item['in_stock'] = stock_status.get('available', False)
             item['current_price'] = str(round(stock_status.get('price', float(item.get('mrp', 0))), 2))
             item['current_discount'] = round(stock_status.get('discount', 0), 2)
+        
+        # Apply wallet logic to cart
+        use_wallet = request.query_params.get('use_wallet', 'false').lower() == 'true'
+        from .models import RetailerWallet
+        wallet, _ = RetailerWallet.objects.get_or_create(retailer=user)
+        wallet_balance = float(wallet.balance)
+        grand_total = float(cart_data.get('grandTotal', 0))
+        
+        if use_wallet and wallet_balance > 0:
+            wallet_applied = min(wallet_balance, grand_total)
+            amount_to_pay = max(0, grand_total - wallet_applied)
+            cart_data['wallet_used'] = True
+        else:
+            wallet_applied = 0.0
+            amount_to_pay = grand_total
+            cart_data['wallet_used'] = False
+            
+        cart_data['wallet_balance'] = wallet_balance
+        cart_data['wallet_applied'] = wallet_applied
+        cart_data['amount_to_pay'] = amount_to_pay
         
         return Response({
             'success': True,
@@ -7208,7 +7357,13 @@ class RetailerWalletView(APIView):
 class ApplyWalletToOrderView(APIView):
     """
     POST /api/wallet/apply/<user_id>/
-    Apply wallet balance to an order during checkout
+    PREVIEW ONLY — shows how much wallet would be applied to an order.
+    No actual wallet deduction happens here.
+
+    The actual wallet debit happens atomically inside CreateSalesOrderView
+    when use_wallet=true is passed with the order.
+
+    Use this endpoint to show the user a breakdown before they confirm checkout.
     """
     permission_classes = [AllowAny]
 
@@ -7221,30 +7376,26 @@ class ApplyWalletToOrderView(APIView):
                 'message': 'Retailer not found'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        order_id = request.data.get('order_id')
+        order_total = request.data.get('order_total')
         use_wallet = request.data.get('use_wallet', False)
 
-        if not order_id:
+        if order_total is None:
             return Response({
                 'success': False,
-                'message': 'order_id is required'
+                'message': 'order_total is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            order = SalesOrder.objects.get(
-                order_id=order_id,
-                user_id=str(user_id)
-            )
-        except SalesOrder.DoesNotExist:
+            order_total = float(order_total)
+        except (ValueError, TypeError):
             return Response({
                 'success': False,
-                'message': 'Order not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'order_total must be a valid number'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         from .models import RetailerWallet
         wallet, _ = RetailerWallet.objects.get_or_create(retailer=user)
 
-        order_total = float(order.order_total)
         wallet_balance = float(wallet.balance)
 
         if not use_wallet or wallet_balance <= 0:
@@ -7255,34 +7406,20 @@ class ApplyWalletToOrderView(APIView):
                     'wallet_balance': wallet_balance,
                     'wallet_applied': 0,
                     'amount_to_pay': order_total,
-                    'wallet_used': False
+                    'wallet_used': False,
+                    'note': 'Preview only. No wallet deduction made.'
                 }
             }, status=status.HTTP_200_OK)
 
-        # Calculate deduction
+        # Calculate preview deduction (NO actual debit)
         wallet_applied = min(wallet_balance, order_total)
         amount_to_pay = max(0, order_total - wallet_applied)
 
-        # Deduct wallet
-        from .wallet_service import debit_wallet
-        result = debit_wallet(
-            retailer=user,
-            amount=wallet_applied,
-            source='ORDER_PAYMENT',
-            order=order,
-            description=f'Wallet used for order {order_id}'
-        )
-
-        if not result['success']:
-            return Response({
-                'success': False,
-                'message': result['error']
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         logger.info(
-            f"[WALLET_ORDER] User: {user.username} | "
-            f"Order: {order_id} | "
-            f"Wallet Applied: ₹{wallet_applied} | "
+            f"[WALLET_PREVIEW] User: {user.username} | "
+            f"Order Total: ₹{order_total} | "
+            f"Wallet Balance: ₹{wallet_balance} | "
+            f"Would Apply: ₹{wallet_applied} | "
             f"Amount to Pay: ₹{amount_to_pay}"
         )
 
@@ -7293,10 +7430,11 @@ class ApplyWalletToOrderView(APIView):
                 'wallet_balance': wallet_balance,
                 'wallet_applied': wallet_applied,
                 'amount_to_pay': amount_to_pay,
-                'remaining_wallet_balance': float(result['new_balance']),
-                'wallet_used': True
+                'wallet_used': True,
+                'note': 'Preview only. Wallet will be deducted when order is placed with use_wallet=true.'
             }
         }, status=status.HTTP_200_OK)
+
 
 
 class GetProductsByOrderView(APIView):
