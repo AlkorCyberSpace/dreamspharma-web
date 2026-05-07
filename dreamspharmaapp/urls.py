@@ -160,10 +160,12 @@ urlpatterns = [
     path('wallet/<int:user_id>/', views.RetailerWalletView.as_view(), name='retailer-wallet'),
 
     # ==================== STARTUP LOCATION ENDPOINTS ====================
-    #   POST /api/location/detect/  — Public. GPS coords → address + nearest store.
-    #   GET  /api/location/me/      — Auth.   Retrieve last saved location.
-    #   POST /api/location/save/    — Auth.   Explicitly update saved location.
-    path('location/detect/', views.StartupDetectLocationView.as_view(), name='startup-location-detect'),
-    path('location/me/',     views.GetMyLocationView.as_view(),          name='get-my-location'),
-    path('location/save/',   views.SaveMyLocationView.as_view(),          name='save-my-location'),
+    #   POST /api/location/detect/           — Public. GPS coords → address + nearest store (anonymous)
+    #   POST /api/location/detect/<user_id>/ — Public. Same, but also saves to user profile
+    #   GET  /api/location/me/<user_id>/     — Public. Retrieve last saved location for user
+    #   POST /api/location/save/<user_id>/   — Public. Explicitly update saved location for user
+    path('location/detect/',              views.StartupDetectLocationView.as_view(), name='startup-location-detect'),
+    path('location/detect/<int:user_id>/', views.StartupDetectLocationView.as_view(), name='startup-location-detect-user'),
+    path('location/me/<int:user_id>/',    views.GetMyLocationView.as_view(),          name='get-my-location'),
+    path('location/save/<int:user_id>/',  views.SaveMyLocationView.as_view(),          name='save-my-location'),
 ]

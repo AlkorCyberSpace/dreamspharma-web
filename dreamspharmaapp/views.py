@@ -7485,9 +7485,10 @@ def _build_location_payload(lat, lon, accuracy=None):
 
 class StartupDetectLocationView(APIView):
     """
-    POST /api/location/detect/
-    ─────────────────────────
-    Public endpoint — no authentication required.
+    POST /api/location/detect/           — no user_id (anonymous browsing)
+    POST /api/location/detect/<user_id>/ — with user_id (saves to user profile)
+
+    Public endpoint — no auth header required.
     The Flutter/mobile app calls this ONCE at startup after receiving GPS coordinates.
 
     Request body:
@@ -7510,7 +7511,6 @@ class StartupDetectLocationView(APIView):
             "country":      "India",
             "latitude":     12.9716,
             "longitude":    77.5946,
-
             "store_id":      1,
             "store_name":    "DreamsPharma - Bangalore",
             "store_address": "...",
@@ -7518,19 +7518,15 @@ class StartupDetectLocationView(APIView):
             "store_pincode": "560001",
             "store_phone":   "9876543210",
             "distance_km":   2.4,
-
             "erp_c2_code":   "03C000",
             "erp_store_id":  "001",
             "erp_prod_code": "02"
         }
     }
-
-    If logged in (Authorization: Bearer <token>), the user's
-    last_latitude / last_longitude / preferred_store are updated silently.
     """
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request, user_id=None):
         serializer = StartupLocationInputSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({
@@ -7545,16 +7541,15 @@ class StartupDetectLocationView(APIView):
 
         payload = _build_location_payload(lat, lon, accuracy)
 
-        # ── Silently persist location if the user is authenticated ──
-        if request.user and request.user.is_authenticated:
+        # ── Persist location if user_id is provided in the URL ──
+        if user_id is not None:
+            user = get_object_or_404(User, id=user_id)
             try:
-                user = request.user
-                user.last_latitude       = lat
-                user.last_longitude      = lon
+                user.last_latitude        = lat
+                user.last_longitude       = lon
                 user.last_location_update = timezone.now()
                 if payload['pincode']:
                     user.location_pincode = payload['pincode']
-                # Link the nearest store as preferred_store
                 if payload['store_id']:
                     from .models import Store as _Store
                     try:
@@ -7566,12 +7561,11 @@ class StartupDetectLocationView(APIView):
                     'location_pincode', 'preferred_store',
                 ])
                 logger.info(
-                    f"[STARTUP_LOCATION] User {user.id} location saved: "
+                    f"[STARTUP_LOCATION] User {user_id} location saved: "
                     f"({lat}, {lon}) → store {payload['store_id']}"
                 )
             except Exception as persist_err:
-                # Never let a save error break the API response
-                logger.warning(f"[STARTUP_LOCATION] Could not persist location: {persist_err}")
+                logger.warning(f"[STARTUP_LOCATION] Could not persist location for user {user_id}: {persist_err}")
 
         logger.info(
             f"[STARTUP_LOCATION] Detected: ({lat}, {lon}) "
@@ -7587,45 +7581,36 @@ class StartupDetectLocationView(APIView):
 
 class GetMyLocationView(APIView):
     """
-    GET /api/location/me/
-    ──────────────────────
-    Authenticated endpoint.
-    Returns the last saved location + preferred store for the logged-in user.
-    Used when the app restarts and the device still has a cached JWT but
-    needs to re-populate the "Delivering to ..." UI without a fresh GPS call.
+    GET /api/location/me/<user_id>/
 
-    Headers:
-        Authorization: Bearer <access_token>
+    Returns the last saved location + preferred store for the given user.
+    Used when the app restarts and needs to re-populate "Delivering to ..." UI
+    without draining battery with a fresh GPS call.
 
-    Response (200):
+    URL param: user_id (integer)
+
+    Response (200) — location found:
     {
         "success": true,
-        "data": {
-            "latitude":    12.9716,
-            "longitude":   77.5946,
-            "city":        "Bangalore",
-            ...
-            "store_id":    1,
-            "store_name":  "DreamsPharma - Bangalore",
-            ...
-        }
+        "data": { "latitude": 12.9716, "longitude": 77.5946, "city": "Bangalore", ... }
     }
 
-    Response (204) — if no location has been saved yet:
+    Response (200) — no location saved yet:
     {
         "success": true,
-        "message": "No location saved yet. Please call POST /api/location/detect/."
+        "message": "No location saved yet. Please call POST /api/location/detect/<user_id>/.",
+        "data": null
     }
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
-    def get(self, request):
-        user = request.user
+    def get(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
 
         if not user.last_latitude or not user.last_longitude:
             return Response({
                 'success': True,
-                'message': 'No location saved yet. Please call POST /api/location/detect/.',
+                'message': f'No location saved yet. Please call POST /api/location/detect/{user_id}/.',
                 'data': None,
             }, status=status.HTTP_200_OK)
 
@@ -7635,11 +7620,11 @@ class GetMyLocationView(APIView):
         # Build fresh payload (re-runs store lookup so distance is always live)
         payload = _build_location_payload(lat, lon)
 
-        # Override with persisted pincode if geocoding returned blank
+        # Fallback: use persisted pincode if geocoding returned blank
         if not payload['pincode'] and user.location_pincode:
             payload['pincode'] = user.location_pincode
 
-        # If user has a preferred_store, use it (overrides nearest-store calculation)
+        # If user has a preferred_store, always use it (overrides nearest-store calculation)
         if user.preferred_store:
             ps = user.preferred_store
             payload.update({
@@ -7654,7 +7639,7 @@ class GetMyLocationView(APIView):
                 'erp_prod_code': ps.prod_code,
             })
 
-        logger.info(f"[GET_MY_LOCATION] User {user.id} fetched location context.")
+        logger.info(f"[GET_MY_LOCATION] User {user_id} fetched location context.")
 
         return Response({
             'success': True,
@@ -7664,11 +7649,13 @@ class GetMyLocationView(APIView):
 
 class SaveMyLocationView(APIView):
     """
-    POST /api/location/save/
-    ─────────────────────────
-    Authenticated endpoint.
-    The mobile app calls this when the user explicitly changes their location
-    (e.g., "Change Location" button, or after granting GPS permission mid-session).
+    POST /api/location/save/<user_id>/
+
+    Called when the user explicitly taps "Change Location".
+    Accepts new GPS coordinates, re-runs nearest-store logic,
+    and updates the user's saved location + preferred_store.
+
+    URL param: user_id (integer)
 
     Request body:
     {
@@ -7684,9 +7671,11 @@ class SaveMyLocationView(APIView):
         "data": { ... same shape as /detect/ ... }
     }
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
+
         serializer = StartupLocationInputSerializer(data=request.data)
         if not serializer.is_valid():
             return Response({
@@ -7702,7 +7691,6 @@ class SaveMyLocationView(APIView):
         payload = _build_location_payload(lat, lon, accuracy)
 
         # Persist to user profile
-        user = request.user
         user.last_latitude        = lat
         user.last_longitude       = lon
         user.last_location_update = timezone.now()
@@ -7720,7 +7708,7 @@ class SaveMyLocationView(APIView):
         ])
 
         logger.info(
-            f"[SAVE_MY_LOCATION] User {user.id} updated location: "
+            f"[SAVE_MY_LOCATION] User {user_id} updated location: "
             f"({lat}, {lon}) → store {payload['store_id']}"
         )
 
@@ -7729,3 +7717,5 @@ class SaveMyLocationView(APIView):
             'message': 'Location updated successfully',
             'data': payload,
         }, status=status.HTTP_200_OK)
+
+
