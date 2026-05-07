@@ -363,6 +363,7 @@ All require JWT with `role=SUPERADMIN`.
 |----------|--------|
 | `/api/superadmin/dashboard/statistics/` | GET |
 | `/api/superadmin/dashboard/daily-volume/` | GET |
+| `/api/superadmin/dashboard/warehouse-orders/` | GET |
 | `/api/superadmin/profile/` | GET |
 | `/api/superadmin/profile/image/` | POST/DELETE |
 | `/api/superadmin/change-password/` | POST |
