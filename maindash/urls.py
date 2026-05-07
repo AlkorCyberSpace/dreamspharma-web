@@ -6,6 +6,7 @@ urlpatterns = [
     # SuperAdmin - Dashboard Statistics
     path('superadmin/dashboard/statistics/', views.DashboardStatisticsView.as_view(), name='superadmin-dashboard-statistics'),
     path('superadmin/dashboard/daily-volume/', views.DailyVolumeGraphView.as_view(), name='superadmin-daily-volume'),
+    path('superadmin/dashboard/warehouse-orders/', views.WarehouseOrdersGraphView.as_view(), name='superadmin-warehouse-orders-graph'),
 
     # SuperAdmin - Change Password
     path('superadmin/change-password/', views.ChangePasswordView.as_view(), name='superadmin-change-password'),

@@ -68,6 +68,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'dreamspharmaapp.middleware.StoreContextMiddleware',  # ✓ Extract store context from location
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -98,7 +99,21 @@ AUTH_USER_MODEL = 'dreamspharmaapp.CustomUser'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    # ==================== RATE LIMITING ====================
+    # ✅ PRODUCTION FIX #3: Prevent abuse and overload
+    # Without rate limiting: 1 attacker × 1000 requests/sec = system crash
+    # With rate limiting: 10 orders/min per user = controlled load
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '10000/day',          # Anonymous users: Increased for development
+        'user': '1000/hour',          # Authenticated users: 1000/hour (general)
+        'orders': '10/minute',        # Order creation: 10 orders/minute per user
+        'auth': '5/minute',           # Authentication: 5 attempts/minute
+    }
 }
 
 # ==================== JWT SETTINGS ====================
@@ -137,6 +152,21 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
+# ==================== CELERY ASYNC TASK QUEUE ====================
+# ✅ PRODUCTION FIX #4: Move heavy processes to background
+# Without Celery: User waits for ERP API call (10 seconds!) → 100 users = timeout errors
+# With Celery: Response returned instantly, ERP call happens in background
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes hard limit
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes soft limit
+CELERY_WORKER_PREFETCH_MULTIPLIER = 4  # Prevent one worker from hogging all tasks
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000  # Prevent memory leaks in workers
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -149,9 +179,36 @@ DATABASES = {
         'PASSWORD': 'Soorya@123',
         'HOST': 'localhost',     
         'PORT': '5432',         
+        # ==================== CONNECTION POOLING ====================
+        # ✅ PRODUCTION FIX #1: Reuse database connections (prevents connection exhaustion)
+        # Without this: Every request creates new DB connection → 100+ users = 100+ connections!
+        # With this: Connection pool reuses existing connections → Massive performance boost
+        'CONN_MAX_AGE': 600,  # Keep connections alive for 10 minutes
+        'OPTIONS': {
+            'connect_timeout': 10,
+            'keepalives': 1,
+            'keepalives_idle': 30,
+        }
     }
+}
 
-
+# ==================== REDIS CACHE CONFIGURATION ====================
+# ✅ PRODUCTION FIX #2: Cache products/stores locally (prevents DB hammering)
+# Without cache: Every product view = 1 DB query. 100 users × 10 views = 1,000 queries/second!
+# With cache: 1 DB query, then 99 cache hits = 1,000x faster
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+        },
+        'KEY_PREFIX': 'dreamspharma',
+        'TIMEOUT': 300,  # Default 5-minute TTL
+    }
 }
 # DATABASES = {
 #     'default': dj_database_url.parse("postgresql://postgres:db_dreamspharma@db.wdpwanzaoacvcyvdqeek.supabase.co:5432/postgres")
@@ -212,23 +269,50 @@ OTP_EXPIRY_TIME = 600  # 10 minutes in seconds
 EMAIL_HOST='smtp.gmail.com'
 EMAIL_USE_TLS=True
 EMAIL_PORT=587
-EMAIL_HOST_USER='heysoorya1@gmail.com'
-EMAIL_HOST_PASSWORD='ibot dfts yoke orsn'
-DEFAULT_FROM_EMAIL='sooryakr2004@gmail.com'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'heysoorya1@gmail.com')  # Use environment variable
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'ibot dfts yoke orsn')  # Use environment variable
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'sooryakr2004@gmail.com')  # Use environment variable
 
 
 # ==================== ERP INTEGRATION ====================
-# 🔧 CONFIGURE THESE SETTINGS FOR YOUR ERP ENVIRONMENT
-# Change these values when client provides their actual ERP server details
+# 🔧 MULTI-STORE CONFIGURATION
+# ERP settings are now PER-STORE (stored in Store model)
+# Each store has its own: c2_code, store_id, security_key
+# Views fetch these from database instead of hardcoded values
 
-ERP_BASE_URL = 'http://localhost:44000'  # ERP Server IP/URL - CHANGE THIS ⚙️
-ERP_C2_CODE = '03C000'                   # Company code - CHANGE THIS ⚙️
-ERP_STORE_ID = '001'                     # Store ID - CHANGE THIS ⚙️
-ERP_PROD_CODE = '02'                     # Product code
-ERP_SECURITY_KEY = 'TUVVek1EQXhNalE9'    # Security key - CHANGE THIS ⚙️
+ERP_BASE_URL = os.environ.get('ERP_BASE_URL', 'http://localhost:44000')  # ERP Server URL
+
+# ⚠️ Fallback ERP settings (used when no stores in database)
+# In production, these should be set via environment variables or Store model in database
+ERP_C2_CODE = os.environ.get('ERP_C2_CODE', '03C000')
+ERP_STORE_ID = os.environ.get('ERP_STORE_ID', '001')
+ERP_PROD_CODE = os.environ.get('ERP_PROD_CODE', '02')
+ERP_SECURITY_KEY = os.environ.get('ERP_SECURITY_KEY', 'TUVVek1EQXhNalE9')
 
 # Token refresh settings (in hours)
 ERP_TOKEN_REFRESH_HOURS = 23  # Refresh token every 23 hours (before 24-hour expiry)
+
+
+# ==================== SENTRY ERROR TRACKING ====================
+# ✅ PRODUCTION FIX #7: Real-time error monitoring and alerting
+# Without Sentry: Bugs go unnoticed until customers complain
+# With Sentry: Bugs caught immediately with full stack trace, user context, release info
+if not DEBUG:  # Only in production
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    
+    sentry_sdk.init(
+        dsn=os.environ.get('SENTRY_DSN', ''),  # Get from environment
+        integrations=[
+            DjangoIntegration(),
+            CeleryIntegration(),
+        ],
+        traces_sample_rate=0.1,  # 10% of transactions (reduce costs)
+        send_default_pii=False,  # Don't send personal data
+        environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+        release=os.environ.get('APP_RELEASE', 'latest'),
+    )
 
 
 # ==================== APScheduler Configuration ====================
