@@ -404,9 +404,9 @@ All require JWT with `role=SUPERADMIN`.
 | `/api/superadmin/notifications/` | GET |
 | `/api/superadmin/notifications/<id>/mark-read/` | POST |
 | `/api/superadmin/reports/summary/` | GET |
-| `/api/superadmin/reports/kyc/?format=json\|excel` | GET |
-| `/api/superadmin/reports/orders/?format=json\|excel` | GET |
-| `/api/superadmin/reports/retailer-activity/` | GET |
+| /api/superadmin/reports/kyc/?format=json\|excel | GET |
+| /api/superadmin/reports/orders/?format=json\|excel | GET |
+| /api/superadmin/reports/retailer-activity/ | GET |
 | `/api/superadmin/reports/revenue/` | GET |
 | `/api/superadmin/reports/refund-trends/` | GET |
 
@@ -727,3 +727,238 @@ curl -X POST "http://127.0.0.1:8000/api/erp/ws_c2_services_create_sale_order" \
   "order_id": "ORD-20260505-8A7B6C5D"
 }
 ```
+
+---
+
+## 19. STARTUP LOCATION APIs (Swiggy/Zomato Style)
+
+> **Added:** 2026-05-07  
+> These three endpoints are the **first calls** the mobile app makes after receiving GPS permission.  
+> Completely standalone — do not interfere with any existing workflow.
+
+### Quick Summary
+
+| # | Method | Endpoint | Auth | When to call |
+|---|--------|----------|------|--------------|
+| 1 | `POST` | `/api/location/detect/` | **Public** | App launch / GPS acquired |
+| 2 | `GET`  | `/api/location/me/`     | JWT  | App restart (JWT cached, no new GPS) |
+| 3 | `POST` | `/api/location/save/`   | JWT  | User taps "Change Location" |
+
+---
+
+### 19.1 Detect Location at App Startup
+`POST /api/location/detect/` — **Public** (No auth required)
+
+Accepts GPS coordinates. Returns a **human-readable address** (via OpenStreetMap) plus the **nearest DreamsPharma store** with ERP config — everything needed in one call. If a valid JWT is included, location is **silently saved** to the user profile.
+
+**cURL — Without login:**
+```bash
+curl -X POST "http://127.0.0.1:8000/api/location/detect/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "accuracy": 15.0
+  }'
+```
+
+**cURL — With JWT (auto-saves to user profile):**
+```bash
+curl -X POST "http://127.0.0.1:8000/api/location/detect/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "accuracy": 15.0
+  }'
+```
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `latitude` | Float | ✅ Yes | GPS latitude (-90 to 90) |
+| `longitude` | Float | ✅ Yes | GPS longitude (-180 to 180) |
+| `accuracy` | Float | ❌ No | GPS accuracy in metres (for logging) |
+
+**Response 200 — Success:**
+```json
+{
+    "success": true,
+    "message": "Location detected successfully",
+    "data": {
+        "full_address": "Vittal Mallya Road, D'Souza Layout, Shanthala Nagar, Ashokanagar, Bengaluru Central City Corporation, Bengaluru, Bangalore North, Bengaluru Urban, Karnataka, 560001, India",
+        "locality": "Ashokanagar",
+        "city": "Bengaluru",
+        "state": "Karnataka",
+        "pincode": "560001",
+        "country": "India",
+        "latitude": 12.9716,
+        "longitude": 77.5946,
+        "store_id": 1,
+        "store_name": "DreamsPharma - Indiranagar",
+        "store_address": "100 Feet Road, Indiranagar",
+        "store_city": "Bangalore",
+        "store_pincode": "560038",
+        "store_phone": "9876543210",
+        "distance_km": 5.06,
+        "erp_c2_code": "03C000",
+        "erp_store_id": "001",
+        "erp_prod_code": "02"
+    }
+}
+```
+
+**Response 400 — Missing field:**
+```json
+{
+    "success": false,
+    "message": "Invalid location data",
+    "errors": { "latitude": ["This field is required."] }
+}
+```
+
+**Response 400 — Out-of-range coordinate:**
+```json
+{
+    "success": false,
+    "message": "Invalid location data",
+    "errors": { "latitude": ["latitude must be between -90 and 90."] }
+}
+```
+
+---
+
+### 19.2 Get My Saved Location
+`GET /api/location/me/` — **JWT Required**
+
+Returns the **last persisted location** for the logged-in user. No GPS call needed on restart.
+
+**cURL:**
+```bash
+curl -X GET "http://127.0.0.1:8000/api/location/me/" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**Response 200 — Location found:**
+```json
+{
+    "success": true,
+    "data": {
+        "full_address": "Vittal Mallya Road, D'Souza Layout, Shanthala Nagar, Ashokanagar, Bengaluru Central City Corporation, Bengaluru, Bangalore North, Bengaluru Urban, Karnataka, 560001, India",
+        "locality": "Ashokanagar",
+        "city": "Bengaluru",
+        "state": "Karnataka",
+        "pincode": "560001",
+        "country": "India",
+        "latitude": 12.9716,
+        "longitude": 77.5946,
+        "store_id": 1,
+        "store_name": "DreamsPharma - Indiranagar",
+        "store_address": "100 Feet Road, Indiranagar",
+        "store_city": "Bangalore",
+        "store_pincode": "560038",
+        "store_phone": "9876543210",
+        "distance_km": 5.06,
+        "erp_c2_code": "03C000",
+        "erp_store_id": "001",
+        "erp_prod_code": "02"
+    }
+}
+```
+
+**Response 200 — No location saved yet:**
+```json
+{
+    "success": true,
+    "message": "No location saved yet. Please call POST /api/location/detect/.",
+    "data": null
+}
+```
+
+---
+
+### 19.3 Save / Update My Location
+`POST /api/location/save/` — **JWT Required**
+
+Called when the user explicitly taps **"Change Location"**. Re-runs nearest-store lookup and updates `preferred_store` on the user profile.
+
+**cURL:**
+```bash
+curl -X POST "http://127.0.0.1:8000/api/location/save/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token>" \
+  -d '{
+    "latitude": 13.0827,
+    "longitude": 80.2707
+  }'
+```
+
+**Response 200 — Success (Chennai example):**
+```json
+{
+    "success": true,
+    "message": "Location updated successfully",
+    "data": {
+        "full_address": "Raja Muthiah Road, CMWSSB Division 58, Ward 58, Zone 5 Royapuram, Chennai, Tamil Nadu, 600001, India",
+        "locality": "Zone 5 Royapuram",
+        "city": "Chennai",
+        "state": "Tamil Nadu",
+        "pincode": "600001",
+        "country": "India",
+        "latitude": 13.0827,
+        "longitude": 80.2707,
+        "store_id": 1,
+        "store_name": "DreamsPharma - Indiranagar",
+        "store_address": "100 Feet Road, Indiranagar",
+        "store_city": "Bangalore",
+        "store_pincode": "560038",
+        "store_phone": "9876543210",
+        "distance_km": 285.14,
+        "erp_c2_code": "03C000",
+        "erp_store_id": "001",
+        "erp_prod_code": "02"
+    }
+}
+```
+
+---
+
+### 19.4 Response Field Reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `full_address` | String | Complete formatted address from OpenStreetMap |
+| `locality` | String | Sub-area / neighbourhood — use for "Delivering to …" UI |
+| `city` | String | City name |
+| `state` | String | State / Province |
+| `pincode` | String | Postal code |
+| `country` | String | Country |
+| `latitude` | Float | Echoed back from request |
+| `longitude` | Float | Echoed back from request |
+| `store_id` | Int | DreamsPharma store DB primary key |
+| `store_name` | String | Store display name |
+| `store_address` | String | Store physical address |
+| `store_city` | String | Store city |
+| `store_pincode` | String | Store postal code |
+| `store_phone` | String | Store contact number |
+| `distance_km` | Float | Distance from user to store in km |
+| `erp_c2_code` | String | ERP company code — pass to all ERP API calls |
+| `erp_store_id` | String | ERP store ID — pass as `storeId` to all ERP calls |
+| `erp_prod_code` | String | ERP production code — pass to all ERP API calls |
+
+---
+
+### 19.6 Developer Notes
+
+- **`/detect/` is always the first call** — works before login (browsing mode) and after login.
+- **If JWT is included in `/detect/`**, location saves silently — no extra `/save/` call needed at startup.
+- **`erp_store_id`** from the response must be passed as `storeId` to all ERP calls: `fetch_stock`, `get_master_data`, `create_sale_order`.
+- **Geocoding uses OpenStreetMap (Nominatim)** — free, no API key required. If geocoding fails, store info is still returned correctly.
+- **`distance_km`** can be shown in the UI as *"5.06 km away"* on the store banner.
+- **`preferred_store`** on the user model is updated automatically so the backend always knows which store to route orders to.
+
+---
+
+*Section 19 added: 2026-05-07 | DreamsPharma Backend v1.1*

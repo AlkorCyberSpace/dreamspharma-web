@@ -2251,3 +2251,73 @@ class RetailerWalletSerializer(serializers.ModelSerializer):
             'id', 'retailer_name', 'balance', 'transactions', 'updated_at'
         ]
 
+
+# ==============================================================================
+# STARTUP LOCATION API SERIALIZERS
+# These are NEW, standalone serializers that do NOT touch any existing workflow.
+# Purpose: Swiggy/Zomato-style "detect my location at app startup" feature.
+# ==============================================================================
+
+class StartupLocationInputSerializer(serializers.Serializer):
+    """
+    Input for the startup POST /api/location/detect/ endpoint.
+    The mobile app sends GPS coordinates; the backend does the rest.
+    """
+    latitude = serializers.FloatField(
+        required=True,
+        help_text="GPS latitude from device (e.g. 12.9716)"
+    )
+    longitude = serializers.FloatField(
+        required=True,
+        help_text="GPS longitude from device (e.g. 77.5946)"
+    )
+    accuracy = serializers.FloatField(
+        required=False,
+        allow_null=True,
+        help_text="GPS accuracy in metres (optional, for logging)"
+    )
+
+    def validate_latitude(self, value):
+        if not (-90 <= value <= 90):
+            raise serializers.ValidationError(
+                "latitude must be between -90 and 90."
+            )
+        return value
+
+    def validate_longitude(self, value):
+        if not (-180 <= value <= 180):
+            raise serializers.ValidationError(
+                "longitude must be between -180 and 180."
+            )
+        return value
+
+
+class StartupLocationResponseSerializer(serializers.Serializer):
+    """
+    Full response returned by POST /api/location/detect/ and
+    GET /api/location/me/ so the mobile app gets everything in one call.
+    """
+    # --- Address info (from reverse-geocoding) ---
+    full_address = serializers.CharField()
+    locality     = serializers.CharField()
+    city         = serializers.CharField()
+    state        = serializers.CharField()
+    pincode      = serializers.CharField()
+    country      = serializers.CharField()
+    latitude     = serializers.FloatField()
+    longitude    = serializers.FloatField()
+
+    # --- Nearest store info ---
+    store_id      = serializers.IntegerField(allow_null=True)
+    store_name    = serializers.CharField(allow_null=True)
+    store_address = serializers.CharField(allow_null=True)
+    store_city    = serializers.CharField(allow_null=True)
+    store_pincode = serializers.CharField(allow_null=True)
+    store_phone   = serializers.CharField(allow_null=True)
+    distance_km   = serializers.FloatField(allow_null=True)
+
+    # --- ERP identifiers the app needs to call fetch-stock / create-order ---
+    erp_c2_code  = serializers.CharField(allow_null=True)
+    erp_store_id = serializers.CharField(allow_null=True)
+    erp_prod_code = serializers.CharField(allow_null=True)
+
