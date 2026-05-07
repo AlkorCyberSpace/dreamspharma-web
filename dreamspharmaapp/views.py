@@ -7709,7 +7709,7 @@ class SaveMyLocationView(APIView):
 
         logger.info(
             f"[SAVE_MY_LOCATION] User {user_id} updated location: "
-            f"({lat}, {lon}) → store {payload['store_id']}"
+            f"({lat}, {lon}) -> store {payload['store_id']}"
         )
 
         return Response({

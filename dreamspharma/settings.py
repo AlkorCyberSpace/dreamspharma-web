@@ -184,11 +184,15 @@ DATABASES = {
         # ✅ PRODUCTION FIX #1: Reuse database connections (prevents connection exhaustion)
         # Without this: Every request creates new DB connection → 100+ users = 100+ connections!
         # With this: Connection pool reuses existing connections → Massive performance boost
-        'CONN_MAX_AGE': 600,  # Keep connections alive for 10 minutes
+        'CONN_MAX_AGE': 60,  # Keep connections alive for 60 seconds (reduced from 600)
+        'CONN_MAX_POOL': 15,  # Max 15 connections per worker - PREVENTS EXHAUSTION
+        'CONN_HEALTH_CHECKS': True,  # Verify connection is alive before using
         'OPTIONS': {
             'connect_timeout': 10,
             'keepalives': 1,
-            'keepalives_idle': 30,
+            'keepalives_idle': 5,  # Send keepalive every 5 seconds (reduced from 30)
+            'keepalives_interval': 5,  # Interval between keepalive probes
+            'keepalives_count': 3,  # Try 3 times before giving up
         }
     }
 }
