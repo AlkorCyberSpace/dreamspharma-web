@@ -7394,3 +7394,338 @@ class GetProductsByOrderView(APIView):
 # PRODUCTION CHECKOUT VIEW - SELECT_FOR_UPDATE METHOD (Flipkart/Amazon Approach)
 # ================================================================================
 
+
+# ================================================================================
+# STARTUP LOCATION APIs
+# Completely standalone — do NOT touch any existing view, serializer, or workflow.
+# These replicate the Swiggy/Zomato "detect location at app startup" pattern.
+#
+#  POST /api/location/detect/   — Public. Accepts lat/lng → returns address + nearest store.
+#  GET  /api/location/me/       — Auth.   Returns last saved location for logged-in user.
+#  POST /api/location/save/     — Auth.   Saves new lat/lng and re-runs nearest-store logic.
+# ================================================================================
+
+from .serializers import StartupLocationInputSerializer, StartupLocationResponseSerializer
+from .store_manager import StoreLocationManager
+from .geocoding import reverse_geocode as _reverse_geocode, GeocodingException
+
+
+def _build_location_payload(lat, lon, accuracy=None):
+    """
+    Internal helper.
+    1. Reverse-geocodes lat/lng → address dict.
+    2. Finds nearest active store.
+    Returns a flat dict ready for StartupLocationResponseSerializer.
+    """
+    # --- 1. Reverse-geocode ---
+    try:
+        addr = _reverse_geocode(lat, lon)
+    except GeocodingException:
+        addr = {
+            'full_address': '',
+            'locality': '',
+            'city': '',
+            'state': '',
+            'pincode': '',
+            'country': '',
+            'accuracy': 'UNKNOWN',
+        }
+
+    # --- 2. Nearest store ---
+    store_data = StoreLocationManager.find_nearest_store(lat, lon)
+
+    store_id      = None
+    store_name    = None
+    store_address = None
+    store_city    = None
+    store_pincode = None
+    store_phone   = None
+    distance_km   = None
+    erp_c2_code   = None
+    erp_store_id  = None
+    erp_prod_code = None
+
+    if store_data:
+        store_obj     = store_data['store']
+        store_id      = store_data['store_id']
+        store_name    = store_data['store_name']
+        store_address = store_data['address']
+        store_city    = store_obj.city
+        store_pincode = store_obj.pincode
+        store_phone   = store_data['phone']
+        distance_km   = store_data['distance']
+        erp_c2_code   = store_obj.c2_code
+        erp_store_id  = store_obj.store_id
+        erp_prod_code = store_obj.prod_code
+
+    return {
+        # address
+        'full_address': addr.get('full_address', ''),
+        'locality':     addr.get('locality', ''),
+        'city':         addr.get('city', ''),
+        'state':        addr.get('state', ''),
+        'pincode':      addr.get('pincode', ''),
+        'country':      addr.get('country', ''),
+        'latitude':     float(lat),
+        'longitude':    float(lon),
+        # store
+        'store_id':      store_id,
+        'store_name':    store_name,
+        'store_address': store_address,
+        'store_city':    store_city,
+        'store_pincode': store_pincode,
+        'store_phone':   store_phone,
+        'distance_km':   distance_km,
+        # erp
+        'erp_c2_code':   erp_c2_code,
+        'erp_store_id':  erp_store_id,
+        'erp_prod_code': erp_prod_code,
+    }
+
+
+class StartupDetectLocationView(APIView):
+    """
+    POST /api/location/detect/
+    ─────────────────────────
+    Public endpoint — no authentication required.
+    The Flutter/mobile app calls this ONCE at startup after receiving GPS coordinates.
+
+    Request body:
+    {
+        "latitude":  12.9716,
+        "longitude": 77.5946,
+        "accuracy":  15.0        ← optional (metres)
+    }
+
+    Response (200):
+    {
+        "success": true,
+        "message": "Location detected successfully",
+        "data": {
+            "full_address": "...",
+            "locality":     "Indiranagar",
+            "city":         "Bangalore",
+            "state":        "Karnataka",
+            "pincode":      "560038",
+            "country":      "India",
+            "latitude":     12.9716,
+            "longitude":    77.5946,
+
+            "store_id":      1,
+            "store_name":    "DreamsPharma - Bangalore",
+            "store_address": "...",
+            "store_city":    "Bangalore",
+            "store_pincode": "560001",
+            "store_phone":   "9876543210",
+            "distance_km":   2.4,
+
+            "erp_c2_code":   "03C000",
+            "erp_store_id":  "001",
+            "erp_prod_code": "02"
+        }
+    }
+
+    If logged in (Authorization: Bearer <token>), the user's
+    last_latitude / last_longitude / preferred_store are updated silently.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = StartupLocationInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid location data',
+                'errors': serializer.errors,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        lat      = serializer.validated_data['latitude']
+        lon      = serializer.validated_data['longitude']
+        accuracy = serializer.validated_data.get('accuracy')
+
+        payload = _build_location_payload(lat, lon, accuracy)
+
+        # ── Silently persist location if the user is authenticated ──
+        if request.user and request.user.is_authenticated:
+            try:
+                user = request.user
+                user.last_latitude       = lat
+                user.last_longitude      = lon
+                user.last_location_update = timezone.now()
+                if payload['pincode']:
+                    user.location_pincode = payload['pincode']
+                # Link the nearest store as preferred_store
+                if payload['store_id']:
+                    from .models import Store as _Store
+                    try:
+                        user.preferred_store = _Store.objects.get(pk=payload['store_id'])
+                    except _Store.DoesNotExist:
+                        pass
+                user.save(update_fields=[
+                    'last_latitude', 'last_longitude', 'last_location_update',
+                    'location_pincode', 'preferred_store',
+                ])
+                logger.info(
+                    f"[STARTUP_LOCATION] User {user.id} location saved: "
+                    f"({lat}, {lon}) → store {payload['store_id']}"
+                )
+            except Exception as persist_err:
+                # Never let a save error break the API response
+                logger.warning(f"[STARTUP_LOCATION] Could not persist location: {persist_err}")
+
+        logger.info(
+            f"[STARTUP_LOCATION] Detected: ({lat}, {lon}) "
+            f"→ store={payload['store_name']} dist={payload['distance_km']}km"
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Location detected successfully',
+            'data': payload,
+        }, status=status.HTTP_200_OK)
+
+
+class GetMyLocationView(APIView):
+    """
+    GET /api/location/me/
+    ──────────────────────
+    Authenticated endpoint.
+    Returns the last saved location + preferred store for the logged-in user.
+    Used when the app restarts and the device still has a cached JWT but
+    needs to re-populate the "Delivering to ..." UI without a fresh GPS call.
+
+    Headers:
+        Authorization: Bearer <access_token>
+
+    Response (200):
+    {
+        "success": true,
+        "data": {
+            "latitude":    12.9716,
+            "longitude":   77.5946,
+            "city":        "Bangalore",
+            ...
+            "store_id":    1,
+            "store_name":  "DreamsPharma - Bangalore",
+            ...
+        }
+    }
+
+    Response (204) — if no location has been saved yet:
+    {
+        "success": true,
+        "message": "No location saved yet. Please call POST /api/location/detect/."
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if not user.last_latitude or not user.last_longitude:
+            return Response({
+                'success': True,
+                'message': 'No location saved yet. Please call POST /api/location/detect/.',
+                'data': None,
+            }, status=status.HTTP_200_OK)
+
+        lat = user.last_latitude
+        lon = user.last_longitude
+
+        # Build fresh payload (re-runs store lookup so distance is always live)
+        payload = _build_location_payload(lat, lon)
+
+        # Override with persisted pincode if geocoding returned blank
+        if not payload['pincode'] and user.location_pincode:
+            payload['pincode'] = user.location_pincode
+
+        # If user has a preferred_store, use it (overrides nearest-store calculation)
+        if user.preferred_store:
+            ps = user.preferred_store
+            payload.update({
+                'store_id':      ps.id,
+                'store_name':    ps.name,
+                'store_address': ps.address,
+                'store_city':    ps.city,
+                'store_pincode': ps.pincode,
+                'store_phone':   ps.phone,
+                'erp_c2_code':   ps.c2_code,
+                'erp_store_id':  ps.store_id,
+                'erp_prod_code': ps.prod_code,
+            })
+
+        logger.info(f"[GET_MY_LOCATION] User {user.id} fetched location context.")
+
+        return Response({
+            'success': True,
+            'data': payload,
+        }, status=status.HTTP_200_OK)
+
+
+class SaveMyLocationView(APIView):
+    """
+    POST /api/location/save/
+    ─────────────────────────
+    Authenticated endpoint.
+    The mobile app calls this when the user explicitly changes their location
+    (e.g., "Change Location" button, or after granting GPS permission mid-session).
+
+    Request body:
+    {
+        "latitude":  13.0827,
+        "longitude": 80.2707,
+        "accuracy":  10.0    ← optional
+    }
+
+    Response (200):
+    {
+        "success":  true,
+        "message":  "Location updated successfully",
+        "data": { ... same shape as /detect/ ... }
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = StartupLocationInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                'success': False,
+                'message': 'Invalid location data',
+                'errors': serializer.errors,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        lat      = serializer.validated_data['latitude']
+        lon      = serializer.validated_data['longitude']
+        accuracy = serializer.validated_data.get('accuracy')
+
+        payload = _build_location_payload(lat, lon, accuracy)
+
+        # Persist to user profile
+        user = request.user
+        user.last_latitude        = lat
+        user.last_longitude       = lon
+        user.last_location_update = timezone.now()
+        if payload['pincode']:
+            user.location_pincode = payload['pincode']
+        if payload['store_id']:
+            from .models import Store as _Store
+            try:
+                user.preferred_store = _Store.objects.get(pk=payload['store_id'])
+            except _Store.DoesNotExist:
+                pass
+        user.save(update_fields=[
+            'last_latitude', 'last_longitude', 'last_location_update',
+            'location_pincode', 'preferred_store',
+        ])
+
+        logger.info(
+            f"[SAVE_MY_LOCATION] User {user.id} updated location: "
+            f"({lat}, {lon}) → store {payload['store_id']}"
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Location updated successfully',
+            'data': payload,
+        }, status=status.HTTP_200_OK)

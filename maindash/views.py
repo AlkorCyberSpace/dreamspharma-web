@@ -1827,7 +1827,7 @@ class ReportSummaryView(APIView):
 
 class KYCStatusReportView(APIView, ExcelExportMixin):
     """
-    KYC approval/rejection statistics and record list.
+    Detailed list of KYC applications and their statuses.
     GET /api/superadmin/reports/kyc/
     """
     permission_classes = [IsAuthenticated]
