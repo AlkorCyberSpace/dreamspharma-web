@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Search, ChevronDown, Eye, X, Check, Download } from 'lucide-react';
-import { getOrdersApi, markCODDeliveredAPI, updateOrderStatusAPI, getSuperAdminProfileAPI } from '../services/allAPI';
+import { getOrdersApi, markCODDeliveredAPI, updateOrderStatusAPI, getSuperAdminProfileAPI, downloadInvoiceAPI } from '../services/allAPI';
 
 const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
   const [confirming, setConfirming] = useState(false);
@@ -55,14 +55,37 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
     }
   };
 
+  // Download Invoice handler
+  const handleDownloadInvoice = async () => {
+    try {
+      const response = await downloadInvoiceAPI(order.id);
+      // response.data is a Blob
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `invoice_${order.id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading invoice:', err);
+      // Attempt to parse error message from blob if possible, or just use response data
+      let errorMessage = 'Failed to download invoice.';
+      if (err.response?.data instanceof Blob) {
+          // This is tricky because responseType is blob
+          errorMessage = 'Invoice not available or error occurred.';
+      } else if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+      }
+      alert(errorMessage);
+    }
+  };
 
 
   const timelineSteps = [
     { key: 'Created', label: 'Created' },
-    { key: 'Confirmed', label: 'Confirmed' },
-    { key: 'ERP Synced', label: 'ERP Synced' },
-    { key: 'Dispatched', label: 'Dispatched' },
-    { key: 'Delivered', label: 'Delivered' }
+    { key: 'Confirmed', label: 'Confirmed' }
   ];
 
   return (
@@ -172,7 +195,10 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
 
         {/* Footer Actions */}
         <div className="px-8 py-6 border-t border-gray-100 flex gap-4">
-          <button className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#505050] hover:bg-gray-50 transition-colors">
+          <button
+            onClick={handleDownloadInvoice}
+            className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#505050] hover:bg-gray-50 transition-colors"
+          >
             <Download size={18} />
             Download Invoice
           </button>

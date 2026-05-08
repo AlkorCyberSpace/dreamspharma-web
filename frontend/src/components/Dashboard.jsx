@@ -23,7 +23,7 @@ const Dashboard = () => {
                 const res = await getDashboardStatsAPI();
                 console.log("Dashboard API:", res.data);
 
-                // ✅ IMPORTANT FIX
+                //  IMPORTANT FIX
                 setDashboardData(res.data.statistics);
             } catch (err) {
                 console.error("Dashboard API Error:", err);
@@ -67,7 +67,7 @@ const Dashboard = () => {
                     change={dashboardData?.orders_change_text || ""}
                     icon={ShoppingCart}
                 />
-                  <StatCard
+                <StatCard
                     variant="primary"
                     title="Top Selling Product"
                     value={dashboardData?.top_selling_product || "N/A"}
@@ -76,32 +76,7 @@ const Dashboard = () => {
                 />
             </div>
 
-            {/* Second Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* <StatCard
-                    variant="strong"
-                    title="Orders in Dispatch"
-                    value={dashboardData?.orders_in_dispatch || 0}
-                    change={dashboardData?.dispatch_change_text || ""}
-                    icon={TrendingUp}
-                /> */}
-
-                {/* <StatCard
-                    variant="primary"
-                    title="Top Selling Product"
-                    value={dashboardData?.top_selling_product || "N/A"}
-                    change={`${dashboardData?.top_selling_change_percentage || 0}%`}
-                    icon={CheckCircle}
-                /> */}
-
-                {/* <StatCard
-                    variant="strong"
-                    title="Pending Refund"
-                    value={dashboardData?.pending_refund || 0}
-                    change={dashboardData?.pending_refund_change_text || ""}
-                    icon={RotateCcw}
-                /> */}
-            </div>
+           
 
             {/* Charts */}
             <div className="p-1">
@@ -109,16 +84,17 @@ const Dashboard = () => {
 
                     {/* Main Chart */}
                     <div className="lg:col-span-2">
-                        <DailyOrderVolume
-                            data={dashboardData?.daily_order_volume || []}
+
+                        <RefundTrends
+                            data={dashboardData?.refund_trends || []}
                         />
                     </div>
 
                     {/* Side Charts */}
                     <div className="flex flex-col gap-4">
 
-                        <RefundTrends
-                            data={dashboardData?.refund_trends || []}
+                        <DailyOrderVolume
+                            data={dashboardData?.daily_order_volume || []}
                         />
 
                         <OrdersByStatus

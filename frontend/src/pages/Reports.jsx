@@ -173,24 +173,40 @@ export default function Reports() {
           </p>
         </div>
 
-        <div className="flex flex-col items-start gap-1">
-          <span className="text-sm text-gray-600">Time Selection:</span>
-          <div className="flex gap-2">
-            <input
-              type="date"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            />
+          <div className="flex items-center gap-3 bg-white p-1.5 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 px-3 border-r border-gray-100">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Timeframe</span>
+            </div>
+            
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="bg-transparent text-gray-700 text-sm font-medium py-1 px-2 outline-none cursor-pointer hover:text-[#2e7d88] transition-colors"
+            >
+              {months.map((month, index) => (
+                <option key={month} value={index}>{month}</option>
+              ))}
+            </select>
 
-            <input
-              type="date"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            />
+            <div className="w-px h-4 bg-gray-200"></div>
 
-            <button className="bg-[#2e7d88] hover:bg-[#24656d] text-white px-5 py-2 rounded-lg text-sm">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="bg-transparent text-gray-700 text-sm font-medium py-1 px-2 outline-none cursor-pointer hover:text-[#2e7d88] transition-colors"
+            >
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleApplyFilter}
+              className="bg-[#2e7d88] hover:bg-[#24656d] text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ml-2"
+            >
               Apply
             </button>
           </div>
-        </div>
       </div>
 
       {/* ---------- STATS ---------- */}
@@ -292,43 +308,10 @@ export default function Reports() {
             Generate Custom Reports
           </h2>
           
-          <div className="flex items-center gap-3 bg-white p-1.5 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center gap-2 px-3 border-r border-gray-100">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Timeframe</span>
-            </div>
-            
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              className="bg-transparent text-gray-700 text-sm font-medium py-1 px-2 outline-none cursor-pointer hover:text-[#2e7d88] transition-colors"
-            >
-              {months.map((month, index) => (
-                <option key={month} value={index}>{month}</option>
-              ))}
-            </select>
-
-            <div className="w-px h-4 bg-gray-200"></div>
-
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              className="bg-transparent text-gray-700 text-sm font-medium py-1 px-2 outline-none cursor-pointer hover:text-[#2e7d88] transition-colors"
-            >
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-
-            <button
-              onClick={handleApplyFilter}
-              className="bg-[#2e7d88] hover:bg-[#24656d] text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ml-2"
-            >
-              Apply
-            </button>
-          </div>
+        
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5">
           <ReportCard
             title="Order Report"
             desc="Detailed order list with all transactions"
@@ -342,8 +325,8 @@ export default function Reports() {
           />
 
           <ReportCard
-            title="Refund Report"
-            desc="All refund transactions and approvals"
+            title="Credit Report"
+            desc="All credit transactions and approvals"
             onDownload={handleDownloadExcel}
           />
 
@@ -353,7 +336,7 @@ export default function Reports() {
             onDownload={handleDownloadExcel}
           />
 
-          <ReportCard
+          {/* <ReportCard
             title="Product Performance Report"
             desc="Best/worst selling products"
             onDownload={handleDownloadExcel}
@@ -363,7 +346,7 @@ export default function Reports() {
             title="KYC Status Report"
             desc="KYC approval/rejection statistics"
             onDownload={handleDownloadExcel}
-          />
+          /> */}
         </div>
       </div>
 

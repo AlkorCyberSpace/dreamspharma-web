@@ -42,7 +42,7 @@ const DailyOrderVolume = ({ data }) => {
       </div>
 
       {/* ✅ FIXED HEIGHT */}
-      <div className="w-full h-[300px]">
+      <div className="w-full h-[200px]">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={chartData}
@@ -58,7 +58,7 @@ const DailyOrderVolume = ({ data }) => {
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
 
             <XAxis
-              dataKey="date"  
+              dataKey="date"
               axisLine={false}
               tickLine={false}
               tick={{ fill: "#94a3b8", fontSize: 12 }}
