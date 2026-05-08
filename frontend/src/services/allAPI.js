@@ -6,9 +6,6 @@ import { serverUrl } from "./serverUrl";
 // });
 const axiosInstance = axios.create({
   baseURL: serverUrl,
-  headers: {
-    "ngrok-skip-browser-warning": "true"
-  }
 });
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -265,9 +262,16 @@ export const getOrdersApi = (params) => {
   return axiosInstance.get("superadmin/orders/", { params });
 }
 
+// Download order invoice
+export const downloadInvoiceAPI = (orderId) =>
+  axiosInstance.get(`orders/${orderId}/invoice/`, { responseType: 'blob' });
 
-export const getReportSummaryApi = () => {
-  return axiosInstance.get('superadmin/reports/summary/')
+
+export const getReportSummaryApi = (startDate, endDate) => {
+  const params = {};
+  if (startDate) params.start_date = startDate;
+  if (endDate) params.end_date = endDate;
+  return axiosInstance.get('superadmin/reports/summary/', { params })
 }
 
 // SuperAdmin - Mark COD Order as Delivered/Paid
@@ -279,4 +283,30 @@ export const markCODDeliveredAPI = (data) => {
 export const updateOrderStatusAPI = (data) => {
   return axiosInstance.post("superadmin/orders/update-status/", data);
 };
+// Reports - Download Order Report Excel
+export const downloadOrderReportExcelAPI = (params) => {
+  return axiosInstance.get("superadmin/reports/orders/", {
+    params: { ...params, export: "excel" },
+    responseType: "blob", // Important for handling binary data (Excel)
+  });
+};
 
+// credit note
+export const getCreditNotesAPI = (params) => {
+  return axiosInstance.get("admin/credit-notes/", { params });
+};
+
+// SuperAdmin - Update Credit Note Status (Approve / Reject)
+export const updateCreditNoteStatusAPI = (id, data) => {
+  return axiosInstance.patch(`admin/credit-notes/${id}/`, data);
+};
+
+// SuperAdmin - Approve Credit Note
+export const approveCreditNoteAPI = (creditNoteId, data = {}) => {
+  return axiosInstance.post(`admin/credit-notes/${creditNoteId}/approve/`, data);
+};
+
+// SuperAdmin - Reject Credit Note
+export const rejectCreditNoteAPI = (creditNoteId, data = {}) => {
+  return axiosInstance.post(`admin/credit-notes/${creditNoteId}/reject/`, data);
+};
