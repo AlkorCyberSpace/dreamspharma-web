@@ -7409,41 +7409,21 @@ from .serializers import StartupLocationInputSerializer, StartupLocationResponse
 from .store_manager import StoreLocationManager
 from .geocoding import reverse_geocode as _reverse_geocode, GeocodingException
 
-
 def _build_location_payload(lat, lon, accuracy=None):
-    """
-    Internal helper.
-    1. Reverse-geocodes lat/lng → address dict.
-    2. Finds nearest active store.
-    Returns a flat dict ready for StartupLocationResponseSerializer.
-    """
-    # --- 1. Reverse-geocode ---
     try:
         addr = _reverse_geocode(lat, lon)
     except GeocodingException:
         addr = {
-            'full_address': '',
-            'locality': '',
-            'city': '',
-            'state': '',
-            'pincode': '',
-            'country': '',
-            'accuracy': 'UNKNOWN',
+            'full_address': '', 'locality': '', 'city': '',
+            'state': '', 'pincode': '', 'country': '', 'accuracy': 'UNKNOWN',
         }
 
-    # --- 2. Nearest store ---
+    # Nearest store (unchanged — still used for primary store fields)
     store_data = StoreLocationManager.find_nearest_store(lat, lon)
 
-    store_id      = None
-    store_name    = None
-    store_address = None
-    store_city    = None
-    store_pincode = None
-    store_phone   = None
-    distance_km   = None
-    erp_c2_code   = None
-    erp_store_id  = None
-    erp_prod_code = None
+    store_id = store_name = store_address = store_city = None
+    store_pincode = store_phone = distance_km = None
+    erp_c2_code = erp_store_id = erp_prod_code = None
 
     if store_data:
         store_obj     = store_data['store']
@@ -7458,6 +7438,24 @@ def _build_location_payload(lat, lon, accuracy=None):
         erp_store_id  = store_obj.store_id
         erp_prod_code = store_obj.prod_code
 
+    # ✅ NEW: All nearby stores within large radius (500 km covers multi-city deployments)
+    nearby_stores_raw = StoreLocationManager.find_nearby_stores(lat, lon, radius_km=500)
+    nearby_stores = [
+        {
+            'store_id':      s['store_id'],
+            'store_name':    s['store_name'],
+            'store_address': s['address'],
+            'store_city':    s['store'].city,
+            'store_pincode': s['store'].pincode,
+            'store_phone':   s['phone'],
+            'distance_km':   s['distance'],
+            'erp_c2_code':   s['store'].c2_code,
+            'erp_store_id':  s['store'].store_id,
+            'erp_prod_code': s['store'].prod_code,
+        }
+        for s in nearby_stores_raw
+    ]
+
     return {
         # address
         'full_address': addr.get('full_address', ''),
@@ -7468,7 +7466,7 @@ def _build_location_payload(lat, lon, accuracy=None):
         'country':      addr.get('country', ''),
         'latitude':     float(lat),
         'longitude':    float(lon),
-        # store
+        # nearest store (primary)
         'store_id':      store_id,
         'store_name':    store_name,
         'store_address': store_address,
@@ -7476,12 +7474,12 @@ def _build_location_payload(lat, lon, accuracy=None):
         'store_pincode': store_pincode,
         'store_phone':   store_phone,
         'distance_km':   distance_km,
-        # erp
         'erp_c2_code':   erp_c2_code,
         'erp_store_id':  erp_store_id,
         'erp_prod_code': erp_prod_code,
+        # ✅ all nearby stores list
+        'nearby_stores': nearby_stores,
     }
-
 
 class StartupDetectLocationView(APIView):
     """

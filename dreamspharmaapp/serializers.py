@@ -2321,3 +2321,9 @@ class StartupLocationResponseSerializer(serializers.Serializer):
     erp_store_id = serializers.CharField(allow_null=True)
     erp_prod_code = serializers.CharField(allow_null=True)
 
+    # --- All nearby stores list (sorted by distance) ---
+    nearby_stores = serializers.ListField(
+        child=serializers.DictField(),
+        default=list
+    )
+
