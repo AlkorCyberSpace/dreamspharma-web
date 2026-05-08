@@ -263,6 +263,134 @@ def validate_coordinates(latitude, longitude):
         raise GeocodingException(f"Coordinates must be numeric values")
 
 
+def forward_geocode(address=None, pincode=None, city=None, state=None):
+    """
+    Forward geocode address/pincode to coordinates
+    
+    Args:
+        address (str): Full address or pincode
+        pincode (str): Pincode
+        city (str): City name
+        state (str): State name
+    
+    Returns:
+        dict: Coordinates and address info {
+            'latitude': float,
+            'longitude': float,
+            'full_address': str,
+            'city': str,
+            'state': str,
+            'pincode': str
+        }
+    
+    Raises:
+        GeocodingException: If geocoding fails
+    """
+    # Build query string
+    if pincode:
+        query = f"{pincode}"
+        if city:
+            query += f", {city}"
+        if state:
+            query += f", {state}"
+    elif address:
+        query = address
+    else:
+        raise GeocodingException("Must provide either address or pincode")
+    
+    try:
+        geocoder = get_geocoder()
+        
+        # If using Google Maps
+        if isinstance(geocoder, GoogleMapsGeocoder):
+            params = {
+                'address': query,
+                'key': geocoder.api_key,
+                'region': 'in',  # Bias results to India
+                'language': 'en'
+            }
+            
+            response = requests.get(
+                "https://maps.googleapis.com/maps/api/geocode/json",
+                params=params,
+                timeout=5
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if data['status'] != 'OK':
+                logger.error(f"Google Maps forward geocode error: {data['status']}")
+                raise GeocodingException(f"Geocoding failed: {data['status']}")
+            
+            results = data.get('results', [])
+            if not results:
+                raise GeocodingException(f"No results found for: {query}")
+            
+            first_result = results[0]
+            location = first_result['geometry']['location']
+            address_components = first_result.get('address_components', [])
+            
+            # Parse address components
+            addr_dict = {}
+            for component in address_components:
+                component_type = component['types'][0]
+                addr_dict[component_type] = component['long_name']
+            
+            return {
+                'latitude': float(location['lat']),
+                'longitude': float(location['lng']),
+                'full_address': first_result.get('formatted_address', query),
+                'city': addr_dict.get('locality', ''),
+                'state': addr_dict.get('administrative_area_level_1', ''),
+                'pincode': addr_dict.get('postal_code', pincode or ''),
+                'accuracy': first_result.get('geometry', {}).get('location_type', 'ROOFTOP')
+            }
+        
+        # Nominatim geocoding
+        else:
+            params = {
+                'q': query,
+                'format': 'json',
+                'addressdetails': 1,
+                'countrycodes': 'in',  # Limit to India
+                'accept-language': 'en',
+                'limit': 1
+            }
+            
+            headers = {'User-Agent': 'DreamPharma/1.0'}
+            response = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params=params,
+                headers=headers,
+                timeout=5
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if not data:
+                raise GeocodingException(f"No results found for: {query}")
+            
+            result = data[0]
+            address = result.get('address', {})
+            
+            return {
+                'latitude': float(result['lat']),
+                'longitude': float(result['lon']),
+                'full_address': result.get('display_name', query),
+                'city': address.get('city', address.get('town', address.get('village', ''))),
+                'state': address.get('state', ''),
+                'pincode': address.get('postcode', pincode or ''),
+                'accuracy': result.get('type', 'GEOMETRIC_CENTER')
+            }
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Forward geocoding API request failed: {str(e)}")
+        raise GeocodingException(f"Network error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Forward geocoding error: {str(e)}")
+        raise GeocodingException(f"Geocoding error: {str(e)}")
+
+
 def calculate_distance(lat1, lon1, lat2, lon2):
     """
     Calculate distance between two coordinates (Haversine formula)

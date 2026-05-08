@@ -10,6 +10,8 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+from django.db import close_old_connections
+
 def sync_itemmaster_job():
     """
     Synchronize ItemMaster cache with ERP data
@@ -21,6 +23,8 @@ def sync_itemmaster_job():
         logger.info(f'[{timezone.now()}] sync_itemmaster job completed successfully')
     except Exception as e:
         logger.error(f'[{timezone.now()}] Error in sync_itemmaster job: {str(e)}')
+    finally:
+        close_old_connections()
 
 
 def refresh_erp_token_job():
@@ -41,4 +45,6 @@ def refresh_erp_token_job():
             logger.error(f'[{timezone.now()}] [FAILED] Token refresh job failed')
     except Exception as e:
         logger.error(f'[{timezone.now()}] [FAILED] Error in refresh_erp_token job: {str(e)}')
+    finally:
+        close_old_connections()
 

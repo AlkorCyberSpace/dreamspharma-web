@@ -1,6 +1,68 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import CustomUser, KYC, OTP, Category, ProductInfo, ProductImage
+from .models import (
+    CustomUser, KYC, OTP, Category, ProductInfo, ProductImage, Store,
+    ItemMaster, Stock, Address, SalesOrder, SalesOrderItem, Invoice, InvoiceDetail,
+    Cart, CartItem, Wishlist, WishlistItem, Offer, APIToken, FCMDevice,
+    RetailerNotification, CreditNote, RetailerWallet, WalletTransaction,
+    SearchHistory, ProductView, GLCustomer
+)
+
+
+@admin.register(Store)
+class StoreAdmin(admin.ModelAdmin):
+    list_display = ['name', 'city', 'store_id_display', 'c2_code', 'is_primary', 'status_badge', 'created_at']
+    list_filter = ['is_active', 'is_primary', 'city', 'state', 'created_at']
+    search_fields = ['name', 'city', 'pincode', 'store_id', 'c2_code', 'phone']
+    readonly_fields = ['created_at', 'updated_at', 'coordinates_display']
+    
+    fieldsets = (
+        ('Store Basics', {
+            'fields': ('name', 'pincode', 'city', 'state', 'address')
+        }),
+        ('Location (GPS)', {
+            'fields': ('latitude', 'longitude', 'coordinates_display'),
+            'description': 'Enter store coordinates for nearest store detection'
+        }),
+        ('ERP Configuration', {
+            'fields': ('c2_code', 'store_id', 'prod_code', 'security_key'),
+            'description': '[IMPORTANT] Keep these values secure - obtained from ERP provider'
+        }),
+        ('Contact Information', {
+            'fields': ('phone', 'email', 'manager_name', 'manager_phone')
+        }),
+        ('Status', {
+            'fields': ('is_active', 'is_primary'),
+            'description': 'Only one store can be primary'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def store_id_display(self, obj):
+        return f"{obj.store_id} ({obj.id})"
+    store_id_display.short_description = 'Store ID (DB ID)'
+    
+    def status_badge(self, obj):
+        color = '#28a745' if obj.is_active else '#dc3545'
+        status = 'ACTIVE' if obj.is_active else 'INACTIVE'
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
+            color, status
+        )
+    status_badge.short_description = 'Status'
+    
+    def coordinates_display(self, obj):
+        return f"Lat: {obj.latitude}, Lon: {obj.longitude}"
+    coordinates_display.short_description = 'GPS Coordinates'
+    
+    def save_model(self, request, obj, form, change):
+        """Ensure only one primary store"""
+        if obj.is_primary:
+            Store.objects.exclude(id=obj.id).update(is_primary=False)
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(CustomUser)
