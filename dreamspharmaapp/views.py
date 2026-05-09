@@ -2477,10 +2477,23 @@ class AddToCartView(APIView):
                 item_data['current_price'] = str(round(stock_status.get('price', float(item_data.get('mrp', 0))), 2))
                 item_data['current_discount'] = round(stock_status.get('discount', 0), 2)
                 
+                # ── Show wallet balance (preview only - no deduction) ──
+                wallet_balance = Decimal('0.00')
+                try:
+                    wallet = RetailerWallet.objects.get(retailer=user)
+                    wallet_balance = wallet.balance
+                except RetailerWallet.DoesNotExist:
+                    wallet, _ = RetailerWallet.objects.get_or_create(retailer=user)
+                    wallet_balance = wallet.balance
+                
                 return Response({
                     'success': True,
                     'message': f'{item.item_name} added to cart' if created else f'{item.item_name} quantity updated',
-                    'data': item_data
+                    'data': item_data,
+                    'wallet': {
+                        'balance': str(round(wallet_balance, 2)),
+                        'can_apply': wallet_balance > 0
+                    }
                 }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         
         except Exception as e:
@@ -2713,7 +2726,7 @@ class WishlistView(APIView):
         if not user_id:
             user_id = request.query_params.get('user_id')
         
-        api_key = request.query_params.get('apiKey')
+        store_id = request.query_params.get('storeId')
         user = request.user
         
         if user_id:
@@ -2736,9 +2749,49 @@ class WishlistView(APIView):
         
         wishlist, created = Wishlist.objects.get_or_create(user=user)
         
+        # ✅ ENRICH items with REAL-TIME stock from EcoGreen
+        wishlist_items = wishlist.items.all()
+        
+        # Fetch real-time item master data from ERP to enrich items
+        erp_items = fetch_all_items_from_erp(store_id=store_id)
+        erp_item_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+        
+        for wishlist_item in wishlist_items:
+            item = wishlist_item.item
+            
+            # Priority 1: ERP Item Master real-time data
+            if erp_item_map and item.item_code in erp_item_map:
+                erp_data = erp_item_map[item.item_code]
+                
+                # Enrich item dynamically for serialization
+                if erp_data.get('mrp') is not None:
+                    try: item.mrp = float(erp_data['mrp'])
+                    except: pass
+                if erp_data.get('std_disc') is not None:
+                    try: item.std_disc = float(erp_data['std_disc'])
+                    except: pass
+                if erp_data.get('batchNo'):
+                    item.batch_no = erp_data['batchNo']
+                if erp_data.get('expiryDate'):
+                    item.expiry_date = erp_data['expiryDate']
+                    
+                item.erp_stock = erp_data.get('stockBalQty', 0)
+                logger.info(f"[WISHLIST] Enriched item {item.item_code} from ItemMaster (stock={item.erp_stock})")
+            else:
+                # Priority 2: Fallback to database Stock model
+                try:
+                    stock = Stock.objects.filter(item=item).first()
+                    if stock and stock.total_bal_ls_qty:
+                        item.erp_stock = stock.total_bal_ls_qty
+                        logger.info(f"[WISHLIST] Got stock from DB: {item.item_code} = {item.erp_stock}")
+                    else:
+                        item.erp_stock = 0
+                except:
+                    item.erp_stock = 0
+        
         # Use WishlistItemSerializer instead of manual serialization
         from .serializers import WishlistItemSerializer
-        items_serializer = WishlistItemSerializer(wishlist.items.all(), many=True, context={'request': request})
+        items_serializer = WishlistItemSerializer(wishlist_items, many=True, context={'request': request})
         
         wishlist_data = {
             'id': wishlist.id,
@@ -3648,25 +3701,39 @@ def fetch_item_from_erp(item_code, store_id=None):
         logger.error(f"Error fetching from ERP: {str(e)}")
         return None
 
-
-def fetch_all_items_from_erp():
+def fetch_all_items_from_erp(store_id=None):
     """
     Helper function: Fetch all items from ERP in one call
     Used by recommendation views to enrich data with live pricing/stock
     
     Returns: List of item dicts from ERP, or empty list if error
-    Usage: Used in SimilarProductsView, FrequentlyBoughtTogetherView, TopSellingProductsView
-    [UPDATED] Now uses auto-generated token automatically
+    Usage: Used in SimilarProductsView, FrequentlyBoughtTogetherView, TopSellingProductsView, WishlistView
+    [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        from .erp_token_service import get_erp_token_for_request
-        api_key = get_erp_token_for_request()
+        from .erp_token_service import get_erp_token_for_request, get_erp_token_for_store_config
+        from .erp_service import ERPService
+        
+        if store_id:
+            store_info = ERPService.get_config_by_store_id(store_id)
+            if not store_info:
+                store_info = ERPService._get_fallback_config()
+            erp_config = store_info['erp_config']
+            api_key = get_erp_token_for_store_config(erp_config)
+            params = {
+                'apiKey': api_key,
+                'c2Code': erp_config['c2_code'],
+                'storeId': erp_config['store_id']
+            }
+        else:
+            api_key = get_erp_token_for_request()
+            params = {'apiKey': api_key}
+            
         if not api_key:
             logger.error("[ERP_ERROR] Could not get auto-generated token")
             return []
         
         erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_get_master_data"
-        params = {'apiKey': api_key}
         
         logger.info(f"[ERP_FETCH_ALL] Fetching all items from ERP: {erp_url}")
         
@@ -7208,7 +7275,10 @@ class RetailerWalletView(APIView):
 class ApplyWalletToOrderView(APIView):
     """
     POST /api/wallet/apply/<user_id>/
-    Apply wallet balance to an order during checkout
+    Checkout preview - Show breakdown of wallet application (NO ACTUAL DEDUCTION)
+    
+    Actual wallet deduction happens only when order is placed with use_wallet=true
+    in CreateSalesOrderView
     """
     permission_classes = [AllowAny]
 
@@ -7221,30 +7291,19 @@ class ApplyWalletToOrderView(APIView):
                 'message': 'Retailer not found'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        order_id = request.data.get('order_id')
+        order_total = request.data.get('order_total', 0)
         use_wallet = request.data.get('use_wallet', False)
 
-        if not order_id:
+        if not order_total or order_total <= 0:
             return Response({
                 'success': False,
-                'message': 'order_id is required'
+                'message': 'order_total is required and must be > 0'
             }, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            order = SalesOrder.objects.get(
-                order_id=order_id,
-                user_id=str(user_id)
-            )
-        except SalesOrder.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'Order not found'
-            }, status=status.HTTP_404_NOT_FOUND)
 
         from .models import RetailerWallet
         wallet, _ = RetailerWallet.objects.get_or_create(retailer=user)
 
-        order_total = float(order.order_total)
+        order_total = float(order_total)
         wallet_balance = float(wallet.balance)
 
         if not use_wallet or wallet_balance <= 0:
@@ -7255,34 +7314,19 @@ class ApplyWalletToOrderView(APIView):
                     'wallet_balance': wallet_balance,
                     'wallet_applied': 0,
                     'amount_to_pay': order_total,
-                    'wallet_used': False
+                    'wallet_used': False,
+                    'note': 'Preview only - wallet will not be applied'
                 }
             }, status=status.HTTP_200_OK)
 
-        # Calculate deduction
+        # Calculate preview (no actual deduction)
         wallet_applied = min(wallet_balance, order_total)
         amount_to_pay = max(0, order_total - wallet_applied)
 
-        # Deduct wallet
-        from .wallet_service import debit_wallet
-        result = debit_wallet(
-            retailer=user,
-            amount=wallet_applied,
-            source='ORDER_PAYMENT',
-            order=order,
-            description=f'Wallet used for order {order_id}'
-        )
-
-        if not result['success']:
-            return Response({
-                'success': False,
-                'message': result['error']
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         logger.info(
-            f"[WALLET_ORDER] User: {user.username} | "
-            f"Order: {order_id} | "
-            f"Wallet Applied: ₹{wallet_applied} | "
+            f"[WALLET_PREVIEW] User: {user.username} | "
+            f"Order Total: ₹{order_total} | "
+            f"Wallet Applied (preview): ₹{wallet_applied} | "
             f"Amount to Pay: ₹{amount_to_pay}"
         )
 
@@ -7293,8 +7337,8 @@ class ApplyWalletToOrderView(APIView):
                 'wallet_balance': wallet_balance,
                 'wallet_applied': wallet_applied,
                 'amount_to_pay': amount_to_pay,
-                'remaining_wallet_balance': float(result['new_balance']),
-                'wallet_used': True
+                'wallet_used': True,
+                'note': 'Preview only. Wallet will be deducted when order is placed with use_wallet=true.'
             }
         }, status=status.HTTP_200_OK)
 
@@ -7438,24 +7482,6 @@ def _build_location_payload(lat, lon, accuracy=None):
         erp_store_id  = store_obj.store_id
         erp_prod_code = store_obj.prod_code
 
-    # ✅ NEW: All nearby stores within large radius (500 km covers multi-city deployments)
-    nearby_stores_raw = StoreLocationManager.find_nearby_stores(lat, lon, radius_km=500)
-    nearby_stores = [
-        {
-            'store_id':      s['store_id'],
-            'store_name':    s['store_name'],
-            'store_address': s['address'],
-            'store_city':    s['store'].city,
-            'store_pincode': s['store'].pincode,
-            'store_phone':   s['phone'],
-            'distance_km':   s['distance'],
-            'erp_c2_code':   s['store'].c2_code,
-            'erp_store_id':  s['store'].store_id,
-            'erp_prod_code': s['store'].prod_code,
-        }
-        for s in nearby_stores_raw
-    ]
-
     return {
         # address
         'full_address': addr.get('full_address', ''),
@@ -7477,8 +7503,6 @@ def _build_location_payload(lat, lon, accuracy=None):
         'erp_c2_code':   erp_c2_code,
         'erp_store_id':  erp_store_id,
         'erp_prod_code': erp_prod_code,
-        # ✅ all nearby stores list
-        'nearby_stores': nearby_stores,
     }
 
 class StartupDetectLocationView(APIView):
@@ -7567,7 +7591,7 @@ class StartupDetectLocationView(APIView):
 
         logger.info(
             f"[STARTUP_LOCATION] Detected: ({lat}, {lon}) "
-            f"→ store={payload['store_name']} dist={payload['distance_km']}km"
+            f"-> store={payload['store_name']} dist={payload['distance_km']}km"
         )
 
         return Response({
@@ -7581,23 +7605,22 @@ class GetMyLocationView(APIView):
     """
     GET /api/location/me/<user_id>/
 
-    Returns the last saved location + preferred store for the given user.
-    Used when the app restarts and needs to re-populate "Delivering to ..." UI
-    without draining battery with a fresh GPS call.
+    Returns the last saved location (posted via SaveMyLocationView).
+    This retrieves the GPS coordinates and address data that was saved.
 
     URL param: user_id (integer)
 
-    Response (200) — location found:
+    Response (200):
     {
         "success": true,
-        "data": { "latitude": 12.9716, "longitude": 77.5946, "city": "Bangalore", ... }
-    }
-
-    Response (200) — no location saved yet:
-    {
-        "success": true,
-        "message": "No location saved yet. Please call POST /api/location/detect/<user_id>/.",
-        "data": null
+        "data": {
+            "full_address": "...",
+            "latitude": 12.9716,
+            "longitude": 77.5946,
+            "city": "Bangalore",
+            "store_name": "DreamsPharma - Bangalore",
+            ...
+        }
     }
     """
     permission_classes = [AllowAny]
@@ -7608,7 +7631,7 @@ class GetMyLocationView(APIView):
         if not user.last_latitude or not user.last_longitude:
             return Response({
                 'success': True,
-                'message': f'No location saved yet. Please call POST /api/location/detect/{user_id}/.',
+                'message': f'No location saved yet. Please call POST /api/location/save/{user_id}/ to save a location.',
                 'data': None,
             }, status=status.HTTP_200_OK)
 
@@ -7637,7 +7660,7 @@ class GetMyLocationView(APIView):
                 'erp_prod_code': ps.prod_code,
             })
 
-        logger.info(f"[GET_MY_LOCATION] User {user_id} fetched location context.")
+        logger.info(f"[GET_MY_LOCATION] User {user_id} fetched last saved location.")
 
         return Response({
             'success': True,
@@ -7707,7 +7730,7 @@ class SaveMyLocationView(APIView):
 
         logger.info(
             f"[SAVE_MY_LOCATION] User {user_id} updated location: "
-            f"({lat}, {lon}) → store {payload['store_id']}"
+            f"({lat}, {lon}) -> store {payload['store_id']}"
         )
 
         return Response({
