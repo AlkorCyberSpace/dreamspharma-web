@@ -4,6 +4,7 @@ import DailyOrderVolume from "./charts/DailyOrderVolume";
 import FinancialOverview from "./charts/FinancialOverview";
 import OrdersByStatus from "./charts/OrdersByStatus";
 import WarehousePerformance from "./charts/WarehousePerformance";
+import InventoryInsights from "./charts/InventoryInsights";
 import {
     Users,
     AlertCircle,
@@ -193,6 +194,13 @@ const Dashboard = () => {
                     data={warehouseData?.data || []}
                     stores={warehouseData?.stores || []}
                 />
+            </div>
+
+            {/* Inventory Insights Section */}
+            <div className="p-1">
+                <div className="grid grid-cols-1 gap-4">
+                    <InventoryInsights storeId="001" />
+                </div>
             </div>
 
         </div>

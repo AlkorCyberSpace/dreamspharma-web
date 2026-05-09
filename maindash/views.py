@@ -2270,3 +2270,147 @@ class WarehouseOrdersGraphView(APIView):
             'stores': sorted(list(all_stores)),
             'data': chart_data
         }, status=status.HTTP_200_OK)
+
+
+
+class InventoryInsightsView(APIView):
+    """
+    GET /api/superadmin/dashboard/inventory-insights/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'SUPERADMIN':
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+            
+        store_id = request.query_params.get('store_id', '001')
+        
+        # 1. Get ERP Config
+        from dreamspharmaapp.erp_service import ERPService
+        from dreamspharmaapp.erp_token_service import get_erp_token_for_store_config
+        import requests
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        config = ERPService.get_config_by_store_id(store_id)
+        erp_config = config['erp_config']
+        
+        stock_data = []
+        try:
+            api_key = get_erp_token_for_store_config(erp_config)
+            erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+            erp_params = {
+                'apiKey': api_key,
+                'storeId': erp_config['store_id'],
+                'c2Code': erp_config['c2_code']
+            }
+            
+            erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
+            if erp_response.status_code == 200:
+                resp_json = erp_response.json()
+                if isinstance(resp_json, dict):
+                    stock_data = resp_json.get('data', [])
+                elif isinstance(resp_json, list):
+                    stock_data = resp_json
+        except Exception as e:
+            logger.error(f"Error fetching stock for insights: {e}")
+            
+        erp_stock_dict = {
+            item['itemCode']: {
+                'qty': item.get('totalBalLsQty', 0),
+                'name': item.get('itemName', '')
+            }
+            for item in stock_data if 'itemCode' in item
+        }
+        
+        # 2. Correlate with local ItemMaster for Expiry Dates
+        from dreamspharmaapp.models import ItemMaster, SalesOrderItem
+        item_masters = ItemMaster.objects.filter(item_code__in=erp_stock_dict.keys())
+        expiry_dict = {im.item_code: im.expiry_date for im in item_masters}
+        
+        # 3. Calculate Insights
+        from datetime import date, timedelta
+        from django.db.models import Sum
+        
+        today = date.today()
+        ninety_days_later = today + timedelta(days=90)
+        thirty_days_ago = today - timedelta(days=30)
+        
+        expiring_soon = []
+        out_of_stock = []
+        
+        for code, info in erp_stock_dict.items():
+            qty = info['qty']
+            name = info['name']
+            exp = expiry_dict.get(code)
+            
+            # Expiring Soon
+            if exp and today <= exp <= ninety_days_later and qty > 0:
+                days_left = (exp - today).days
+                expiring_soon.append({
+                    'product': name,
+                    'stock': qty,
+                    'expiry': f"{days_left} days",
+                    'sort_val': days_left
+                })
+                
+            # Out of Stock
+            if qty == 0:
+                expiring_soon_label = f"{(exp - today).days} days" if (exp and exp >= today) else "Expired"
+                if not exp: expiring_soon_label = "N/A"
+                out_of_stock.append({
+                    'product': name,
+                    'stock': 0,
+                    'expiry': expiring_soon_label
+                })
+                
+        expiring_soon = sorted(expiring_soon, key=lambda x: x['sort_val'])[:10]
+        out_of_stock = out_of_stock[:10]
+        
+        # Fast Moving (High sales in last 30 days)
+        recent_sales = SalesOrderItem.objects.filter(
+            sales_order__ord_date__gte=thirty_days_ago
+        ).values('item_code', 'item_name').annotate(
+            total_sold=Sum('total_loose_qty')
+        ).order_by('-total_sold')[:10]
+        
+        fast_moving = []
+        sold_codes_30d = set()
+        for sale in recent_sales:
+            code = sale['item_code']
+            sold_codes_30d.add(code)
+            qty = erp_stock_dict.get(code, {}).get('qty', 0)
+            exp = expiry_dict.get(code)
+            days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
+            fast_moving.append({
+                'product': sale['item_name'] or code,
+                'stock': qty,
+                'expiry': days_left,
+                'sold_last_30_days': sale['total_sold']
+            })
+            
+        # Slow Moving (High stock, low/zero sales)
+        slow_moving_candidates = []
+        for code, info in erp_stock_dict.items():
+            if info['qty'] > 100 and code not in sold_codes_30d:
+                exp = expiry_dict.get(code)
+                days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
+                slow_moving_candidates.append({
+                    'product': info['name'],
+                    'stock': info['qty'],
+                    'expiry': days_left,
+                    'sort_val': info['qty']
+                })
+                
+        slow_moving = sorted(slow_moving_candidates, key=lambda x: x['sort_val'], reverse=True)[:10]
+
+        return Response({
+            'success': True,
+            'data': {
+                'expiring_soon': expiring_soon,
+                'out_of_stock': out_of_stock,
+                'fast_moving': fast_moving,
+                'slow_moving': slow_moving
+            }
+        })
+
