@@ -158,6 +158,7 @@ urlpatterns = [
     # Wallet applied during sales order creation now - see CreateSalesOrderView
     # Legacy endpoint deprecated - use use_wallet parameter in /erp/ws_c2_services_create_sale_order
     path('wallet/<int:user_id>/', views.RetailerWalletView.as_view(), name='retailer-wallet'),
+    path('wallet/apply/<int:user_id>/', views.ApplyWalletToOrderView.as_view(), name='apply-wallet-to-order'),
 
     # ==================== STARTUP LOCATION ENDPOINTS ====================
     #   POST /api/location/detect/           — Public. GPS coords → address + nearest store (anonymous)

@@ -85,7 +85,7 @@ ITEMS = [
         "stockBalQty": 150,
         "std_disc": 10.00,
         "max_disc": 2.00,
-        "expiryDate": "2029-07-01",
+        "expiryDate": "2027-07-01",
         "mrp": 170.00
     },
     {
@@ -107,7 +107,7 @@ ITEMS = [
         "stockBalQty": 500,
         "std_disc": 15.00,
         "max_disc": 3.00,
-        "expiryDate": "2025-01-15",
+        "expiryDate": "2027-01-15",
         "mrp": 12.50
     }
 ]
@@ -178,7 +178,7 @@ STOCK = [
         "totalBalLsQty": 150,
         "packQty": 150,
         "looseQty": 0,
-        "lastModifiedDateTime": "2029-07-01 10:00:00.000"
+        "lastModifiedDateTime": "2027-07-01 10:00:00.000"
     },
     {
         "itemCode": "I00099",
@@ -200,7 +200,7 @@ STOCK = [
         "totalBalLsQty": 500,
         "packQty": 50,
         "looseQty": 0,
-        "lastModifiedDateTime": "2025-01-15 10:00:00.000"
+        "lastModifiedDateTime": "2027-01-15 10:00:00.000"
     }
 ]
 
@@ -237,7 +237,7 @@ ORDERS = {
                         "qtyPerBox": "1",
                         "batch": "3030",
                         "qty": "1.000",
-                        "expiryDate": "2029-07-01",
+                        "expiryDate": "2027-07-01",
                         "mrp": "170.000",
                         "saleRate": "90.000",
                         "discAmt": "0.00",
