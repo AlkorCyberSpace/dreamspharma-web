@@ -22,6 +22,10 @@ const Dashboard = () => {
     // Timeframe filter states
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    
+    // Applied states for charts that fetch independently
+    const [appliedMonth, setAppliedMonth] = useState(new Date().getMonth() + 1);
+    const [appliedYear, setAppliedYear] = useState(new Date().getFullYear());
 
     const months = [
         { name: "January", value: 1 }, { name: "February", value: 2 },
@@ -57,10 +61,12 @@ const Dashboard = () => {
     };
 
     useEffect(() => {
-        fetchAllData(selectedMonth, selectedYear);
+        fetchAllData(appliedMonth, appliedYear);
     }, []);
 
     const handleApply = () => {
+        setAppliedMonth(selectedMonth);
+        setAppliedYear(selectedYear);
         fetchAllData(selectedMonth, selectedYear);
     };
 
@@ -159,6 +165,8 @@ const Dashboard = () => {
                     <div className="lg:col-span-2">
 
                         <FinancialOverview
+                            selectedMonth={appliedMonth}
+                            selectedYear={appliedYear}
                             data={dashboardData?.financial_overview || []}
                         />
                     </div>
@@ -171,7 +179,8 @@ const Dashboard = () => {
                         />
 
                         <OrdersByStatus
-                            data={dashboardData?.orders_by_status || []}
+                            selectedMonth={appliedMonth}
+                            selectedYear={appliedYear}
                         />
 
                     </div>

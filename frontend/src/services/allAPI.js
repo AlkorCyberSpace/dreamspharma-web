@@ -342,3 +342,4 @@ export const rejectCreditNoteAPI = (creditNoteId, data = {}) => {
 export const getStoreAnalyticsAPI = (params) => {
   return axiosInstance.get("admin/analytics/stores/", { params });
 };
+
