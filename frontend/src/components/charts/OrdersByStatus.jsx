@@ -29,12 +29,12 @@ const CustomTooltip = ({ active, payload }) => {
 
 const OrdersByStatus = () => {
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#e2e8f0] h-53.75 flex flex-col">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="bg-white p-2 rounded-2xl shadow-sm border border-[#e2e8f0] h-53.75 flex flex-col">
+      <div className="flex items-center gap-2 mb-1">
         <PieIcon size={18} className="text-gray-500" />
-        <h3 className="text-gray-600 font-medium">Orders By Status</h3>
+        <h3 className="text-gray-600 font-medium">Orders By Warehouse</h3>
       </div>
-      <div className="flex-1 w-full flex items-center justify-center">
+      <div className="flex-1 w-full flex items-center justify-center ">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie

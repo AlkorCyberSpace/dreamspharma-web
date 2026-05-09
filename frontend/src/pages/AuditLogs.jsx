@@ -121,6 +121,10 @@ export default function AuditLogs() {
     const [categoryFilter, setCategoryFilter] = useState("All");
     const [auditData, setAuditData] = useState([]);
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+
     useEffect(() => {
     const fetchAuditLogs = async () => {
         try {
@@ -160,7 +164,20 @@ export default function AuditLogs() {
                 categoryFilter === "All" || item.category === categoryFilter;
             return matchSearch && matchCat;
         });
-}, [search, categoryFilter, auditData]); 
+    }, [search, categoryFilter, auditData]);
+
+    // Pagination logic
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+    // Reset pagination when filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, categoryFilter]);
     // const handleExportCSV = () => {
     //     const headers = ["Log ID", "Action", "Performed By", "Target Entity", "Details", "Category", "Timestamp"];
     //     const rows = filtered.map((r) => [
@@ -244,7 +261,7 @@ export default function AuditLogs() {
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((item, index) => (
+                                currentItems.map((item, index) => (
                                     <tr
                                         key={item.id}
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
@@ -278,11 +295,64 @@ export default function AuditLogs() {
                     </table>
                 </div>
 
+                {/* Pagination UI - Numbered Design */}
+                {totalPages > 1 && (
+                    <div className="mt-4 mb-4 flex items-center justify-end px-6 border-t border-gray-50 pt-4">
+                        <div className="flex gap-1.5">
+                            <button
+                                onClick={() => paginate(Math.max(1, currentPage - 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                <ChevronDown className="rotate-90" size={16} />
+                            </button>
+                            
+                            {[...Array(totalPages)].map((_, i) => {
+                                const pageNum = i + 1;
+                                if (
+                                    totalPages <= 7 ||
+                                    pageNum === 1 ||
+                                    pageNum === totalPages ||
+                                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                ) {
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => paginate(pageNum)}
+                                            className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
+                                                currentPage === pageNum
+                                                    ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                                                    : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                                            }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                } else if (
+                                    pageNum === currentPage - 2 ||
+                                    pageNum === currentPage + 2
+                                ) {
+                                    return <span key={pageNum} className="flex items-end pb-2 text-gray-300">...</span>;
+                                }
+                                return null;
+                            })}
+
+                            <button
+                                onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                <ChevronDown className="-rotate-90" size={16} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Footer */}
-                <div className="px-6 py-3  text-xs text-gray-400 flex items-center justify-between">
+                <div className="px-6 py-3 text-xs text-gray-400 flex items-center justify-between border-t border-gray-50">
                     <span>
-                        {/* Showing <span className="font-medium text-gray-600">{filtered.length}</span> of{" "} */}
-                        {/* <span className="font-medium text-gray-600">{auditData.length}</span> entries */}
+                        Showing <span className="font-medium text-gray-600">{indexOfFirstItem + 1}</span> to <span className="font-medium text-gray-600">{Math.min(indexOfLastItem, filtered.length)}</span> of{" "}
+                        <span className="font-medium text-gray-600">{filtered.length}</span> entries
                     </span>
                     <span>Logs are retained for 90 days.</span>
                 </div>

@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Search, Filter, Eye, AlertCircle, CheckCircle, Package, ChevronDown } from "lucide-react";
 import SummaryCard from "../components/SummaryCard";
 
 export default function Refunds() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const refundsData = [
     {
@@ -68,6 +70,18 @@ export default function Refunds() {
 
       return matchesSearch && matchesStatus;
     });
+  }, [search, statusFilter]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredRefunds.length / itemsPerPage);
+  const currentItems = filteredRefunds.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
   }, [search, statusFilter]);
 
   const getStatusStyle = (status) => {
@@ -184,13 +198,20 @@ export default function Refunds() {
             </thead>
 
             <tbody className="text-sm text-gray-700">
-              {filteredRefunds.map((item, index) => (
-                <tr
-                  key={item.id}
-                  className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
-                    } hover:bg-[#EEF2F6] transition`}
-                >
-                  <td className="px-6 py-4 font-bold text-center">{index + 1}</td>
+              {currentItems.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-10 text-center text-gray-400">
+                    No refunds found.
+                  </td>
+                </tr>
+              ) : (
+                currentItems.map((item, index) => (
+                  <tr
+                    key={item.id}
+                    className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
+                      } hover:bg-[#EEF2F6] transition`}
+                  >
+                    <td className="px-6 py-4 font-bold text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                   <td className="px-6 py-4 text-sm font-bold text-[#127690]">{item.id}</td>
                   <td className="px-6 text-sm text-gray-500 font-medium">{item.orderId}</td>
                   <td className="px-6 text-sm text-gray-600 font-medium">{item.retailer}</td>
@@ -212,10 +233,62 @@ export default function Refunds() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination UI - Numbered Design */}
+        {totalPages > 1 && (
+          <div className="mt-4 mb-4 flex items-center justify-end px-6 border-t border-gray-50 pt-4">
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+
+              {[...Array(totalPages)].map((_, i) => {
+                const pageNum = i + 1;
+                if (
+                  totalPages <= 7 ||
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
+                        ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                        : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                        }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                } else if (
+                  pageNum === currentPage - 2 ||
+                  pageNum === currentPage + 2
+                ) {
+                  return <span key={pageNum} className="flex items-end pb-2 text-gray-300">...</span>;
+                }
+                return null;
+              })}
+
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="-rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

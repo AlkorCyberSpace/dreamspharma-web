@@ -1,23 +1,31 @@
 import React, { useEffect, useState } from "react";
-import { Eye, Calendar, X, Package, FileText, User, Tag, Hash, RefreshCw, DollarSign, AlertCircle, ClipboardList, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Eye, Calendar, X, Package, FileText, User, Tag, Hash, RefreshCw, DollarSign, AlertCircle, ClipboardList, Clock, CheckCircle, XCircle, ChevronDown, Search } from "lucide-react";
 import { getCreditNotesAPI, approveCreditNoteAPI, rejectCreditNoteAPI } from "../services/allAPI";
 
 export default function CreditNotes() {
-    const [fromDate, setFromDate] = useState("12.2025");
-    const [toDate, setToDate] = useState("12.2025");
+    const [fromDate, setFromDate] = useState("");
+    const [toDate, setToDate] = useState("");
     const [creditNotesData, setCreditNotesData] = useState([]);
     const [rawData, setRawData] = useState([]);
+    const [statusFilter, setStatusFilter] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
     const [selectedNote, setSelectedNote] = useState(null);
     const [isApproving, setIsApproving] = useState(false);
     const [isRejecting, setIsRejecting] = useState(false);
     const [showRejectDialog, setShowRejectDialog] = useState(false);
     const [rejectionReason, setRejectionReason] = useState("");
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+
     const fetchCreditNotes = async () => {
         try {
             const params = {};
-            if (fromDate && fromDate !== "12.2025") params.date_from = fromDate;
-            if (toDate && toDate !== "12.2025") params.date_to = toDate;
+            if (statusFilter) params.status = statusFilter;
+            if (searchQuery) params.search = searchQuery;
+            if (fromDate) params.date_from = fromDate;
+            if (toDate) params.date_to = toDate;
 
             const response = await getCreditNotesAPI(params);
             console.log(response);
@@ -31,6 +39,7 @@ export default function CreditNotes() {
                     quantity: item.quantity,
                     returnQuantity: item.quantity_to_return,
                     status: item.status_display,
+                    createdAt: item.created_at,
                     _raw: item
                 }));
                 setCreditNotesData(formattedData);
@@ -41,8 +50,24 @@ export default function CreditNotes() {
     };
 
     useEffect(() => {
-        fetchCreditNotes();
-    }, []);
+        const timer = setTimeout(() => {
+            fetchCreditNotes();
+        }, searchQuery ? 500 : 0);
+        return () => clearTimeout(timer);
+    }, [searchQuery, statusFilter, fromDate, toDate]);
+
+    // Pagination logic
+    const totalPages = Math.ceil(creditNotesData.length / itemsPerPage);
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = creditNotesData.slice(indexOfFirstItem, indexOfLastItem);
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+    // Reset pagination when data changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [creditNotesData.length]);
 
     const getStatusStyle = (status) => {
         switch (status) {
@@ -77,20 +102,19 @@ export default function CreditNotes() {
         if (!dateStr) return "—";
         const d = new Date(dateStr);
         return d.toLocaleString("en-IN", {
-            day: "2-digit", month: "short", year: "numeric",
-            hour: "2-digit", minute: "2-digit"
+            day: "2-digit", month: "short", year: "numeric"
         });
     };
 
     const handleApprove = async () => {
         try {
             setIsApproving(true);
-            
+
             // Call API to approve credit note using credit_note_id
             const response = await approveCreditNoteAPI(selectedNote.credit_note_id, {
                 admin_remarks: "Approved by admin"
             });
-            
+
             if (response.data?.success) {
                 // Update the selected note status
                 const updatedNote = {
@@ -99,11 +123,11 @@ export default function CreditNotes() {
                     status_display: "Approved"
                 };
                 setSelectedNote(updatedNote);
-                
+
                 // Refresh the credit notes list
                 await fetchCreditNotes();
             }
-            
+
             setIsApproving(false);
         } catch (error) {
             console.log("Error approving credit note:", error);
@@ -119,12 +143,12 @@ export default function CreditNotes() {
 
         try {
             setIsRejecting(true);
-            
+
             // Call API to reject credit note
             const response = await rejectCreditNoteAPI(selectedNote.credit_note_id, {
                 admin_remarks: rejectionReason
             });
-            
+
             if (response.data?.success) {
                 // Update the selected note status
                 const updatedNote = {
@@ -134,15 +158,15 @@ export default function CreditNotes() {
                     admin_remarks: rejectionReason
                 };
                 setSelectedNote(updatedNote);
-                
+
                 // Refresh the credit notes list
                 await fetchCreditNotes();
-                
+
                 // Close the reject dialog
                 setShowRejectDialog(false);
                 setRejectionReason("");
             }
-            
+
             setIsRejecting(false);
         } catch (error) {
             console.log("Error rejecting credit note:", error);
@@ -165,7 +189,7 @@ export default function CreditNotes() {
     );
 
     return (
-        <div className="ml-2">
+        <div className="ml-2 mt-2">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
                 <div>
                     <h1 className="text-xl font-semibold text-[#505050]">Credit Note Management</h1>
@@ -174,32 +198,80 @@ export default function CreditNotes() {
                     </p>
                 </div>
 
-                <div className="flex flex-col items-start gap-2 w-full sm:w-auto">
-                    <span className="text-[#454545] font-small text-sm">Time Selection:</span>
-                    <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                        <div className="relative w-full sm:w-auto">
+                <div className="w-full lg:w-auto">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center bg-white border border-[#E2E8F0] rounded-2xl p-1 w-full lg:min-w-[500px] shadow-sm gap-2 sm:gap-0">
+                        {/* Search Icon & Input */}
+                        <div className="flex items-center gap-2 flex-1 px-3 py-1.5 sm:py-0">
+                            <Search size={16} className="text-[#94A3B8] flex-shrink-0" />
                             <input
                                 type="text"
-                                value={fromDate}
-                                onChange={(e) => setFromDate(e.target.value)}
-                                className="border border-[#E2E8F0] rounded-lg px-10 py-2 text-sm text-[#454545] w-full sm:w-36 outline-none focus:ring-1 focus:ring-[#127690]"
-                                placeholder="From Date"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full bg-transparent border-none outline-none text-xs text-[#454545] placeholder-[#94A3B8]"
+                                placeholder="Search by order id or product name..."
                             />
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={18} />
                         </div>
-                        <div className="relative w-full sm:w-auto">
-                            <input
-                                type="text"
-                                value={toDate}
-                                onChange={(e) => setToDate(e.target.value)}
-                                className="border border-[#E2E8F0] rounded-lg px-10 py-2 text-sm text-[#454545] w-full sm:w-36 outline-none focus:ring-1 focus:ring-[#127690]"
-                                placeholder="To Date"
-                            />
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={18} />
+
+                        {/* Divider */}
+                        <div className="hidden sm:block w-px h-8 bg-[#E2E8F0] mx-1"></div>
+
+                        {/* Status Filter */}
+                        <div className="relative min-w-[100px] px-1 sm:px-0">
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="w-full pl-6 sm:pl-4 pr-8 py-2 border sm:border-none border-[#E2E8F0] rounded-xl sm:rounded-none text-xs text-[#00000] outline-none bg-white appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
+                            >
+                                <option value="">All Statuses</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="APPROVED">Approved</option>
+                                <option value="REJECTED">Rejected</option>
+                            </select>
+                            <ChevronDown className="absolute right-5 sm:right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none" size={14} />
                         </div>
-                        <button onClick={fetchCreditNotes} className="bg-[#127690] text-white px-6 sm:px-8 py-2 rounded-lg font-semibold text-sm hover:bg-[#0e5d72] transition-colors w-full sm:w-auto">
-                            Apply
-                        </button>
+
+                        {/* Divider */}
+                        <div className="hidden sm:block w-px h-8 bg-[#E2E8F0] mx-1"></div>
+
+                        {/* Date Range Selection */}
+                        <div className="flex items-center justify-between sm:justify-start gap-1 px-3 py-2 sm:py-0 bg-[#F8FAFC] sm:bg-transparent rounded-xl sm:rounded-none mx-2 sm:mx-0">
+                            <div className="flex items-center gap-1">
+                                <Calendar className="text-[#94A3B8] flex-shrink-0" size={14} />
+                                <input
+                                    type={fromDate ? "date" : "text"}
+                                    onFocus={(e) => {
+                                        e.target.type = "date";
+                                        if (e.target.showPicker) e.target.showPicker();
+                                    }}
+                                    onClick={(e) => {
+                                        if (e.target.showPicker) e.target.showPicker();
+                                    }}
+                                    onBlur={(e) => (e.target.type = fromDate ? "date" : "text")}
+                                    placeholder="From"
+                                    value={fromDate}
+                                    onChange={(e) => setFromDate(e.target.value)}
+                                    className="px-1 py-1 bg-transparent text-xs text-[#00000] outline-none cursor-pointer w-[80px]"
+                                />
+                            </div>
+                            <span className="text-gray-400 text-[10px] font-medium uppercase">-</span>
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type={toDate ? "date" : "text"}
+                                    onFocus={(e) => {
+                                        e.target.type = "date";
+                                        if (e.target.showPicker) e.target.showPicker();
+                                    }}
+                                    onClick={(e) => {
+                                        if (e.target.showPicker) e.target.showPicker();
+                                    }}
+                                    onBlur={(e) => (e.target.type = toDate ? "date" : "text")}
+                                    placeholder="To"
+                                    value={toDate}
+                                    onChange={(e) => setToDate(e.target.value)}
+                                    className="px-1 py-1 bg-transparent text-xs text-[#00000] outline-none cursor-pointer w-[80px]"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -211,30 +283,32 @@ export default function CreditNotes() {
                         <thead className="bg-[#EBF3F6] text-[#4F5B67] text-[12px] font-semibold uppercase tracking-wider">
                             <tr>
                                 <th className="px-3 py-4">ORDER ID</th>
-                                <th className="px-3 py-4">CREDIT NOTE ID</th>
+                                <th className="px-1 py-4">CREDIT NOTE ID</th>
+                                <th className="px-3 py-4">DATE</th>
                                 <th className="px-3 py-4 text-center">REFERENCE INVOICE</th>
                                 <th className="px-3 py-4">PRODUCT NAME</th>
                                 <th className="px-3 py-4 text-center">QUANTITY</th>
-                                <th className="px-3 py-4 text-center">RETURN QUANTITY</th>
+                                <th className="px-1 py-4 text-center">RETURN QUANTITY</th>
                                 <th className="px-3 py-4 text-center">STATUS</th>
                                 <th className="px-3 py-4 text-center">VIEW</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F1F5F9]">
-                            {creditNotesData.map((note, index) => (
+                            {currentItems.map((note, index) => (
                                 <tr key={index} className="hover:bg-[#F8FAFC] transition-colors">
-                                    <td className="px-3 py-1 font-medium text-sm text-[#0F172A]">{note.orderId}</td>
-                                    <td className="px-3 py-1 text-[#475569] font-medium text-sm">{note.creditNoteId}</td>
-                                    <td className="px-3 py-1 text-[#475569] text-center">{note.referenceInvoice}</td>
-                                    <td className="px-3 py-1 text-[#475569] font-medium">{note.productName}</td>
-                                    <td className="px-3 py-1 text-[#475569] text-center">{note.quantity}</td>
-                                    <td className="px-3 py-1 text-[#475569] text-center">{note.returnQuantity}</td>
-                                    <td className="px-3 py-3 text-center">
+                                    <td className="px-3 py-2.5 text-sm text-[#0F172A]">{note.orderId}</td>
+                                    <td className="px-3 py-1 text-[#000000] text-sm">{note.creditNoteId}</td>
+                                    <td className="px-1 py-1 text-[#475569] text-xs ">{formatDate(note.createdAt)}</td>
+                                    <td className="px-3 py-1 text-[#000000] text-sm text-center">{note.referenceInvoice}</td>
+                                    <td className="px-3 py-1 text-[#000000] text-sm">{note.productName}</td>
+                                    <td className="px-3 py-1 text-[#000000] text-sm text-center">{note.quantity}</td>
+                                    <td className="px-3 py-1 text-[#000000] text-sm text-center">{note.returnQuantity}</td>
+                                    <td className="px-3 py-1 text-center">
                                         <span className={`px-4 py-1.5 rounded-lg text-xs font-bold ${getStatusStyle(note.status)}`}>
                                             {note.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-5 text-center">
+                                    <td className="px-3 py-1 text-center">
                                         <button
                                             onClick={() => setSelectedNote(note._raw)}
                                             className="text-[#127690] hover:scale-110 transition-transform"
@@ -251,7 +325,7 @@ export default function CreditNotes() {
 
             {/* Card Layout - Mobile & Tablet */}
             <div className="lg:hidden space-y-3">
-                {creditNotesData.map((note, index) => (
+                {currentItems.map((note, index) => (
                     <div key={index} className="bg-white rounded-lg shadow-sm border border-[#F1F5F9] p-4 hover:shadow-md transition-shadow">
                         <div className="flex justify-between items-start mb-3">
                             <div>
@@ -267,6 +341,10 @@ export default function CreditNotes() {
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">Credit Note ID</p>
                                 <p className="text-sm font-medium text-[#475569] mt-0.5">{note.creditNoteId}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">Date</p>
+                                <p className="text-xs font-medium text-[#475569] mt-0.5">{formatDate(note.createdAt)}</p>
                             </div>
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">Ref. Invoice</p>
@@ -300,6 +378,58 @@ export default function CreditNotes() {
                     </div>
                 ))}
             </div>
+
+            {/* Pagination UI - Numbered Design */}
+            {totalPages > 1 && (
+                <div className="mt-8 mb-4 flex items-center justify-end px-2">
+                    <div className="flex gap-1.5">
+                        <button
+                            onClick={() => paginate(Math.max(1, currentPage - 1))}
+                            disabled={currentPage === 1}
+                            className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        >
+                            <ChevronDown className="rotate-90" size={16} />
+                        </button>
+
+                        {[...Array(totalPages)].map((_, i) => {
+                            const pageNum = i + 1;
+                            if (
+                                totalPages <= 7 ||
+                                pageNum === 1 ||
+                                pageNum === totalPages ||
+                                (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                            ) {
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => paginate(pageNum)}
+                                        className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
+                                            ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                                            : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                                            }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            } else if (
+                                pageNum === currentPage - 2 ||
+                                pageNum === currentPage + 2
+                            ) {
+                                return <span key={pageNum} className="flex items-end pb-2 text-gray-300">...</span>;
+                            }
+                            return null;
+                        })}
+
+                        <button
+                            onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+                            disabled={currentPage === totalPages}
+                            className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        >
+                            <ChevronDown className="-rotate-90" size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Detail Modal */}
             {selectedNote && (
@@ -340,22 +470,22 @@ export default function CreditNotes() {
                                 <DetailRow icon={Hash} label="Order ID" value={selectedNote.order_id} highlight />
                                 <DetailRow icon={FileText} label="Credit Note ID" value={selectedNote.credit_note_id} />
                                 <DetailRow icon={FileText} label="Reference Invoice" value={selectedNote.reference_invoice} />
-<div>
-                                <p className="text-[11px] font-bold uppercase tracking-widest text-[#127690] mb-1 mt-2">Timeline</p>
-                                <DetailRow icon={Clock} label="Created At" value={formatDate(selectedNote.created_at)} />
-                                <DetailRow icon={Clock} label="Reviewed At" value={formatDate(selectedNote.reviewed_at)} />
+                                <div>
+                                    <p className="text-[11px] font-bold uppercase tracking-widest text-[#127690] mb-1 mt-2">Timeline</p>
+                                    <DetailRow icon={Clock} label="Created At" value={formatDate(selectedNote.created_at)} />
+                                    <DetailRow icon={Clock} label="Reviewed At" value={formatDate(selectedNote.reviewed_at)} />
 
-                                {selectedNote.upload_image && (
-                                    <>
-                                        <p className="text-[11px] font-bold uppercase tracking-widest text-[#127690] mb-2 mt-4">Uploaded Image</p>
-                                        <img
-                                            src={selectedNote.upload_image}
-                                            alt="Return proof"
-                                            className="w-full max-h-40 object-cover rounded-xl border border-[#E2E8F0]"
-                                        />
-                                    </>
-                                )}
-                            </div>
+                                    {selectedNote.upload_image && (
+                                        <>
+                                            <p className="text-[11px] font-bold uppercase tracking-widest text-[#127690] mb-2 mt-4">Uploaded Image</p>
+                                            <img
+                                                src={selectedNote.upload_image}
+                                                alt="Return proof"
+                                                className="w-full max-h-40 object-cover rounded-xl border border-[#E2E8F0]"
+                                            />
+                                        </>
+                                    )}
+                                </div>
                                 {/* <p className="text-[11px] font-bold uppercase tracking-widest text-[#127690] mb-1 mt-4">Product Details</p>
                                 <DetailRow icon={Package} label="Product Name" value={selectedNote.product_name} />
                                 <DetailRow icon={Tag} label="Sale Rate" value={selectedNote.sale_rate ? `₹ ${selectedNote.sale_rate}` : "—"} />
@@ -371,12 +501,12 @@ export default function CreditNotes() {
                                 <DetailRow icon={Tag} label="Sale Rate" value={selectedNote.sale_rate ? `₹ ${selectedNote.sale_rate}` : "—"} />
                                 <DetailRow icon={DollarSign} label="Amount" value={selectedNote.amount ? `₹ ${selectedNote.amount}` : "—"} />
                                 <DetailRow icon={Hash} label="Quantity" value={selectedNote.quantity} />
-                                <DetailRow icon={RefreshCw} label="Quantity to Return" value={selectedNote.quantity_to_return} />  
+                                <DetailRow icon={RefreshCw} label="Quantity to Return" value={selectedNote.quantity_to_return} />
                             </div>
 
                             {/* Column 3 — Timeline + Image */}
                             <div>
-                               {/* <p className="text-[11px] font-bold uppercase tracking-widest text-[#127690] mb-1 mt-4">Product Details</p>
+                                {/* <p className="text-[11px] font-bold uppercase tracking-widest text-[#127690] mb-1 mt-4">Product Details</p>
                                 <DetailRow icon={Package} label="Product Name" value={selectedNote.product_name} />
                                 <DetailRow icon={Tag} label="Sale Rate" value={selectedNote.sale_rate ? `₹ ${selectedNote.sale_rate}` : "—"} />
                                 <DetailRow icon={DollarSign} label="Amount" value={selectedNote.amount ? `₹ ${selectedNote.amount}` : "—"} />

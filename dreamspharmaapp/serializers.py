@@ -2017,7 +2017,7 @@ class StoreSerializer(serializers.ModelSerializer):
         model = Store
         fields = [
             'id', 'name', 'address', 'city', 'state', 'pincode',
-            'latitude', 'longitude', 'c2_code', 'store_id', 'prod_code',
+            'latitude', 'longitude', 'c2_code', 'store_id', 'prod_code', 'security_key',
             'phone', 'email', 'manager_name', 'manager_phone',
             'is_active', 'is_primary', 'erp_config', 'distance', 'created_at'
         ]

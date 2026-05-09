@@ -269,26 +269,58 @@ export default function Categories() {
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-center bg-white">
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className={`px-4 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold transition-all ${currentPage === 1 ? 'bg-gray-50 text-gray-300 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50 active:scale-95 shadow-sm'}`}
-                        >
-                            Previous
-                        </button>
-                        <span className="text-sm font-bold text-[#505050] px-2">Page {currentPage} of {totalPages || 1}</span>
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages || totalPages === 0}
-                            className={`px-4 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold transition-all ${currentPage === totalPages || totalPages === 0 ? 'bg-gray-50 text-gray-300 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-50 active:scale-95 shadow-sm'}`}
-                        >
-                            Next
-                        </button>
+                {/* Pagination UI - Numbered Design */}
+                {totalPages > 1 && (
+                    <div className="mt-4 mb-4 flex items-center justify-end px-6 border-t border-gray-50 pt-4">
+                        <div className="flex gap-1.5">
+                            <button
+                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+                            </button>
+                            
+                            {[...Array(totalPages)].map((_, i) => {
+                                const pageNum = i + 1;
+                                if (
+                                    totalPages <= 7 ||
+                                    pageNum === 1 ||
+                                    pageNum === totalPages ||
+                                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                ) {
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
+                                                currentPage === pageNum
+                                                    ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                                                    : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                                            }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                } else if (
+                                    pageNum === currentPage - 2 ||
+                                    pageNum === currentPage + 2
+                                ) {
+                                    return <span key={pageNum} className="flex items-end pb-2 text-gray-300">...</span>;
+                                }
+                                return null;
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="-rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Create / Edit Modal */}

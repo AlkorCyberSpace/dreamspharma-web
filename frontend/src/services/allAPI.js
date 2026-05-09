@@ -104,12 +104,39 @@ export const loginAPI = (data) => {
 };
 
 // dashboard statistics
-export const getDashboardStatsAPI = () => {
-  return axiosInstance.get("superadmin/dashboard/statistics/");
+export const getDashboardStatsAPI = (params) => {
+  return axiosInstance.get("superadmin/dashboard/statistics/", { params });
+};
+
+export const getWarehouseOrdersAPI = (params) => {
+  return axiosInstance.get("superadmin/dashboard/warehouse-orders/", { params });
 };
 
 export const getRetailersAPI = () => {
   return axiosInstance.get("superadmin/retailers/");
+};
+
+// ==================== WAREHOUSE / STORE ENDPOINTS ====================
+// CRUD for distribution centers
+
+export const getWarehousesAPI = () => {
+  return axiosInstance.get("admin/warehouses/");
+};
+
+export const addWarehouseAPI = (data) => {
+  return axiosInstance.post("admin/warehouses/", data);
+};
+
+export const getWarehouseDetailAPI = (id) => {
+  return axiosInstance.get(`admin/warehouses/${id}/`);
+};
+
+export const updateWarehouseAPI = (id, data) => {
+  return axiosInstance.put(`admin/warehouses/${id}/`, data);
+};
+
+export const deleteWarehouseAPI = (id) => {
+  return axiosInstance.delete(`admin/warehouses/${id}/`);
 };
 
 // SuperAdmin - Get Profile Information
