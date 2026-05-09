@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -8,16 +8,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { PieChart as PieChartIcon } from "lucide-react";
-
-const data = [
-  { name: "Oct", income: 45000, expense: 32000, revenue: 13000 },
-  { name: "Nov", income: 52000, expense: 35000, revenue: 17000 },
-  { name: "Dec", income: 68000, expense: 42000, revenue: 26000 },
-  { name: "Jan", income: 61000, expense: 38000, revenue: 23000 },
-  { name: "Feb", income: 59000, expense: 40000, revenue: 19000 },
-  { name: "Mar", income: 78000, expense: 45000, revenue: 33000 },
-];
+import { PieChart as PieChartIcon, Loader2 } from "lucide-react";
+import { getStoreAnalyticsAPI } from "../../services/allAPI";
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -31,7 +23,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></div>
                 <span className="text-xs font-medium text-gray-600 capitalize">{entry.name}</span>
               </div>
-              <span className="text-sm font-bold text-gray-800">₹{entry.value.toLocaleString()}</span>
+              <span className="text-sm font-bold text-gray-800">₹{parseFloat(entry.value).toLocaleString()}</span>
             </div>
           ))}
         </div>
@@ -42,6 +34,35 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const FinancialOverview = () => {
+  const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        const response = await getStoreAnalyticsAPI({ period: "month" });
+        if (response.data.success) {
+          const mappedData = response.data.stores.map(store => ({
+            name: store.store_name,
+            income: parseFloat(store.gross_income),
+            expense: parseFloat(store.discounts_given) + 
+                     parseFloat(store.wallet_credits_given) + 
+                     parseFloat(store.returns_amount),
+            revenue: parseFloat(store.revenue)
+          }));
+          setChartData(mappedData);
+        }
+      } catch (error) {
+        console.error("Error fetching financial analytics:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, []);
+
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#e2e8f0] h-[55vh] flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -65,35 +86,42 @@ const FinancialOverview = () => {
         </div>
       </div>
       
-      <div className="flex-1 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-            <XAxis
-              dataKey="name"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }}
-              dy={10}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }}
-              tickFormatter={(value) => `₹${value / 1000}k`}
-            />
-            <Tooltip 
-                content={<CustomTooltip />} 
-                cursor={{ fill: "#f8fafc" }} 
-            />
-            <Bar dataKey="income" name="income" fill="#1e64a7ff" radius={[4, 4, 0, 0]} barSize={12} />
-            <Bar dataKey="expense" name="expense" fill="#b90b0bff" radius={[4, 4, 0, 0]} barSize={12} />
-            <Bar dataKey="revenue" name="revenue" fill="#61bce6ff" radius={[4, 4, 0, 0]} barSize={12} />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="flex-1 w-full relative">
+        {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="animate-spin text-[#127690]" size={32} />
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }}
+                dy={10}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 600 }}
+                tickFormatter={(value) => `₹${value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value}`}
+              />
+              <Tooltip 
+                  content={<CustomTooltip />} 
+                  cursor={{ fill: "#f8fafc" }} 
+              />
+              <Bar dataKey="income" name="income" fill="#1e64a7ff" radius={[4, 4, 0, 0]} barSize={12} />
+              <Bar dataKey="expense" name="expense" fill="#b90b0bff" radius={[4, 4, 0, 0]} barSize={12} />
+              <Bar dataKey="revenue" name="revenue" fill="#61bce6ff" radius={[4, 4, 0, 0]} barSize={12} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );
 };
 
 export default FinancialOverview;
+
