@@ -20,7 +20,7 @@ const StatCard = ({ title, value, change, icon: Icon, variant = "primary" }) => 
       text-gray-800 overflow-hidden`}
     >
       {/* Icon Circle */}
-      <div className="absolute right-4 top-6 
+      <div className="absolute right-4 top-3 
                       bg-[#127690] 
                       w-12 h-12 rounded-full 
                       flex items-center justify-center text-white shadow-md">

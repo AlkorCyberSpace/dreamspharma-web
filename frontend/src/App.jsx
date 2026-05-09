@@ -14,6 +14,7 @@ import OffersAndBanners from "./pages/OffersAndBanners";
 import AuditLogs from "./pages/AuditLogs";
 import Categories from "./pages/Categories";
 import CreditNotes from "./pages/CreditNotes";
+import Warehouse from "./pages/Warehouse";
 
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
           <Route path="offers" element={<OffersAndBanners />} />
           <Route path="audit" element={<AuditLogs />} />
           <Route path="categories" element={<Categories />} />
+          <Route path="warehouses" element={<Warehouse />} />
         </Route>
       </Routes>
     </BrowserRouter>

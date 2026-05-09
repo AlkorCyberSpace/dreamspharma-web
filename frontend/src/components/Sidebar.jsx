@@ -25,6 +25,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { name: "Credit Note", path: "/credit-note", icon: FileText },
     { name: "Products", path: "/products", icon: Package },
     { name: "Categories", path: "/categories", icon: Database },
+    { name: "Warehouses", path: "/warehouses", icon: FileBarChart2 },
     { name: "Reports", path: "/reports", icon: FileBarChart2 },
     { name: "Offers & Banners", path: "/offers", icon: Tag },
     { name: "Audit Logs", path: "/audit", icon: FileText },

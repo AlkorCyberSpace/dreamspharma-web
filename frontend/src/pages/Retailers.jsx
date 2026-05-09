@@ -249,14 +249,16 @@ export default function RetailerKYCPage() {
   const [selectedRetailer, setSelectedRetailer] = useState(null);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
-
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   const fetchRetailers = async () => {
     try {
       const res = await getRetailersAPI();
       setRetailersData2(res.data.results);
-      console.log(res.data);
     } catch (error) {
       console.error(error);
     }
@@ -266,18 +268,15 @@ export default function RetailerKYCPage() {
 
   const handleApprove = async () => {
     if (!selectedRetailer) return;
-
     const confirmApprove = window.confirm(`Are you sure you want to approve "${selectedRetailer.shop_name}"?`);
     if (!confirmApprove) return;
-
     setApproving(true);
     try {
       await approveRetailerAPI(selectedRetailer.user.id);
       await fetchRetailers();
       setSelectedRetailer((prev) => ({ ...prev, status: "APPROVED" }));
     } catch (err) {
-      console.error("Approve failed:", err);
-      alert("Failed to approve. Please try again.");
+      console.error(err);
     } finally {
       setApproving(false);
     }
@@ -286,38 +285,40 @@ export default function RetailerKYCPage() {
   const handleReject = async () => {
     if (!selectedRetailer) return;
     const reason = prompt("Enter a reason for rejection:");
-    if (reason === null) return;
-    if (!reason.trim()) {
-      alert("Please provide a reason for rejection.");
-      return;
-    }
-
+    if (!reason?.trim()) return;
     setRejecting(true);
     try {
       await rejectRetailerAPI(selectedRetailer.user.id, { rejection_reason: reason });
       await fetchRetailers();
       setSelectedRetailer((prev) => ({ ...prev, status: "REJECTED", rejection_reason: reason }));
     } catch (err) {
-      console.error("Reject failed:", err);
-      alert("Failed to reject. Please try again.");
+      console.error(err);
     } finally {
       setRejecting(false);
     }
   };
 
   const filteredRetailers = retailersData2.filter((retailer) => {
-    const ownerName = retailer.user
-      ? `${retailer.user.first_name} ${retailer.user.last_name}`.toLowerCase()
-      : "";
-    const matchesSearch =
-      (retailer.shop_name || "").toLowerCase().includes(search.toLowerCase()) ||
-      ownerName.includes(search.toLowerCase());
-    const matchesStatus =
-      statusFilter === "All" || retailer.status === statusFilter;
+    const ownerName = retailer.user ? `${retailer.user.first_name} ${retailer.user.last_name}`.toLowerCase() : "";
+    const matchesSearch = (retailer.shop_name || "").toLowerCase().includes(search.toLowerCase()) || ownerName.includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "All" || retailer.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const statusOptions = ["All", "APPROVED", "PENDING", "REJECTED"];
+  
+  // Pagination logic
+  const totalPages = Math.ceil(filteredRetailers.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredRetailers.slice(indexOfFirstItem, indexOfLastItem);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
 
   return (
     <div className="h-full overflow-hidden flex flex-col ml-2 mt-3 ">
@@ -414,7 +415,7 @@ export default function RetailerKYCPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRetailers.map((retailer, index) => {
+                  currentItems.map((retailer, index) => {
                     const ownerName = retailer.user
                       ? `${retailer.user.first_name || ""} ${retailer.user.last_name || ""}`.trim() || "—"
                       : "—";
@@ -448,6 +449,59 @@ export default function RetailerKYCPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination UI - Numbered Design */}
+          {totalPages > 1 && (
+            <div className="mt-4 mb-4 flex items-center justify-end px-6 border-t border-gray-50 pt-4">
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => paginate(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronDown className="rotate-90" size={16} />
+                </button>
+                
+                {[...Array(totalPages)].map((_, i) => {
+                  const pageNum = i + 1;
+                  if (
+                    totalPages <= 7 ||
+                    pageNum === 1 ||
+                    pageNum === totalPages ||
+                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => paginate(pageNum)}
+                        className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
+                          currentPage === pageNum
+                            ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                            : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  } else if (
+                    pageNum === currentPage - 2 ||
+                    pageNum === currentPage + 2
+                  ) {
+                    return <span key={pageNum} className="flex items-end pb-2 text-gray-300">...</span>;
+                  }
+                  return null;
+                })}
+
+                <button
+                  onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronDown className="-rotate-90" size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

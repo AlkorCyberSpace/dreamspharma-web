@@ -245,6 +245,10 @@ const Orders = () => {
   const [error, setError] = useState(null);
   const [adminId, setAdminId] = useState(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -277,6 +281,19 @@ const Orders = () => {
       setLoading(false);
     }
   };
+
+  // Pagination logic
+  const totalPages = Math.ceil(orders.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = orders.slice(indexOfFirstItem, indexOfLastItem);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  // Reset pagination when data changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [orders.length]);
 
   useEffect(() => {
     fetchOrders();
@@ -371,7 +388,7 @@ const Orders = () => {
       </div>
 
       {/* Table Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col mb-5">
+      <div className="bg-white rounded-2xl border-gray-100 flex-1 overflow-hidden flex flex-col mb-5">
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
@@ -414,7 +431,7 @@ const Orders = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {orders.map((order, index) => (
+                {currentItems.map((order, index) => (
                   <tr key={index} className={`transition-colors hover:bg-[#EEF2F6] ${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"}`}>
                     <td className="px-3 py-3 text-sm font-semibold text-[#127690]">{order.id}</td>
                     <td className="px-6 text-sm text-gray-600 font-medium">{order.retailer}</td>
@@ -440,6 +457,59 @@ const Orders = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination UI - Numbered Design */}
+        {totalPages > 1 && (
+          <div className="mt-4 mb-4 flex items-center justify-end px-6">
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => paginate(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronDown className="rotate-90" size={16} />
+              </button>
+              
+              {[...Array(totalPages)].map((_, i) => {
+                const pageNum = i + 1;
+                if (
+                  totalPages <= 7 ||
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => paginate(pageNum)}
+                      className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
+                        currentPage === pageNum
+                          ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                          : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                } else if (
+                  pageNum === currentPage - 2 ||
+                  pageNum === currentPage + 2
+                ) {
+                  return <span key={pageNum} className="flex items-end pb-2 text-gray-300">...</span>;
+                }
+                return null;
+              })}
+
+              <button
+                onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronDown className="-rotate-90" size={16} />
+              </button>
+            </div>
           </div>
         )}
         <OrderDetailModal
