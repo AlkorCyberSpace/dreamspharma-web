@@ -967,6 +967,8 @@ class WishlistItemSerializer(serializers.ModelSerializer):
     categoryName = serializers.SerializerMethodField()
     images = serializers.SerializerMethodField()
     mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
+    expiryDate = serializers.DateField(source='item.expiry_date', read_only=True, allow_null=True)
+    stockBalQty = serializers.SerializerMethodField()
     discountPercentage = serializers.SerializerMethodField()
     discountedPrice = serializers.SerializerMethodField()
     
@@ -974,7 +976,7 @@ class WishlistItemSerializer(serializers.ModelSerializer):
         model = WishlistItem
         fields = [
             'id', 'itemCode', 'itemName', 'batchNo', 'subheading', 'description', 
-            'categoryName', 'images', 'mrp', 'quantity', 
+            'categoryName', 'images', 'mrp', 'quantity', 'expiryDate', 'stockBalQty',
             'discountPercentage', 'discountedPrice'
         ]
     
@@ -1018,6 +1020,24 @@ class WishlistItemSerializer(serializers.ModelSerializer):
     
     def get_discountedPrice(self, obj):
         return obj.get_discounted_price()
+    
+    def get_stockBalQty(self, obj):
+        """Get stock quantity with priority: ECoGreen Real-Time > ERP Enriched > Database > 0"""
+        # Priority 1: ECoGreen real-time stock (attached by view from fetch_stock API)
+        if hasattr(obj.item, 'erp_stock') and obj.item.erp_stock is not None:
+            return int(obj.item.erp_stock)  # ← Live from EcoGreen fetch_stock
+        
+        # Priority 2: Fallback to database Stock model (cached)
+        try:
+            from .models import Stock
+            stock = Stock.objects.filter(item=obj.item).first()
+            if stock and stock.total_bal_ls_qty:
+                return stock.total_bal_ls_qty
+        except:
+            pass
+        
+        # Default: 0
+        return 0
 
 
 class WishlistSerializer(serializers.ModelSerializer):
@@ -2320,10 +2340,4 @@ class StartupLocationResponseSerializer(serializers.Serializer):
     erp_c2_code  = serializers.CharField(allow_null=True)
     erp_store_id = serializers.CharField(allow_null=True)
     erp_prod_code = serializers.CharField(allow_null=True)
-
-    # --- All nearby stores list (sorted by distance) ---
-    nearby_stores = serializers.ListField(
-        child=serializers.DictField(),
-        default=list
-    )
 

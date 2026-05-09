@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from .analytics_views import StoreFinancialAnalyticsView, StoreItemMasterRoutingView
 from dreamspharmaapp.views import SuperAdminUpdateOrderStatusView
 
 urlpatterns = [
@@ -66,5 +67,9 @@ urlpatterns = [
     path('superadmin/reports/retailer-activity/', views.RetailerActivityReportView.as_view(), name='superadmin-report-retailer-activity'),
     path('superadmin/reports/revenue/', views.RevenueReportView.as_view(), name='superadmin-report-revenue'),
     path('superadmin/reports/refund-trends/', views.RefundTrendsView.as_view(), name='superadmin-report-refund-trends'),
+
+    # ==================== STORE FINANCIAL ANALYTICS ====================
+    path('admin/analytics/stores/', StoreFinancialAnalyticsView.as_view(), name='admin-analytics-stores'),
+    path('admin/analytics/store-routing/', StoreItemMasterRoutingView.as_view(), name='admin-analytics-store-routing'),
 ]
    
