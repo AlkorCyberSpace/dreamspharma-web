@@ -602,7 +602,7 @@ class CreateSalesOrderRequestSerializer(serializers.Serializer):
     
     # ==================== SYSTEM INFO (ALL OPTIONAL) ====================
     sysName = serializers.CharField(max_length=100, required=False, allow_blank=True, help_text="System name (for logging)")
-    sysIp = serializers.IPAddressField(required=False, help_text="System IP address (for logging)")
+    sysIp = serializers.CharField(max_length=45, required=False, allow_blank=True, help_text="System IP address (for logging)")
     sysUser = serializers.CharField(max_length=100, required=False, allow_blank=True, help_text="System user (for logging)")
     
     # ==================== OPTIONAL: SUPPLEMENTARY ====================
