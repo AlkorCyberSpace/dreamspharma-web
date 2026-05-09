@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from .analytics_views import StoreFinancialAnalyticsView, StoreItemMasterRoutingView
+from .views import InventoryInsightsView
 from dreamspharmaapp.views import SuperAdminUpdateOrderStatusView
 
 urlpatterns = [
@@ -8,6 +9,7 @@ urlpatterns = [
     path('superadmin/dashboard/statistics/', views.DashboardStatisticsView.as_view(), name='superadmin-dashboard-statistics'),
     path('superadmin/dashboard/daily-volume/', views.DailyVolumeGraphView.as_view(), name='superadmin-daily-volume'),
     path('superadmin/dashboard/warehouse-orders/', views.WarehouseOrdersGraphView.as_view(), name='superadmin-warehouse-orders-graph'),
+    path('superadmin/dashboard/inventory-insights/', InventoryInsightsView.as_view(), name='superadmin-inventory-insights'),
 
     # SuperAdmin - Change Password
     path('superadmin/change-password/', views.ChangePasswordView.as_view(), name='superadmin-change-password'),
