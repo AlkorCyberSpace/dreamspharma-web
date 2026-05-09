@@ -86,7 +86,7 @@ const FinancialOverview = ({ selectedMonth, selectedYear }) => {
   }, [selectedMonth, selectedYear]);
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#e2e8f0] h-[55vh] flex flex-col">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#e2e8f0] h-[85vh] flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <PieChartIcon size={18} className="text-[#127690]" />

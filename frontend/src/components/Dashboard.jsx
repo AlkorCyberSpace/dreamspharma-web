@@ -3,7 +3,7 @@ import StatCard from "./StatCard";
 import DailyOrderVolume from "./charts/DailyOrderVolume";
 import FinancialOverview from "./charts/FinancialOverview";
 import OrdersByStatus from "./charts/OrdersByStatus";
-import WarehousePerformance from "./charts/WarehousePerformance";
+import InventoryInsights from "./charts/WarehousePerformance";
 import {
     Users,
     AlertCircle,
@@ -22,7 +22,7 @@ const Dashboard = () => {
     // Timeframe filter states
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    
+
     // Applied states for charts that fetch independently
     const [appliedMonth, setAppliedMonth] = useState(new Date().getMonth() + 1);
     const [appliedYear, setAppliedYear] = useState(new Date().getFullYear());
@@ -162,18 +162,17 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
                     {/* Main Chart */}
-                    <div className="lg:col-span-2">
-
+                    <div className="lg:col-span-2 flex flex-col gap-4">
                         <FinancialOverview
                             selectedMonth={appliedMonth}
                             selectedYear={appliedYear}
                             data={dashboardData?.financial_overview || []}
                         />
+                        <InventoryInsights />
                     </div>
 
                     {/* Side Charts */}
                     <div className="flex flex-col gap-4">
-
                         <DailyOrderVolume
                             data={dashboardData?.daily_order_volume || []}
                         />
@@ -185,14 +184,6 @@ const Dashboard = () => {
 
                     </div>
                 </div>
-            </div>
-
-            {/* Warehouse Performance Section */}
-            <div className="p-1">
-                <WarehousePerformance
-                    data={warehouseData?.data || []}
-                    stores={warehouseData?.stores || []}
-                />
             </div>
 
         </div>
