@@ -178,6 +178,7 @@ const Dashboard = () => {
                         <DailyOrderVolume
                             data={dashboardData?.daily_order_volume || []}
                         />
+                        
 
                         <OrdersByStatus
                             selectedMonth={appliedMonth}
