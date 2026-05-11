@@ -2053,16 +2053,8 @@ class CreateSalesOrderView(APIView):
                         f"invoice sync will retry in background"
                     )
 
-                # ── Clear cart ──
-                if user_id_raw:
-                    try:
-                        user_cart = Cart.objects.get(user_id=int(user_id_raw))
-                        cleared = user_cart.items.all().delete()
-                        logger.info(f"[CART_CLEAR] Cleared {cleared[0]} items for user {user_id_raw}")
-                    except (Cart.DoesNotExist, ValueError):
-                        pass
-                    except Exception as ce:
-                        logger.error(f"[CART_CLEAR] Error: {str(ce)}")
+                # NOTE: Cart will be cleared AFTER payment succeeds via webhook or VerifyPaymentView
+                # Do NOT clear cart here - user might cancel payment and need to retry
 
                 # ── Background invoice sync ──
                 # Only spawn if ERP sync succeeded, or spawn anyway to retry
@@ -4194,8 +4186,8 @@ class CheckoutWithAddressView(APIView):
                 sales_order.bill_total = total_amount
                 sales_order.save()
                 
-                # Clear cart
-                cart.items.all().delete()
+                # NOTE: Cart will be cleared AFTER payment succeeds
+                # (Not immediately - so user can retry if payment fails)
                 
                 # Get payment method from request
                 payment_method = serializer.validated_data.get('payment_method', 'RAZORPAY')
@@ -6207,7 +6199,7 @@ class RetailerOrdersView(APIView):
         # user_id stored as string in SalesOrder (see CreateSalesOrderView)
         orders = SalesOrder.objects.filter(
             user_id=str(user.id)
-        ).prefetch_related('items').order_by('-created_at')
+        ).prefetch_related('items', 'payments').order_by('-created_at')
 
         if not orders.exists():
             result_data = {'active': [], 'completed': []} if filter_status == 'all' else []
@@ -6222,9 +6214,14 @@ class RetailerOrdersView(APIView):
 
         for order in orders:
 
+            # ── Check if order should be hidden ──
+            # Hide pending online payment orders (Razorpay) - show only pending COD orders
+            payment = order.payments.first() if order.payments.exists() else None
+            if payment and payment.payment_method == 'RAZORPAY' and payment.status == 'PENDING':
+                continue  # Skip pending online payment orders
+            
             # ── Determine order status ──
             # ERP flow: ordConversionFlag=1 → Confirmed, dcConversionFlag=1 → Delivered
-            # FIX: removed payment check — Payment model not defined in models.py
             if order.dc_conversion_flag:
                 order_status = 'Delivered'
                 is_completed = True
@@ -6424,7 +6421,8 @@ class SuperAdminOrdersView(APIView):
             payment_method = payment.get_payment_method_display() if payment else 'COD'
             payment_status = payment.status if payment else 'PENDING'
 
-            if payment and payment.status == 'FAILED':
+            # Check for cancelled or failed payments
+            if payment and payment.status in ['FAILED', 'CANCELLED']:
                 order_status = 'Cancelled'
             elif order.dc_conversion_flag:
                 order_status = 'Delivered'  # Matches Figma

@@ -325,6 +325,17 @@ class VerifyPaymentView(APIView):
             if payment.status == 'SUCCESS' and payment.sales_order:
                 payment.sales_order.ord_conversion_flag = True
                 payment.sales_order.save()
+                
+                # Clear user's cart after successful payment
+                try:
+                    from dreamspharmaapp.models import Cart
+                    user_cart = Cart.objects.get(user=payment.user)
+                    cleared = user_cart.items.all().delete()
+                    logger.info(f"[CART_CLEAR] Cleared {cleared[0]} items for user {payment.user.id} after successful payment")
+                except Cart.DoesNotExist:
+                    logger.debug(f"[CART_CLEAR] No cart found for user {payment.user.id}")
+                except Exception as ce:
+                    logger.error(f"[CART_CLEAR] Error clearing cart after payment: {str(ce)}")
             
             return Response({
                 'success': payment.status == 'SUCCESS',
@@ -546,6 +557,17 @@ class WebhookView(APIView):
                     if payment.sales_order:
                         payment.sales_order.ord_conversion_flag = True
                         payment.sales_order.save()
+                    
+                    # Clear user's cart after successful payment
+                    try:
+                        from dreamspharmaapp.models import Cart
+                        user_cart = Cart.objects.get(user=payment.user)
+                        cleared = user_cart.items.all().delete()
+                        logger.info(f"[CART_CLEAR_WEBHOOK] Cleared {cleared[0]} items for user {payment.user.id} after payment authorized")
+                    except Cart.DoesNotExist:
+                        logger.debug(f"[CART_CLEAR_WEBHOOK] No cart found for user {payment.user.id}")
+                    except Exception as ce:
+                        logger.error(f"[CART_CLEAR_WEBHOOK] Error clearing cart: {str(ce)}")
             
             elif event == 'payment.failed':
                 order_id = payload['payload']['payment']['entity'].get('order_id')
@@ -560,6 +582,26 @@ class WebhookView(APIView):
                     payment.error_code = payment_details.get('error_code')
                     payment.error_description = payment_details.get('error_description')
                     payment.save()
+                    
+                    # Link webhook log to payment
+                    webhook_log.payment = payment
+                    webhook_log.save()
+            
+            elif event == 'payment.cancelled':
+                # Handle payment cancellation - user cancelled payment on Razorpay
+                order_id = payload['payload']['payment']['entity'].get('order_id')
+                payment_details = payload['payload']['payment']['entity']
+                
+                payment = Payment.objects.filter(
+                    razorpay_order_id=order_id
+                ).first()
+                
+                if payment:
+                    payment.status = 'CANCELLED'
+                    payment.error_code = payment_details.get('error_code')
+                    payment.error_description = payment_details.get('error_description') or 'Payment cancelled by user'
+                    payment.save()
+                    logger.info(f"[PAYMENT_CANCELLED] Payment {payment.payment_id} for order {order_id} cancelled by user")
                     
                     # Link webhook log to payment
                     webhook_log.payment = payment

@@ -866,7 +866,7 @@ class Cart(models.Model):
     # Fee configurations (can be adjusted via admin)
     convenience_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    platform_fee = models.DecimalField(max_digits=10, decimal_places=2, default=29.00)
+    platform_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
     def get_bag_total(self):
         """Calculate total MRP of all items"""
