@@ -245,11 +245,11 @@ export default function AuditLogs() {
                         <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
                                 <th className="px-5 py-4">Log ID</th>
-                                <th className="px-5">Action</th>
+                                <th className="px-3">Action</th>
                                 <th className="px-5">Performed By</th>
                                 <th className="px-5">Target Entity</th>
                                 <th className="px-5">Details</th>
-                                <th className="px-5">Category</th>
+                                <th className="px-3">Category</th>
                                 <th className="px-5">Timestamp</th>
                             </tr>
                         </thead>
@@ -270,13 +270,13 @@ export default function AuditLogs() {
                                         <td className="px-5 py-2.5 font-semibold text-[#127690] whitespace-nowrap">
                                             {item.id}
                                         </td>
-                                        <td className="px-6 font-medium whitespace-nowrap">{item.action}</td>
+                                        <td className="px-3 font-medium whitespace-nowrap">{item.action}</td>
                                         <td className="px-6 text-gray-500 whitespace-nowrap">{item.performedBy}</td>
                                         <td className="px-6 whitespace-nowrap">{item.targetEntity}</td>
                                         <td className="px-6 text-gray-500 max-w-[260px] truncate" title={item.details}>
                                             {item.details}
                                         </td>
-                                        <td className="px-6 whitespace-nowrap">
+                                        <td className="px-3 whitespace-nowrap">
                                             <span
                                                 className={`px-3 py-1 rounded-full text-xs font-semibold ${categoryStyle(
                                                     item.category
