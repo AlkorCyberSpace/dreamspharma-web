@@ -1479,8 +1479,10 @@ class SuperAdminOrdersView(APIView):
             payment_method = payment.get_payment_method_display() if payment else 'COD'
             payment_status = payment.status if payment else 'PENDING'
 
-            # Check for cancelled or failed payments
+            # Check for cancelled or failed payments, or undone/unconfirmed online payments
             if payment and payment.status in ['FAILED', 'CANCELLED']:
+                order_status = 'Cancelled'
+            elif payment and payment.status in ['PENDING', 'INITIATED'] and payment.payment_method != 'COD':
                 order_status = 'Cancelled'
             elif order.dc_conversion_flag:
                 order_status = 'Delivered'  # Matches Figma
