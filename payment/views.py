@@ -43,6 +43,33 @@ def get_client_ip(request):
     return ip
 
 
+def convert_to_paise(amount):
+    """
+    Convert amount (in rupees) to paise for Razorpay
+    Round decimal amounts to nearest integer
+    
+    Examples:
+        500 → 50000 paise
+        500.50 → 500 or 501 paise (rounded)
+        5.99 → 6 rupees → 600 paise (rounded up)
+        5.49 → 5 rupees → 500 paise (rounded down)
+    
+    Args:
+        amount: Decimal, float, or int
+    
+    Returns:
+        int: Amount in paise
+    """
+    # Convert to float and round to nearest rupee
+    amount_float = float(amount)
+    amount_rounded = round(amount_float)
+    
+    # Convert to paise
+    paise = int(amount_rounded * 100)
+    
+    return paise
+
+
 def verify_webhook_signature(request):
     """Verify Razorpay webhook signature"""
     webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET
@@ -74,13 +101,30 @@ class RazorpayClient:
         )
     
     def create_order(self, amount, currency='INR', receipt=None, notes=None):
-        """Create Razorpay order"""
+        """
+        Create Razorpay order with amount in paise
+        
+        Args:
+            amount: Decimal/float/int in rupees (e.g., 500.50)
+            currency: Currency code (default 'INR')
+            receipt: Receipt ID for tracking
+            notes: Additional notes/metadata
+        
+        Returns:
+            dict: Razorpay order response
+        """
+        # Convert rupees to paise with proper rounding
+        amount_paise = convert_to_paise(amount)
+        
         data = {
-            'amount': int(amount * 100),  # Amount in paise
+            'amount': amount_paise,  # Amount in paise
             'currency': currency,
             'receipt': receipt or '',
             'notes': notes or {}
         }
+        
+        logger.info(f"[RAZORPAY_CREATE_ORDER] Amount: ₹{amount} = {amount_paise} paise")
+        
         return self.client.order.create(data=data)
     
     def fetch_order(self, order_id):
@@ -98,10 +142,24 @@ class RazorpayClient:
         return generated_signature == signature
     
     def refund_payment(self, payment_id, amount=None, notes=None):
-        """Initiate refund"""
+        """
+        Initiate refund with amount in paise
+        
+        Args:
+            payment_id: Razorpay payment ID
+            amount: Refund amount in rupees (e.g., 250.50)
+            notes: Refund notes
+        
+        Returns:
+            dict: Razorpay refund response
+        """
         data = {}
         if amount:
-            data['amount'] = int(amount * 100)
+            # Convert rupees to paise with proper rounding
+            amount_paise = convert_to_paise(amount)
+            data['amount'] = amount_paise
+            logger.info(f"[RAZORPAY_REFUND] Payment {payment_id} - Refund: ₹{amount} = {amount_paise} paise")
+        
         if notes:
             data['notes'] = notes
         
@@ -216,7 +274,8 @@ class InitiatePaymentView(APIView):
             return Response({
                 'payment_id': str(payment.payment_id),
                 'razorpay_order_id': razorpay_order['id'],
-                'amount': float(payment.amount),
+                'amount': float(payment.amount),  # In rupees
+                'amount_paise': convert_to_paise(payment.amount),  # In paise (for Razorpay)
                 'currency': payment.currency,
                 'key_id': settings.RAZORPAY_KEY_ID,
                 'customer_name': payment.customer_name,
@@ -325,6 +384,24 @@ class VerifyPaymentView(APIView):
             if payment.status == 'SUCCESS' and payment.sales_order:
                 payment.sales_order.ord_conversion_flag = True
                 payment.sales_order.save()
+                
+                # Trigger invoice sync from ERP in background
+                try:
+                    from dreamspharmaapp.services import sync_invoice_from_erp
+                    import threading
+                    thread = threading.Thread(
+                        target=sync_invoice_from_erp,
+                        args=(
+                            payment.sales_order.order_id,
+                            payment.sales_order.c2_code,
+                            payment.sales_order.store_id
+                        ),
+                        daemon=True
+                    )
+                    thread.start()
+                    logger.info(f"[INVOICE_SYNC_TRIGGERED] Background thread started for order {payment.sales_order.order_id}")
+                except Exception as sync_error:
+                    logger.error(f"[INVOICE_SYNC_ERROR] Failed to trigger invoice sync for order {payment.sales_order.order_id}: {str(sync_error)}")
                 
                 # Clear user's cart after successful payment
                 try:
@@ -557,6 +634,24 @@ class WebhookView(APIView):
                     if payment.sales_order:
                         payment.sales_order.ord_conversion_flag = True
                         payment.sales_order.save()
+                        
+                        # Trigger invoice sync from ERP in background
+                        try:
+                            from dreamspharmaapp.services import sync_invoice_from_erp
+                            import threading
+                            thread = threading.Thread(
+                                target=sync_invoice_from_erp,
+                                args=(
+                                    payment.sales_order.order_id,
+                                    payment.sales_order.c2_code,
+                                    payment.sales_order.store_id
+                                ),
+                                daemon=True
+                            )
+                            thread.start()
+                            logger.info(f"[INVOICE_SYNC_TRIGGERED_WEBHOOK] Background thread started for order {payment.sales_order.order_id}")
+                        except Exception as sync_error:
+                            logger.error(f"[INVOICE_SYNC_ERROR_WEBHOOK] Failed to trigger invoice sync for order {payment.sales_order.order_id}: {str(sync_error)}")
                     
                     # Clear user's cart after successful payment
                     try:
@@ -586,6 +681,8 @@ class WebhookView(APIView):
                     # Link webhook log to payment
                     webhook_log.payment = payment
                     webhook_log.save()
+                    
+                    logger.warning(f"[PAYMENT_FAILED_WEBHOOK] Order {order_id} - Error: {payment.error_description}")
             
             elif event == 'payment.cancelled':
                 # Handle payment cancellation - user cancelled payment on Razorpay
