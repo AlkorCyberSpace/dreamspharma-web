@@ -44,7 +44,7 @@ class Command(BaseCommand):
 
     def check_product_expiry(self):
         """Check for products expiring within the next 30 days"""
-        expiry_threshold = timezone.now().date() + timezone.timedelta(days=30)
+        expiry_threshold = timezone.now().date() + datetime.timedelta(days=30)
         expiring_products = ItemMaster.objects.filter(expiry_date__lte=expiry_threshold, expiry_date__gte=timezone.now().date())
         
         for item in expiring_products:
@@ -66,7 +66,7 @@ class Command(BaseCommand):
 
     def check_banner_offer_expiry(self):
         """Check for banners/offers expiring within the next 24 hours"""
-        expiry_threshold = timezone.now().date() + timezone.timedelta(days=1)
+        expiry_threshold = timezone.now().date() + datetime.timedelta(days=1)
         expiring_offers = Offer.objects.filter(valid_to__lte=expiry_threshold, status=True)
         
         for offer in expiring_offers:
