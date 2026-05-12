@@ -6217,17 +6217,25 @@ class RetailerOrdersView(APIView):
             # ── Check if order should be hidden ──
             # Hide pending online payment orders (Razorpay) - show only pending COD orders
             payment = order.payments.first() if order.payments.exists() else None
-            if payment and payment.payment_method == 'RAZORPAY' and payment.status == 'PENDING':
-                continue  # Skip pending online payment orders
+            # We don't continue anymore, we show them as Cancelled if they are Razorpay PENDING
             
             # ── Determine order status ──
-            # ERP flow: ordConversionFlag=1 → Confirmed, dcConversionFlag=1 → Delivered
-            if order.dc_conversion_flag:
-                order_status = 'Delivered'
+            if payment and payment.payment_method == 'RAZORPAY':
+                if payment.status == 'SUCCESS':
+                    order_status = 'Confirmed'
+                    is_completed = False
+                else:
+                    order_status = 'Cancelled'
+                    is_completed = True
+            elif order.dc_conversion_flag:
+                order_status = 'Dispatched'
                 is_completed = True
             elif order.ord_conversion_flag:
                 order_status = 'Confirmed'
-                is_completed = False   # still active until delivered
+                is_completed = False
+            elif payment and payment.status in ['FAILED', 'CANCELLED']:
+                order_status = 'Cancelled'
+                is_completed = True
             else:
                 order_status = 'Pending'
                 is_completed = False
@@ -6424,11 +6432,15 @@ class SuperAdminOrdersView(APIView):
             # Check for cancelled or failed payments
             is_razorpay_success = payment and payment.payment_method == 'RAZORPAY' and payment.status == 'SUCCESS'
             
-            if payment and payment.status in ['FAILED', 'CANCELLED']:
-                order_status = 'Cancelled'
+            if payment and payment.payment_method == 'RAZORPAY':
+                if payment.status == 'SUCCESS':
+                    order_status = 'Confirmed'
+                else:
+                    # FAILED, CANCELLED, PENDING, INITIATED -> Cancelled
+                    order_status = 'Cancelled'
             elif order.dc_conversion_flag:
-                order_status = 'Delivered'  # Matches Figma
-            elif order.ord_conversion_flag or is_razorpay_success:
+                order_status = 'Dispatched'
+            elif order.ord_conversion_flag:
                 order_status = 'Confirmed'
             else:
                 order_status = 'Pending'
@@ -6516,6 +6528,7 @@ class SuperAdminOrdersView(APIView):
                 'detailedTimeline': timeline,
                 'detailedItems': items_data,
                 'needs_admin_confirmation': needs_admin_confirmation,
+                'requires_admin_action': needs_admin_confirmation,
             })
 
         return Response({
@@ -6578,18 +6591,26 @@ class SuperAdminUpdateOrderStatusView(APIView):
         from payment.models import Payment
         payment = order.payments.first()
         
-        if payment and payment.status == 'FAILED':
-            return Response({
-                'success': False,
-                'error': 'Cannot update status for a cancelled/failed order'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Determine current order status
-        is_razorpay_success = payment and payment.payment_method == 'RAZORPAY' and payment.status == 'SUCCESS'
-        if order.ord_conversion_flag or is_razorpay_success:
+        # Determine current order status (match logic in SuperAdminOrdersView)
+        if payment and payment.payment_method == 'RAZORPAY':
+            if payment.status == 'SUCCESS':
+                current_status = 'confirmed'
+            else:
+                current_status = 'cancelled'
+        elif order.dc_conversion_flag:
+            current_status = 'dispatched'
+        elif order.ord_conversion_flag:
             current_status = 'confirmed'
+        elif payment and payment.status in ['FAILED', 'CANCELLED']:
+            current_status = 'cancelled'
         else:
             current_status = 'pending'
+
+        if current_status == 'cancelled':
+            return Response({
+                'success': False,
+                'error': 'Cannot update status for a cancelled or failed order'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate status transition
         status_order = {'pending': 0, 'confirmed': 1, 'dispatched': 2}
@@ -6618,6 +6639,7 @@ class SuperAdminUpdateOrderStatusView(APIView):
 
         elif new_status == 'dispatched':
             order.ord_conversion_flag = True  # Ensure confirmed
+            order.dc_conversion_flag = True   # Mark as dispatched
             order.save()
             action_msg = 'Order Dispatched'
             log_details = f'Order "{order_id}" marked as Dispatched'
