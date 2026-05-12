@@ -282,8 +282,8 @@ export default function CreditNotes() {
                     <table className="w-full text-left">
                         <thead className="bg-[#EBF3F6] text-[#4F5B67] text-[12px] font-semibold uppercase tracking-wider">
                             <tr>
-                                <th className="px-3 py-4">ORDER ID</th>
-                                <th className="px-1 py-4">CREDIT NOTE ID</th>
+                                <th className="px-2 py-4">ORDER ID</th>
+                                <th className="px-1 py-4 ">CREDIT NOTE ID</th>
                                 <th className="px-3 py-4">DATE</th>
                                 <th className="px-3 py-4 text-center">REFERENCE INVOICE</th>
                                 <th className="px-3 py-4">PRODUCT NAME</th>
@@ -296,10 +296,10 @@ export default function CreditNotes() {
                         <tbody className="divide-y divide-[#F1F5F9]">
                             {currentItems.map((note, index) => (
                                 <tr key={index} className="hover:bg-[#F8FAFC] transition-colors">
-                                    <td className="px-3 py-2.5 text-sm text-[#0F172A]">{note.orderId}</td>
-                                    <td className="px-3 py-1 text-[#000000] text-sm">{note.creditNoteId}</td>
-                                    <td className="px-1 py-1 text-[#475569] text-xs ">{formatDate(note.createdAt)}</td>
-                                    <td className="px-3 py-1 text-[#000000] text-sm text-center">{note.referenceInvoice}</td>
+                                    <td className="px-2 py-2 text-sm font-semibold text-[#127690]">{note.orderId}</td>
+                                    <td className="px-2  py-1 text-[#000000] text-sm">{note.creditNoteId}</td>
+                                    <td className="px-1 py-1 text-[#1c2025] text-sm ">{formatDate(note.createdAt)}</td>
+                                    <td className="px-2 py-1 text-[#000000] text-sm text-center">{note.referenceInvoice}</td>
                                     <td className="px-3 py-1 text-[#000000] text-sm">{note.productName}</td>
                                     <td className="px-3 py-1 text-[#000000] text-sm text-center">{note.quantity}</td>
                                     <td className="px-3 py-1 text-[#000000] text-sm text-center">{note.returnQuantity}</td>

@@ -160,15 +160,24 @@ export default function Categories() {
                     <p className="text-sm text-[#505050]">Manage product categories and brands</p>
                 </div>
 
-                <div className="flex items-center gap-3 border border-gray-200 bg-white rounded-xl px-4 py-2 shadow-sm w-full md:w-[400px]">
-                    <Search size={18} className="text-gray-400 shrink-0" />
-                    <input
-                        type="text"
-                        placeholder="Search categories..."
-                        value={search}
-                        onChange={handleSearch}
-                        className="flex-1 bg-transparent border-none outline-none px-3 text-sm text-[#505050] placeholder:text-[#9EA2A7]"
-                    />
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex items-center pl-4 pr-1.5 py-1.5 transition-all w-full md:w-auto">
+                    <div className="flex items-center flex-1">
+                        <Search className="text-gray-400 mr-3" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search categories..."
+                            value={search}
+                            onChange={handleSearch}
+                            className="w-full md:w-[280px] py-1.5 bg-transparent outline-none text-sm text-[#505050] placeholder:text-gray-400"
+                        />
+                    </div>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center gap-2 bg-[#127690] text-white px-5 py-2 rounded-lg hover:bg-[#0e5e73] transition-all shadow-sm text-sm font-medium whitespace-nowrap ml-2"
+                    >
+                        <Plus size={18} />
+                        <span className="hidden sm:inline">Add Category</span>
+                    </button>
                 </div>
             </div>
 
@@ -194,15 +203,7 @@ export default function Categories() {
                     blobColor1="bg-[#83ACE5]"
                     blobColor2="bg-[#1447EA]"
                 />
-                <div className="flex-1 flex justify-end items-end">
-                    <button
-                        onClick={() => handleOpenModal()}
-                        className="flex items-center justify-center h-12 gap-2 px-6 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-xl transition-all shadow-sm"
-                    >
-                        <Plus size={18} />
-                        Add Category
-                    </button>
-                </div>
+               
             </div>
 
             {/* Table */}
@@ -234,8 +235,8 @@ export default function Categories() {
                             ) : (
                                 paginatedCategories.map((cat, index) => (
                                     <tr key={cat.id} className={`${index % 2 === 0 ? "bg-white" : "bg-[#F7F9FB]"} hover:bg-[#EEF2F6] transition`}>
-                                        <td className="px-6 py-3 text-[13px] font-bold text-gray-500 text-center">{cat.id}</td>
-                                        <td className="px-6 py-3">
+                                        <td className="px-6 py-2 text-[13px] font-bold text-gray-500 text-center">{cat.id}</td>
+                                        <td className="px-6 py-2">
                                             {cat.icon ? (
                                                 <img
                                                   src={cat.icon}
@@ -255,10 +256,10 @@ export default function Categories() {
                                         <td className="px-6 py-2 text-center">
                                             <div className="flex items-center justify-center gap-2">
                                                 <button onClick={() => handleOpenModal(cat)} className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Category">
-                                                    <Edit size={16} />
+                                                    <Edit size={14} />
                                                 </button>
                                                 <button onClick={() => handleDelete(cat.id)} className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Category">
-                                                    <Trash2 size={16} />
+                                                    <Trash2 size={14} />
                                                 </button>
                                             </div>
                                         </td>
