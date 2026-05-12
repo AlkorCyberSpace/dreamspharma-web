@@ -265,18 +265,18 @@ export default function Products() {
             {/* Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
                 <div className="flex-1 overflow-auto">
-                    <table className="min-w-[1100px] w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse">
                         <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
-                                <th className="px-6 py-4 text-center">SI NO</th>
-                                <th className="px-6 text-center">PRODUCT ID</th>
-                                <th className="px-6">PRODUCT NAME</th>
-                                <th className="px-6">BRAND NAME</th>
-                                <th className="px-6">BATCH NO</th>
-                                <th className="px-6">EXPIRY</th>
-                                <th className="px-6">MRP</th>
-                                <th className="px-6">STOCK</th>
-                                <th className="px-6 text-center">ACTION</th>
+                                <th className="px-2 py-4 text-center">SI NO</th>
+                                <th className=" ">PRODUCT ID</th>
+                                <th className="px-4">PRODUCT NAME</th>
+                                <th className="px-2">BRAND NAME</th>
+                                <th className="px-2">BATCH NO</th>
+                                <th className="px-2">EXPIRY</th>
+                                <th className="px-2">MRP</th>
+                                <th className="px-2">STOCK</th>
+                                <th className="px-2 text-center">ACTION</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
@@ -301,14 +301,14 @@ export default function Products() {
                                         key={index}
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"} hover:bg-[#EEF2F6] transition`}
                                     >
-                                        <td className="px-6 py-2 text-[12px] font-bold text-gray-800 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                                        <td className="px-6 text-sm text-[#127690] font-bold">{product.id}</td>
-                                        <td className="px-6 text-sm text-gray-600 font-medium">{product.name}</td>
-                                        <td className="px-6 text-sm text-gray-500">{product.category}</td>
-                                        <td className="px-6 text-sm text-gray-500">{product.batch || "—"}</td>
-                                        <td className="px-6 text-sm text-gray-500">{product.expiry || "—"}</td>
-                                        <td className="px-6 text-sm text-gray-600 font-bold">{product.mrp}</td>
-                                        <td className="px-6 text-sm whitespace-nowrap">
+                                        <td className="px-3 py-2 text-[12px] font-bold text-gray-800 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                                        <td className="px-2 text-sm text-[#127690] font-bold">{product.id}</td>
+                                        <td className="px-3 text-sm text-gray-800 font-medium">{product.name}</td>
+                                        <td className="px-2 text-sm text-gray-800">{product.category}</td>
+                                        <td className="px-2 text-sm text-gray-800">{product.batch || "—"}</td>
+                                        <td className="px-2 text-sm text-gray-800">{product.expiry || "—"}</td>
+                                        <td className="px-2 text-sm text-gray-600 font-bold">{product.mrp}</td>
+                                        <td className="px-2 text-sm whitespace-nowrap">
                                             {product.lowStock ? (
                                                 <span className="text-red-600 font-bold flex items-center gap-1.5">
                                                     {product.stock}
@@ -318,7 +318,7 @@ export default function Products() {
                                                 <span className="text-gray-600 font-semibold">{product.stock}</span>
                                             )}
                                         </td>
-                                        <td className="px-6 text-[13px] text-center">
+                                        <td className="px-2 text-[13px] text-center">
                                             <button
                                                 onClick={() => {
                                                     setSelectedProduct(product);
