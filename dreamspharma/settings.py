@@ -147,7 +147,6 @@ SIMPLE_JWT = {
     # User identification
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-    
     # Token type claim
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
