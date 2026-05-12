@@ -3,6 +3,13 @@ from . import views
 from .analytics_views import StoreFinancialAnalyticsView, StoreItemMasterRoutingView
 from .views import InventoryInsightsView
 from dreamspharmaapp.views import SuperAdminUpdateOrderStatusView
+from .report_views import (
+    StoreWiseSummaryReportView,
+    StoreWiseOrderReportView,
+    StoreWiseCreditReportView,
+    StoreWiseRevenueReportView,
+    StoreWiseRetailerActivityReportView,
+)
 
 urlpatterns = [
     # SuperAdmin - Dashboard Statistics
@@ -73,5 +80,16 @@ urlpatterns = [
     # ==================== STORE FINANCIAL ANALYTICS ====================
     path('admin/analytics/stores/', StoreFinancialAnalyticsView.as_view(), name='admin-analytics-stores'),
     path('admin/analytics/store-routing/', StoreItemMasterRoutingView.as_view(), name='admin-analytics-store-routing'),
+
+    # ==================== STORE-WISE REPORTS ====================
+    # Summary: total revenue, orders, avg_order_value per store
+    path('superadmin/reports/store-wise/summary/', StoreWiseSummaryReportView.as_view(), name='superadmin-report-store-summary'),
+    # Detailed orders scoped to a store
+    path('superadmin/reports/store-wise/orders/', StoreWiseOrderReportView.as_view(), name='superadmin-report-store-orders'),
+    # Credit notes per store
+    path('superadmin/reports/store-wise/credits/', StoreWiseCreditReportView.as_view(), name='superadmin-report-store-credits'),
+    # Revenue time-series per store
+    path('superadmin/reports/store-wise/revenue/', StoreWiseRevenueReportView.as_view(), name='superadmin-report-store-revenue'),
+    # Retailer activity per store
+    path('superadmin/reports/store-wise/retailer-activity/', StoreWiseRetailerActivityReportView.as_view(), name='superadmin-report-store-retailer-activity'),
 ]
-   

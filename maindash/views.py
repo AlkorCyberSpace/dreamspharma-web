@@ -1870,36 +1870,65 @@ class OrderReportView(APIView, ExcelExportMixin):
     """
     Detailed list of orders with specific columns for reports.
     GET /api/superadmin/reports/orders/
+
+    Query params:
+      period    : week | month | year | custom  (default: month)
+      start_date, end_date  – when period=custom or legacy range
+      search    : str
+      export    : excel
     """
     permission_classes = [IsAuthenticated]
+
+    def _resolve_dates(self, request):
+        """Return (start_date, end_date) based on period or explicit dates."""
+        period = request.query_params.get('period', '').lower()
+        today = timezone.now().date()
+        if period == 'week':
+            return today - timedelta(days=6), today
+        if period == 'year':
+            return today.replace(month=1, day=1), today
+        # explicit dates (legacy + custom)
+        sd = request.query_params.get('start_date')
+        ed = request.query_params.get('end_date')
+        if sd and ed:
+            from django.utils.dateparse import parse_date as _pd
+            return _pd(sd), _pd(ed)
+        # default: month-to-date
+        return today.replace(day=1), today
 
     def get(self, request):
         if request.user.role != 'SUPERADMIN':
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
 
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
+        start_date, end_date = self._resolve_dates(request)
         search = request.query_params.get('search', '')
 
-        orders = SalesOrder.objects.all().order_by('-ord_date')
+        orders = SalesOrder.objects.select_related('fulfilling_store').order_by('-ord_date')
         if start_date and end_date:
             orders = orders.filter(ord_date__range=[start_date, end_date])
         
         if search:
             orders = orders.filter(
                 Q(order_id__icontains=search) | 
-                Q(cust_name__icontains=search)
+                Q(cust_name__icontains=search) |
+                Q(patient_name__icontains=search)
             )
 
         data = []
         for order in orders:
             data.append({
                 'order_id': order.order_id,
-                'retailer': order.cust_name or order.patient_name,
+                'retailer': order.cust_name or order.patient_name or '—',
+                'store': order.fulfilling_store.name if order.fulfilling_store else '—',
                 'date': order.ord_date.strftime('%Y-%m-%d') if order.ord_date else '',
                 'items': order.items.count(),
                 'total': float(order.order_total),
-                'status': 'Delivered' if order.dc_conversion_flag else ('Confirmed' if order.ord_conversion_flag else 'Pending'),
+                'status': (
+                    'Delivered'  if order.dc_conversion_flag else
+                    'Dispatched' if order.invoices.exists()  else
+                    'Confirmed'  if order.ord_conversion_flag else
+                    'Pending'
+                ),
                 'erp_ref': order.document_pk or 'N/A'
             })
 
@@ -1908,6 +1937,7 @@ class OrderReportView(APIView, ExcelExportMixin):
 
         return Response({
             'success': True,
+            'period': {'start_date': str(start_date), 'end_date': str(end_date)},
             'count': len(data),
             'data': data
         })
@@ -1916,54 +1946,141 @@ class RetailerActivityReportView(APIView, ExcelExportMixin):
     """
     Retailer-wise ordering patterns.
     GET /api/superadmin/reports/retailer-activity/
+
+    Query params:
+      period    : week | month | year | custom  (default: month)
+      start_date, end_date  – when period=custom
+      export    : excel
     """
     permission_classes = [IsAuthenticated]
+
+    def _resolve_dates(self, request):
+        period = request.query_params.get('period', '').lower()
+        today = timezone.now().date()
+        if period == 'week':
+            return today - timedelta(days=6), today
+        if period == 'year':
+            return today.replace(month=1, day=1), today
+        sd = request.query_params.get('start_date')
+        ed = request.query_params.get('end_date')
+        if sd and ed:
+            from django.utils.dateparse import parse_date as _pd
+            return _pd(sd), _pd(ed)
+        return today.replace(day=1), today
 
     def get(self, request):
         if request.user.role != 'SUPERADMIN':
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Aggregate users by their orders
-        activity = SalesOrder.objects.values('user_id', 'cust_name').annotate(
+        start_date, end_date = self._resolve_dates(request)
+
+        # Aggregate users by their orders in period
+        qs = SalesOrder.objects.filter(
+            ord_date__gte=start_date,
+            ord_date__lte=end_date,
+        )
+        activity = qs.values(
+            'user_id', 'cust_name',
+            'fulfilling_store__id', 'fulfilling_store__name', 'fulfilling_store__city'
+        ).annotate(
             order_count=Count('id'),
             total_spent=Sum('order_total'),
+            avg_order_value=Avg('order_total'),
             last_order=Max('ord_date')
         ).order_by('-total_spent')
 
-        activity_list = list(activity)
+        activity_list = [{
+            'user_id':          str(row['user_id'] or ''),
+            'retailer_name':    row['cust_name'] or '—',
+            'store':            row['fulfilling_store__name'] or '—',
+            'city':             row['fulfilling_store__city'] or '—',
+            'order_count':      row['order_count'],
+            'total_spent':      float(row['total_spent'] or 0),
+            'avg_order_value':  round(float(row['avg_order_value'] or 0), 2),
+            'last_order':       str(row['last_order']) if row['last_order'] else '—',
+        } for row in activity]
+
         if request.query_params.get('export') == 'excel':
             return self.generate_excel(activity_list, 'retailer_activity_report')
 
         return Response({
             'success': True,
+            'period': {'start_date': str(start_date), 'end_date': str(end_date)},
+            'count': len(activity_list),
             'data': activity_list
         })
 
 class RevenueReportView(APIView, ExcelExportMixin):
     """
-    Daily revenue trends for line charts.
+    Revenue time-series for line charts.
     GET /api/superadmin/reports/revenue/
+
+    Query params:
+      period    : week | month | year | custom  (default: month)
+      start_date, end_date  – when period=custom
+      group_by  : day | week | month  (auto-selected if not specified)
+      export    : excel
     """
     permission_classes = [IsAuthenticated]
+
+    def _resolve_dates(self, request):
+        period = request.query_params.get('period', '').lower()
+        today = timezone.now().date()
+        if period == 'week':
+            return today - timedelta(days=6), today, 'day'
+        if period == 'year':
+            return today.replace(month=1, day=1), today, 'month'
+        sd = request.query_params.get('start_date')
+        ed = request.query_params.get('end_date')
+        if sd and ed:
+            from django.utils.dateparse import parse_date as _pd
+            return _pd(sd), _pd(ed), 'day'
+        # default: MTD
+        return today.replace(day=1), today, 'week'
 
     def get(self, request):
         if request.user.role != 'SUPERADMIN':
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
 
-        today = timezone.now().date()
-        start = today - timedelta(days=30)
-        
-        revenue_data = SalesOrder.objects.filter(ord_date__range=[start, today]) \
-            .values('ord_date') \
-            .annotate(revenue=Sum('order_total')) \
-            .order_by('ord_date')
+        start, end, default_group = self._resolve_dates(request)
+        group_by = request.query_params.get('group_by', default_group)
 
-        revenue_list = list(revenue_data)
+        trunc_map = {
+            'day':   TruncDate,
+            'week':  TruncWeek,
+            'month': TruncMonth,
+            'year':  TruncYear,
+        }
+        trunc_fn = trunc_map.get(group_by, TruncDate)
+
+        revenue_data = (
+            SalesOrder.objects
+            .filter(ord_date__range=[start, end])
+            .annotate(bucket=trunc_fn('ord_date'))
+            .values('bucket')
+            .annotate(
+                revenue=Sum('order_total'),
+                order_count=Count('id'),
+                avg_order=Avg('order_total'),
+            )
+            .order_by('bucket')
+        )
+
+        revenue_list = [{
+            'period':       str(r['bucket'].date()) if hasattr(r['bucket'], 'date') else str(r['bucket']),
+            'revenue':      float(r['revenue'] or 0),
+            'order_count':  r['order_count'],
+            'avg_order':    round(float(r['avg_order'] or 0), 2),
+        } for r in revenue_data]
+
         if request.query_params.get('export') == 'excel':
             return self.generate_excel(revenue_list, 'revenue_report')
 
         return Response({
-            'success': True,
+            'success':  True,
+            'period':   {'start_date': str(start), 'end_date': str(end)},
+            'group_by': group_by,
+            'total_revenue': sum(r['revenue'] for r in revenue_list),
             'data': revenue_list
         })
 
