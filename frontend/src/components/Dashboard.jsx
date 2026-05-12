@@ -15,11 +15,12 @@ import {
     CheckCircle,
     RotateCcw,
 } from "lucide-react";
-import { getDashboardStatsAPI, getWarehouseOrdersAPI } from "../services/allAPI";
+import { getDailyVolumeAPI, getDashboardStatsAPI, getWarehouseOrdersAPI } from "../services/allAPI";
 
 const Dashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
     const [warehouseData, setWarehouseData] = useState(null);
+    const [dailyVolumeData, setDailyVolumeData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     // Timeframe filter states
@@ -46,16 +47,19 @@ const Dashboard = () => {
         setLoading(true);
         try {
             const params = { month, year };
-            const [statsRes, warehouseRes] = await Promise.all([
+            const [statsRes, warehouseRes, dailyVolumeRes] = await Promise.all([
                 getDashboardStatsAPI(params),
-                getWarehouseOrdersAPI({ ...params, period: 'date' }) // Get daily data for the selected month
+                getWarehouseOrdersAPI({ ...params, period: 'date' }), // Get daily data for the selected month
+                getDailyVolumeAPI({ ...params, period: 'date' })
             ]);
 
             console.log("Dashboard Stats:", statsRes.data);
             console.log("Warehouse Orders:", warehouseRes.data);
+            console.log("Daily Volume:", dailyVolumeRes.data);
 
             setDashboardData(statsRes.data.statistics);
             setWarehouseData(warehouseRes.data);
+            setDailyVolumeData(dailyVolumeRes.data);
         } catch (err) {
             console.error("Dashboard Fetch Error:", err);
         } finally {
@@ -177,9 +181,9 @@ const Dashboard = () => {
                     {/* Side Charts */}
                     <div className="flex flex-col gap-4">
                         <DailyOrderVolume
-                            data={dashboardData?.daily_order_volume || []}
+                            data={dailyVolumeData?.graph_data || []}
                         />
-                        
+
 
                         <OrdersByStatus
                             selectedMonth={appliedMonth}
