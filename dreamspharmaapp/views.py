@@ -6422,14 +6422,19 @@ class SuperAdminOrdersView(APIView):
             payment_status = payment.status if payment else 'PENDING'
 
             # Check for cancelled or failed payments
+            is_razorpay_success = payment and payment.payment_method == 'RAZORPAY' and payment.status == 'SUCCESS'
+            
             if payment and payment.status in ['FAILED', 'CANCELLED']:
                 order_status = 'Cancelled'
             elif order.dc_conversion_flag:
                 order_status = 'Delivered'  # Matches Figma
-            elif order.ord_conversion_flag:
+            elif order.ord_conversion_flag or is_razorpay_success:
                 order_status = 'Confirmed'
             else:
                 order_status = 'Pending'
+                
+            # Only COD orders in Pending state need admin confirmation
+            needs_admin_confirmation = (order_status == 'Pending' and payment and payment.payment_method == 'COD')
 
             # Build items list for modal
             items_data = []
@@ -6510,6 +6515,7 @@ class SuperAdminOrdersView(APIView):
                 'erpRef': order.document_pk or f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else '',
                 'detailedTimeline': timeline,
                 'detailedItems': items_data,
+                'needs_admin_confirmation': needs_admin_confirmation,
             })
 
         return Response({
@@ -6579,7 +6585,8 @@ class SuperAdminUpdateOrderStatusView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Determine current order status
-        if order.ord_conversion_flag:
+        is_razorpay_success = payment and payment.payment_method == 'RAZORPAY' and payment.status == 'SUCCESS'
+        if order.ord_conversion_flag or is_razorpay_success:
             current_status = 'confirmed'
         else:
             current_status = 'pending'
@@ -6590,6 +6597,13 @@ class SuperAdminUpdateOrderStatusView(APIView):
             return Response({
                 'success': False,
                 'error': f'Cannot change status from "{current_status}" to "{new_status}". Order is already at or past this stage.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Prevent manual confirmation of non-COD orders
+        if new_status == 'confirmed' and payment and payment.payment_method != 'COD':
+            return Response({
+                'success': False,
+                'error': 'Only COD orders require manual confirmation. Online payments are confirmed automatically.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Apply status update
