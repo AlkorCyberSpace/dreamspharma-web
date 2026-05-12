@@ -6,6 +6,7 @@ import random
 import string
 import uuid
 import logging
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -147,13 +148,13 @@ class OTP(models.Model):
     def is_expired(self):
         """Check if OTP has expired (5 minutes)"""
         from django.utils import timezone
-        expiry_time = self.created_at + timezone.timedelta(seconds=self.OTP_EXPIRY_TIME)
+        expiry_time = self.created_at + timedelta(seconds=self.OTP_EXPIRY_TIME)
         return timezone.now() > expiry_time
     
     def get_expiry_time_remaining(self):
         """Get remaining time in seconds before OTP expires"""
         from django.utils import timezone
-        expiry_time = self.created_at + timezone.timedelta(seconds=self.OTP_EXPIRY_TIME)
+        expiry_time = self.created_at + timedelta(seconds=self.OTP_EXPIRY_TIME)
         remaining = (expiry_time - timezone.now()).total_seconds()
         return max(0, int(remaining))
     
