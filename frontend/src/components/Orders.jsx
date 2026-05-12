@@ -202,7 +202,7 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
             <Download size={18} />
             Download Invoice
           </button>
-          {order.status === 'Pending' && (
+          {(order.status === 'Pending' || order.status === 'Processing') && (
             <button
               onClick={() => handleUpdateStatus('confirmed')}
               disabled={confirming}
@@ -319,6 +319,8 @@ const Orders = () => {
         return 'bg-purple-100 text-purple-600';
       case 'Confirmed':
         return 'bg-blue-100 text-blue-600';
+      case 'Processing':
+        return 'bg-cyan-100 text-cyan-700';
       case 'Pending':
         return 'bg-amber-100 text-amber-600';
       case 'Cancelled':
@@ -327,6 +329,7 @@ const Orders = () => {
         return 'bg-gray-100 text-gray-600';
     }
   };
+
 
   return (
     <div className="h-screen overflow-hidden flex flex-col font-sans ml-2 mt-3">
@@ -379,9 +382,11 @@ const Orders = () => {
               <option>Delivered</option>
               <option>Dispatched</option>
               <option>Confirmed</option>
+              <option>Processing</option>
               <option>Pending</option>
               <option>Cancelled</option>
             </select>
+
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9EA2A7] w-4 h-4 pointer-events-none" />
           </div>
         </div>
