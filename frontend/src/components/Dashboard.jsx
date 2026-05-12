@@ -4,8 +4,8 @@ import DailyOrderVolume from "./charts/DailyOrderVolume";
 import FinancialOverview from "./charts/FinancialOverview";
 import OrdersByStatus from "./charts/OrdersByStatus";
 
-import InventoryInsights from "./charts/WarehousePerformance";
-// import InventoryInsights from "./charts/InventoryInsights";
+// import InventoryInsights from "./charts/WarehousePerformance";
+import InventoryInsights from "./charts/InventoryInsights";
 
 import {
     Users,

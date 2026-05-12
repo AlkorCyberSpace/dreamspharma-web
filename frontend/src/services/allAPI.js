@@ -108,6 +108,11 @@ export const getDashboardStatsAPI = (params) => {
   return axiosInstance.get("superadmin/dashboard/statistics/", { params });
 };
 
+export const getInventoryInsightsAPI = (params) => {
+  return axiosInstance.get("superadmin/dashboard/inventory-insights/", { params });
+};
+
+
 export const getWarehouseOrdersAPI = (params) => {
   return axiosInstance.get("superadmin/dashboard/warehouse-orders/", { params });
 };

@@ -425,11 +425,11 @@ export default function RetailerKYCPage() {
                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
                           } hover:bg-[#EEF2F6] transition`}
                       >
-                        <td className="px-6 py-3 font-bold text-[#127690] whitespace-nowrap">{retailer.id}</td>
-                        <td className="px-6 text-sm text-gray-600 font-medium whitespace-nowrap ">{retailer.shop_name || "—"}</td>
-                        <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{ownerName}</td>
-                        <td className="px-6 text-sm text-gray-600 whitespace-nowrap">{retailer.shop_phone || "—"}</td>
-                        <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{retailer.shop_email || "—"}</td>
+                        <td className="px-6 py-2 font-bold text-[#127690] whitespace-nowrap">{retailer.id}</td>
+                        <td className="px-6 text-sm text-gray-800 font-medium whitespace-nowrap ">{retailer.shop_name || "—"}</td>
+                        <td className="px-6 text-sm text-gray-900 whitespace-nowrap">{ownerName}</td>
+                        <td className="px-6 text-sm text-gray-800 whitespace-nowrap">{retailer.shop_phone || "—"}</td>
+                        <td className="px-6 text-sm text-gray-800 whitespace-nowrap">{retailer.shop_email || "—"}</td>
                         <td className="px-6 whitespace-nowrap">
                           <StatusBadge status={retailer.status} />
                         </td>

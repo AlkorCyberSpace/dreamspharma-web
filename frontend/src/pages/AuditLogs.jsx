@@ -244,12 +244,12 @@ export default function AuditLogs() {
                     <table className="min-w-[900px] w-full text-left">
                         <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
-                                <th className="px-5 py-4">Log ID</th>
+                                <th className="px-3 py-4">Log ID</th>
                                 <th className="px-3">Action</th>
-                                <th className="px-5">Performed By</th>
+                                <th className="px-3">Performed By</th>
                                 <th className="px-5">Target Entity</th>
                                 <th className="px-5">Details</th>
-                                <th className="px-3">Category</th>
+                                <th className="px-2">Category</th>
                                 <th className="px-5">Timestamp</th>
                             </tr>
                         </thead>
@@ -267,25 +267,25 @@ export default function AuditLogs() {
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
                                             } hover:bg-[#EEF2F6] transition`}
                                     >
-                                        <td className="px-5 py-2.5 font-semibold text-[#127690] whitespace-nowrap">
+                                        <td className="px-3 py-2 font-semibold text-[#127690] whitespace-nowrap">
                                             {item.id}
                                         </td>
                                         <td className="px-3 font-medium whitespace-nowrap">{item.action}</td>
-                                        <td className="px-6 text-gray-500 whitespace-nowrap">{item.performedBy}</td>
-                                        <td className="px-6 whitespace-nowrap">{item.targetEntity}</td>
-                                        <td className="px-6 text-gray-500 max-w-[260px] truncate" title={item.details}>
+                                        <td className="px-3 text-gray-700 whitespace-nowrap">{item.performedBy}</td>
+                                        <td className="px-3 whitespace-nowrap">{item.targetEntity}</td>
+                                        <td className="px-3 text-gray-900 max-w-[260px] truncate" title={item.details}>
                                             {item.details}
                                         </td>
-                                        <td className="px-3 whitespace-nowrap">
+                                        <td className="px-2 whitespace-nowrap">
                                             <span
-                                                className={`px-3 py-1 rounded-full text-xs font-semibold ${categoryStyle(
+                                                className={`px-2 py-1 rounded-full text-xs font-semibold ${categoryStyle(
                                                     item.category
                                                 )}`}
                                             >
                                                 {item.category}
                                             </span>
                                         </td>
-                                        <td className="px-6 text-gray-400 text-xs whitespace-nowrap">
+                                        <td className="px-6 text-gray-800 text-xs whitespace-nowrap">
                                             {new Date(item.timestamp).toLocaleString()}
                                         </td>
                                     </tr>
