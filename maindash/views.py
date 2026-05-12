@@ -1564,7 +1564,7 @@ class SuperAdminOrdersView(APIView):
                 'payment': payment_method,
                 'payment_status': payment_status,
                 'status': order_status,
-                'erpRef': order.document_pk or f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else '',
+                'erpRef': order.document_pk or (f"{order.tran_prefix} - {order.tran_srno}" if order.tran_prefix else ''),
                 'store_name': order.fulfilling_store.name if order.fulfilling_store else 'Unknown Store',
                 'store_id': order.fulfilling_store.store_id if order.fulfilling_store else None,
                 'detailedTimeline': timeline,
@@ -2225,7 +2225,21 @@ class RefundTrendsView(APIView):
 class DailyVolumeGraphView(APIView):
     """
     API endpoint for getting daily volume graph data and top statistics.
+    
     GET /api/superadmin/dashboard/daily-volume/?days=7
+    GET /api/superadmin/dashboard/daily-volume/?days=30&store_ids=1,2,3
+    
+    Query Parameters:
+        days       : Number of days to retrieve (default: 7)
+        store_ids  : Comma-separated store IDs to filter by (optional)
+                     If provided, returns aggregated data for specified stores only
+                     Example: store_ids=1,2,3
+    
+    Response includes:
+        - Daily order counts and sales
+        - Max orders day, max sales day
+        - Top selling product for the period
+        - Graph data formatted for charts
     """
     permission_classes = [IsAuthenticated]
 
@@ -2233,17 +2247,59 @@ class DailyVolumeGraphView(APIView):
         if request.user.role != 'SUPERADMIN':
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
 
-        try:
-            days = int(request.query_params.get('days', 7))
-        except ValueError:
-            days = 7
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+        day = request.query_params.get('day')
 
         now = timezone.now()
-        start_date = (now - timedelta(days=days-1)).date()
-        today_date = now.date()
+
+        if year and month and day:
+            y, m, d = int(year), int(month), int(day)
+            start_date = date(y, m, d)
+            today_date = start_date
+            days = 1
+        elif year and month:
+            y, m = int(year), int(month)
+            import calendar
+            _, num_days = calendar.monthrange(y, m)
+            start_date = date(y, m, 1)
+            today_date = date(y, m, num_days)
+            days = num_days
+        elif year:
+            y = int(year)
+            import calendar
+            start_date = date(y, 1, 1)
+            today_date = date(y, 12, 31)
+            days = 366 if calendar.isleap(y) else 365
+        else:
+            try:
+                days = int(request.query_params.get('days', 7))
+            except ValueError:
+                days = 7
+            start_date = (now - timedelta(days=days-1)).date()
+            today_date = now.date()
+
+        # Parse store_ids from query params (comma-separated string)
+        store_ids_str = request.query_params.get('store_ids', '').strip()
+        store_ids = []
+        if store_ids_str:
+            try:
+                store_ids = [int(sid.strip()) for sid in store_ids_str.split(',') if sid.strip()]
+            except (ValueError, TypeError):
+                return Response(
+                    {'error': 'Invalid store_ids format. Provide comma-separated integers (e.g., 1,2,3)'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Base queryset
+        queryset = SalesOrder.objects.filter(ord_date__range=[start_date, today_date])
+        
+        # Filter by store IDs if provided
+        if store_ids:
+            queryset = queryset.filter(fulfilling_store__id__in=store_ids)
 
         # Gather daily order counts and sales
-        daily_stats = SalesOrder.objects.filter(ord_date__range=[start_date, today_date]) \
+        daily_stats = queryset \
             .values('ord_date') \
             .annotate(
                 order_count=Count('id'),
@@ -2275,11 +2331,19 @@ class DailyVolumeGraphView(APIView):
                 max_sales = {'date': current_date.strftime('%Y-%m-%d'), 'amount': day_data['sales']}
 
         # Get top selling product for this period
-        top_product_entry = SalesOrderItem.objects.filter(
-            order_id__ord_date__range=[start_date, today_date]
-        ).values('item_name').annotate(
-            total_qty=Sum('total_loose_qty')
-        ).order_by('-total_qty').first()
+        product_queryset = SalesOrderItem.objects.filter(
+            sales_order__ord_date__range=[start_date, today_date]
+        )
+        
+        # Filter by store IDs if provided
+        if store_ids:
+            product_queryset = product_queryset.filter(sales_order__fulfilling_store__id__in=store_ids)
+        
+        top_product_entry = product_queryset \
+            .values('item_name') \
+            .annotate(total_qty=Sum('total_loose_qty')) \
+            .order_by('-total_qty') \
+            .first()
 
         top_selling_product = None
         if top_product_entry:
@@ -2290,6 +2354,10 @@ class DailyVolumeGraphView(APIView):
 
         return Response({
             'success': True,
+            'filters': {
+                'days': days,
+                'store_ids': store_ids if store_ids else 'all_stores'
+            },
             'summary': {
                 'period_days': days,
                 'max_orders_day': max_orders,
