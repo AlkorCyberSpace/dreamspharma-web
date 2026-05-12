@@ -73,10 +73,10 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
       // Attempt to parse error message from blob if possible, or just use response data
       let errorMessage = 'Failed to download invoice.';
       if (err.response?.data instanceof Blob) {
-          // This is tricky because responseType is blob
-          errorMessage = 'Invoice not available or error occurred.';
+        // This is tricky because responseType is blob
+        errorMessage = 'Invoice not available or error occurred.';
       } else if (err.response?.data?.message) {
-          errorMessage = err.response.data.message;
+        errorMessage = err.response.data.message;
       }
       alert(errorMessage);
     }
@@ -202,7 +202,7 @@ const OrderDetailModal = ({ order, onClose, userId, onOrderConfirmed }) => {
             <Download size={18} />
             Download Invoice
           </button>
-          {order.status === 'Pending' && (
+          {(order.status === 'Pending' || order.status === 'Processing') && (
             <button
               onClick={() => handleUpdateStatus('confirmed')}
               disabled={confirming}
@@ -244,8 +244,6 @@ const Orders = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [adminId, setAdminId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All Status');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -284,28 +282,18 @@ const Orders = () => {
     }
   };
 
-  // Filtering logic
-  const filteredOrders = orders.filter(order => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = (order.retailer && order.retailer.toLowerCase().includes(searchLower)) || 
-                          (order.id && order.id.toLowerCase().includes(searchLower)) ||
-                          (order.erpRef && order.erpRef.toLowerCase().includes(searchLower));
-    const matchesStatus = statusFilter === 'All Status' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   // Pagination logic
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const totalPages = Math.ceil(orders.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredOrders.slice(indexOfFirstItem, indexOfLastItem);
+  const currentItems = orders.slice(indexOfFirstItem, indexOfLastItem);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-  // Reset pagination when data or filters change
+  // Reset pagination when data changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [orders.length, searchQuery, statusFilter]);
+  }, [orders.length]);
 
   useEffect(() => {
     fetchOrders();
@@ -323,7 +311,6 @@ const Orders = () => {
     };
     fetchAdminProfile();
   }, []);
-  
   const getStatusStyles = (status) => {
     switch (status) {
       case 'Delivered':
@@ -332,6 +319,8 @@ const Orders = () => {
         return 'bg-purple-100 text-purple-600';
       case 'Confirmed':
         return 'bg-blue-100 text-blue-600';
+      case 'Processing':
+        return 'bg-cyan-100 text-cyan-700';
       case 'Pending':
         return 'bg-amber-100 text-amber-600';
       case 'Cancelled':
@@ -340,6 +329,7 @@ const Orders = () => {
         return 'bg-gray-100 text-gray-600';
     }
   };
+
 
   return (
     <div className="h-screen overflow-hidden flex flex-col font-sans ml-2 mt-3">
@@ -382,23 +372,21 @@ const Orders = () => {
             <Search size={18} className="text-[#9EA2A7] shrink-0" />
             <input
               type="text"
-              placeholder="Search by order ID, retailer or ERP..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by shop name or owner..."
               className="w-full bg-transparent outline-none px-3 text-sm text-[#505050] placeholder:text-[#9EA2A7]"
             />
           </div>
           <div className="relative min-w-[140px]">
-            <select 
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="appearance-none w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-1.5 pr-10 text-sm text-[#505050] font-medium focus:outline-none cursor-pointer"
-            >
-              <option value="All Status">All Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Confirmed">Confirmed</option>
-              <option value="Cancelled">Cancelled</option>
+            <select className="appearance-none w-full bg-white border border-[#E5E7EB] rounded-xl px-4 py-1.5 pr-10 text-sm text-[#505050] font-medium focus:outline-none cursor-pointer">
+              <option>All Status</option>
+              <option>Delivered</option>
+              <option>Dispatched</option>
+              <option>Confirmed</option>
+              <option>Processing</option>
+              <option>Pending</option>
+              <option>Cancelled</option>
             </select>
+
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9EA2A7] w-4 h-4 pointer-events-none" />
           </div>
         </div>
@@ -450,7 +438,7 @@ const Orders = () => {
               <tbody className="divide-y divide-gray-50">
                 {currentItems.map((order, index) => (
                   <tr key={index} className={`transition-colors hover:bg-[#EEF2F6] ${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"}`}>
-                    <td className="px-3 py-2 text-sm font-semibold text-[#127690]">{order.id}</td>
+                    <td className="px-3 py-3 text-sm font-semibold text-[#127690]">{order.id}</td>
                     <td className="px-6 text-sm text-gray-600 font-medium">{order.retailer}</td>
                     <td className="px-6 text-sm text-gray-500 whitespace-nowrap">{order.date}</td>
                     <td className="px-6 text-sm text-gray-600 font-semibold">{order.items}</td>
@@ -488,7 +476,7 @@ const Orders = () => {
               >
                 <ChevronDown className="rotate-90" size={16} />
               </button>
-              
+
               {[...Array(totalPages)].map((_, i) => {
                 const pageNum = i + 1;
                 if (
@@ -501,11 +489,10 @@ const Orders = () => {
                     <button
                       key={pageNum}
                       onClick={() => paginate(pageNum)}
-                      className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
-                        currentPage === pageNum
+                      className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
                           ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
                           : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>

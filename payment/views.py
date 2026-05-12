@@ -11,8 +11,9 @@ from django.db.models import Sum
 import hashlib
 import hmac
 from decimal import Decimal, InvalidOperation
-import uuid
 import logging
+import uuid
+from datetime import timedelta
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -132,14 +133,17 @@ class RazorpayClient:
         return self.client.order.fetch(order_id)
     
     def verify_payment_signature(self, order_id, payment_id, signature):
-        """Verify payment signature"""
-        data = f"{order_id}|{payment_id}"
-        generated_signature = hmac.new(
-            settings.RAZORPAY_KEY_SECRET.encode(),
-            data.encode(),
-            hashlib.sha256
-        ).hexdigest()
-        return generated_signature == signature
+        """Verify payment signature using Razorpay's utility"""
+        try:
+            self.client.utility.verify_payment_signature({
+                'razorpay_order_id': order_id,
+                'razorpay_payment_id': payment_id,
+                'razorpay_signature': signature
+            })
+            return True
+        except Exception as e:
+            logger.error(f"[RAZORPAY_SIGNATURE_ERROR] {str(e)}")
+            return False
     
     def refund_payment(self, payment_id, amount=None, notes=None):
         """
@@ -249,7 +253,7 @@ class InitiatePaymentView(APIView):
                 # Update payment with Razorpay order ID and expiry
                 payment.razorpay_order_id = razorpay_order['id']
                 payment.status = 'PENDING'
-                payment.expiry_at = timezone.now() + timezone.timedelta(minutes=15)  # Razorpay default expiry
+                payment.expiry_at = timezone.now() + timedelta(minutes=15)  # Razorpay default expiry
                 payment.save()
                 logger.info(f"[RAZORPAY_ORDER_CREATED] Order ID: {razorpay_order['id']}")
             except Exception as razorpay_error:
@@ -355,7 +359,8 @@ class VerifyPaymentView(APIView):
             payment.payment_completed_at = timezone.now()
             
             # Set status based on payment capture status
-            if payment_details.get('status') == 'captured':
+            # On iOS, payments often come in 'authorized' state before capture
+            if payment_details.get('status') in ['captured', 'authorized']:
                 payment.status = 'SUCCESS'
             else:
                 payment.status = 'FAILED'
@@ -612,7 +617,7 @@ class WebhookView(APIView):
                 success=True
             )
             
-            if event == 'payment.authorized':
+            if event in ['payment.authorized', 'payment.captured']:
                 order_id = payload['payload']['payment']['entity'].get('order_id')
                 payment_details = payload['payload']['payment']['entity']
                 
