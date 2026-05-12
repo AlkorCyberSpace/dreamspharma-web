@@ -1444,15 +1444,16 @@ class SuperAdminOrdersView(APIView):
             'items', 'payments'
         ).select_related('fulfilling_store').order_by('-created_at')
 
-        # Filter by conversion status (maps to frontend status labels)
-        if status_filter:
-            status_map = {
-                'Confirmed': {'ord_conversion_flag': True, 'dc_conversion_flag': False},
-                'Dispatched': {'dc_conversion_flag': True},
-                'Pending': {'ord_conversion_flag': False, 'dc_conversion_flag': False},
-            }
-            if status_filter in status_map:
-                orders = orders.filter(**status_map[status_filter])
+        # Filter by conversion status (maps to frontend status labels).
+        # Flag-based statuses are filtered at DB level (fast).
+        # Payment-based statuses (Processing, Cancelled) are filtered post-loop below.
+        flag_status_map = {
+            'Delivered':  {'dc_conversion_flag': True},
+            'Confirmed':  {'ord_conversion_flag': True, 'dc_conversion_flag': False},
+            'Pending':    {'ord_conversion_flag': False, 'dc_conversion_flag': False},
+        }
+        if status_filter and status_filter in flag_status_map:
+            orders = orders.filter(**flag_status_map[status_filter])
 
         # Search by order_id, patient_name, cust_name, or retailer shop_name (via KYC)
         if search:
@@ -1479,16 +1480,25 @@ class SuperAdminOrdersView(APIView):
             payment_method = payment.get_payment_method_display() if payment else 'COD'
             payment_status = payment.status if payment else 'PENDING'
 
-            # Check for cancelled or failed payments, or undone/unconfirmed online payments
+            # Determine order_status based on payment outcome + ERP flags
             if payment and payment.status in ['FAILED', 'CANCELLED']:
+                # Online payment explicitly failed or cancelled
                 order_status = 'Cancelled'
-            elif payment and payment.status in ['PENDING', 'INITIATED'] and payment.payment_method != 'COD':
+            elif payment and payment.status in ['PENDING', 'INITIATED'] and payment.payment_method not in ('COD',):
+                # Online payment was initiated but never completed — treat as Cancelled
                 order_status = 'Cancelled'
             elif order.dc_conversion_flag:
-                order_status = 'Delivered'  # Matches Figma
+                order_status = 'Delivered'
+            elif order.invoices.exists():
+                order_status = 'Dispatched'
             elif order.ord_conversion_flag:
                 order_status = 'Confirmed'
+            elif payment and payment.status == 'SUCCESS' and payment.payment_method not in ('COD',):
+                # Online payment received = auto-Confirmed, no admin action needed
+                order_status = 'Confirmed'
+
             else:
+                # COD order or legacy order awaiting admin action
                 order_status = 'Pending'
 
             # Build items list for modal
@@ -1571,11 +1581,16 @@ class SuperAdminOrdersView(APIView):
                 'detailedItems': items_data,
             })
 
+        # Post-loop filter for payment-based statuses that can't be filtered via DB flags
+        if status_filter and status_filter in ('Processing', 'Cancelled', 'Dispatched'):
+            results = [r for r in results if r['status'] == status_filter]
+
         return Response({
             'message': f'Found {len(results)} order(s)',
             'count': len(results),
             'results': results
         }, status=status.HTTP_200_OK)
+
 
 
 class SuperAdminMarkCODDeliveredView(APIView):
