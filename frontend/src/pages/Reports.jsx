@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { DollarSign, TrendingUp, Download } from "lucide-react";
-import axiosInstance, { getReportSummaryApi } from "../services/allAPI";
+import axiosInstance, { getReportSummaryApi, getWarehousesAPI } from "../services/allAPI";
 
 export default function Reports() {
 
@@ -16,15 +16,29 @@ export default function Reports() {
   // NEW STORE FILTER
   const [selectedStore, setSelectedStore] = useState("all");
 
-  // DEMO STORE LIST
   // Later fetch dynamically from backend
-  const stores = [
+  const [stores, setStores] = useState([
     { id: "all", name: "All Warehouses" },
-    { id: 1, name: "Edapally Toll" },
-    { id: 2, name: "Edapally Lulu" },
-    { id: 3, name: "Chelakkara" },
-    { id: 4, name: "Calicut Hub" },
-  ];
+  ]);
+
+  const fetchWarehouses = async () => {
+    try {
+      const res = await getWarehousesAPI();
+      if (res.status >= 200 && res.status < 300) {
+        const warehouseData = res.data.map(w => ({
+          id: w.id,
+          name: w.name
+        }));
+        setStores([{ id: "all", name: "All Warehouses" }, ...warehouseData]);
+      }
+    } catch (err) {
+      console.error("Error fetching warehouses:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchWarehouses();
+  }, []);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
