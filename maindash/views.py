@@ -1805,7 +1805,13 @@ class ReportSummaryView(APIView):
 
         # ── Active Retailers in period ────────────────────────────────────────
         valid_retailer_ids = set(
-            str(uid) for uid in User.objects.filter(role='RETAILER').values_list('id', flat=True)
+            str(uid) for uid in User.objects.filter(
+                role='RETAILER',
+                is_active=True,
+                status__in=['APPROVED', 'LOGIN_ENABLED']
+            ).exclude(
+                username__icontains='test'
+            ).values_list('id', flat=True)
         )
         active_retailers = len(set(
             uid for uid in orders.values_list('user_id', flat=True).distinct()
