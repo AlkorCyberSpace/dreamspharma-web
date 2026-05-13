@@ -107,12 +107,12 @@ export const loginAPI = (data) => {
 export const getDashboardStatsAPI = (params) => {
   return axiosInstance.get("superadmin/dashboard/statistics/", { params });
 };
-
+export const getDailyVolumeAPI = (params) => {
+  return axiosInstance.get("superadmin/dashboard/daily-volume/", { params });
+};
 export const getInventoryInsightsAPI = (params) => {
   return axiosInstance.get("superadmin/dashboard/inventory-insights/", { params });
 };
-
-
 export const getWarehouseOrdersAPI = (params) => {
   return axiosInstance.get("superadmin/dashboard/warehouse-orders/", { params });
 };
@@ -298,13 +298,51 @@ export const getOrdersApi = (params) => {
 export const downloadInvoiceAPI = (orderId) =>
   axiosInstance.get(`orders/${orderId}/invoice/`, { responseType: 'blob' });
 
-
+// -----reports
 export const getReportSummaryApi = (startDate, endDate) => {
   const params = {};
   if (startDate) params.start_date = startDate;
   if (endDate) params.end_date = endDate;
   return axiosInstance.get('superadmin/reports/summary/', { params })
 }
+
+export const getStoreWiseSummaryReportAPI = (params) => {
+  return axiosInstance.get(
+    "superadmin/reports/store-wise/summary/",
+    { params }
+  );
+};
+// Store Wise Orders Report
+export const getStoreWiseOrdersReportAPI = (params) => {
+  return axiosInstance.get(
+    "superadmin/reports/store-wise/orders/",
+    { params }
+  );
+};
+
+// Store Wise Credit Report
+export const getStoreWiseCreditsReportAPI = (params) => {
+  return axiosInstance.get(
+    "superadmin/reports/store-wise/credits/",
+    { params }
+  );
+};
+
+// Store Wise Revenue Report
+export const getStoreWiseRevenueReportAPI = (params) => {
+  return axiosInstance.get(
+    "superadmin/reports/store-wise/revenue/",
+    { params }
+  );
+};
+
+// Store Wise Retailer Activity Report
+export const getStoreWiseRetailerActivityReportAPI = (params) => {
+  return axiosInstance.get(
+    "superadmin/reports/store-wise/retailer-activity/",
+    { params }
+  );
+};
 
 // SuperAdmin - Mark COD Order as Delivered/Paid
 export const markCODDeliveredAPI = (data) => {
