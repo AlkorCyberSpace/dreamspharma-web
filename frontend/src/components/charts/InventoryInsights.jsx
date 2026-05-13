@@ -10,6 +10,7 @@ const InventoryInsights = ({ storeId }) => {
     slow_moving: []
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('expiring_soon');
 
   const tabs = [
@@ -22,13 +23,21 @@ const InventoryInsights = ({ storeId }) => {
   useEffect(() => {
     const fetchInsights = async () => {
       setLoading(true);
+      setError(null);
       try {
+        console.log(`[InventoryInsights] Fetching for store: ${storeId || '001'}`);
         const response = await getInventoryInsightsAPI({ store_id: storeId || '001' });
+        console.log('[InventoryInsights] Response:', response);
+        
         if (response.status === 200 && response.data?.success) {
           setInsightsData(response.data.data);
+          console.log('[InventoryInsights] Data loaded:', response.data.data);
+        } else if (response.status === 200) {
+          setError(response.data?.message || 'Failed to fetch insights');
         }
       } catch (error) {
-        console.error("Error fetching inventory insights:", error);
+        console.error("[InventoryInsights] Error fetching inventory insights:", error);
+        setError(`Error: ${error.message || 'Failed to load insights'}`);
       } finally {
         setLoading(false);
       }
@@ -70,6 +79,12 @@ const InventoryInsights = ({ storeId }) => {
           <div className="flex-1 flex flex-col items-center justify-center py-12">
             <div className="w-8 h-8 border-3 border-[#127690] border-t-transparent rounded-full animate-spin mb-3"></div>
             <p className="text-gray-400 text-xs font-medium">Fetching insights...</p>
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-12">
+            <AlertTriangle size={40} className="mb-2 opacity-30 text-red-500" />
+            <p className="text-red-500 text-sm font-medium">{error}</p>
+            <p className="text-gray-400 text-xs mt-2">Please check if ERP is configured and running</p>
           </div>
         ) : (
           <>

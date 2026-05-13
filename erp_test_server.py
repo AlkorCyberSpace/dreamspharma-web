@@ -30,7 +30,7 @@ ITEMS = [
         "stockBalQty": 984,
         "std_disc": 24.24,
         "max_disc": 0.00,
-        "expiryDate": "2027-11-01",
+        "expiryDate": "2026-5-13",
         "mrp": 75.03
     },
     {

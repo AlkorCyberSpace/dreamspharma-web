@@ -6219,26 +6219,56 @@ class RetailerOrdersView(APIView):
             payment = order.payments.first() if order.payments.exists() else None
             # We don't continue anymore, we show them as Cancelled if they are Razorpay PENDING
             
-            # ── Determine order status ──
-            if payment and payment.payment_method == 'RAZORPAY':
-                if payment.status == 'SUCCESS':
-                    order_status = 'Confirmed'
-                    is_completed = False
-                else:
-                    order_status = 'Cancelled'
-                    is_completed = True
+            # ── Determine order status (matching superadmin logic) ──
+            # Based on payment outcome and ERP conversion flags
+            if payment and payment.status in ['FAILED', 'CANCELLED']:
+                # Online payment explicitly failed or cancelled
+                order_status = 'Cancelled'
+                is_completed = True
+            elif payment and payment.status in ['PENDING', 'INITIATED'] and payment.payment_method not in ('COD',):
+                # Online payment was initiated but never completed
+                order_status = 'Cancelled'
+                is_completed = True
             elif order.dc_conversion_flag:
+                # Order delivered
+                order_status = 'Delivered'
+                is_completed = True
+            elif order.invoices.exists():
+                # Order has invoice - show as Dispatched
                 order_status = 'Dispatched'
                 is_completed = True
             elif order.ord_conversion_flag:
+                # Order confirmed
                 order_status = 'Confirmed'
                 is_completed = False
-            elif payment and payment.status in ['FAILED', 'CANCELLED']:
-                order_status = 'Cancelled'
-                is_completed = True
+            elif payment and payment.status == 'SUCCESS' and payment.payment_method not in ('COD',):
+                # Online payment received = auto-Confirmed
+                order_status = 'Confirmed'
+                is_completed = False
             else:
+                # COD or pending order
                 order_status = 'Pending'
                 is_completed = False
+
+            # ── Build timeline ──
+            timeline = []
+            timeline.append({
+                'label': 'Created',
+                'date': order.created_at.strftime('%Y-%m-%d %I:%M %p') if order.created_at else '',
+                'status': 'completed'
+            })
+            if order.ord_conversion_flag:
+                timeline.append({
+                    'label': 'Confirmed',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
+            if order.dc_conversion_flag:
+                timeline.append({
+                    'label': 'Delivered',
+                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'status': 'completed'
+                })
 
             # ── Build items list ──
             items_data = []
@@ -6332,6 +6362,7 @@ class RetailerOrdersView(APIView):
                 'is_completed': is_completed,
                 'item_count': len(items_data),
                 'items': items_data,
+                'timeline': timeline,
             }
 
             if is_completed:
