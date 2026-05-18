@@ -6224,9 +6224,12 @@ class RetailerOrdersView(APIView):
                 if payment.status == 'SUCCESS':
                     order_status = 'Confirmed'
                     is_completed = False
-                else:
+                elif payment.status in ['FAILED', 'CANCELLED']:
                     order_status = 'Cancelled'
                     is_completed = True
+                else:
+                    order_status = 'Pending'
+                    is_completed = False
             elif order.dc_conversion_flag:
                 order_status = 'Dispatched'
                 is_completed = True
@@ -6435,9 +6438,10 @@ class SuperAdminOrdersView(APIView):
             if payment and payment.payment_method == 'RAZORPAY':
                 if payment.status == 'SUCCESS':
                     order_status = 'Confirmed'
-                else:
-                    # FAILED, CANCELLED, PENDING, INITIATED -> Cancelled
+                elif payment.status in ['FAILED', 'CANCELLED']:
                     order_status = 'Cancelled'
+                else:
+                    order_status = 'Pending'
             elif order.dc_conversion_flag:
                 order_status = 'Dispatched'
             elif order.ord_conversion_flag:
@@ -6595,8 +6599,10 @@ class SuperAdminUpdateOrderStatusView(APIView):
         if payment and payment.payment_method == 'RAZORPAY':
             if payment.status == 'SUCCESS':
                 current_status = 'confirmed'
-            else:
+            elif payment.status in ['FAILED', 'CANCELLED']:
                 current_status = 'cancelled'
+            else:
+                current_status = 'pending'
         elif order.dc_conversion_flag:
             current_status = 'dispatched'
         elif order.ord_conversion_flag:
