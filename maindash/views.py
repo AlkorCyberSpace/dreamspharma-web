@@ -1583,7 +1583,7 @@ class SuperAdminOrdersView(APIView):
 
         # Post-loop filter for payment-based statuses that can't be filtered via DB flags
         if status_filter and status_filter in ('Processing', 'Cancelled', 'Dispatched'):
-            results = [r for r in results if r['status'] == status_filter]
+                results = [r for r in results if r['status'] == status_filter]
 
         return Response({
             'message': f'Found {len(results)} order(s)',
@@ -1641,15 +1641,7 @@ class SuperAdminMarkCODDeliveredView(APIView):
             log_details = f'Marked COD payment for Order "{order_id}" as paid/collected'
 
         elif status_action == 'confirmed':
-            # Mark payment as collected if not already
-            if not payment.cod_collected:
-                payment.cod_collected = True
-                payment.cod_collected_at = timezone.now()
-                payment.cod_collected_by = request.user.username
-                payment.status = 'SUCCESS'
-                payment.save()
-            
-            # Update order to mark as confirmed
+            # Mark order as confirmed - payment stays PENDING, no cart clear
             order.ord_conversion_flag = True
             order.save()
             action_msg = 'COD Order Confirmed'
@@ -1670,6 +1662,18 @@ class SuperAdminMarkCODDeliveredView(APIView):
             order.save()
             action_msg = 'COD Order Delivered'
             log_details = f'Marked COD Order "{order_id}" as delivered and payment collected'
+
+        # Clear user's cart only for 'paid' and 'delivered' (not 'confirmed' which is still pending)
+        if status_action in ['paid', 'delivered']:
+            try:
+                from dreamspharmaapp.models import Cart
+                user_cart = Cart.objects.get(user=payment.user)
+                cleared = user_cart.items.all().delete()
+                logger.info(f"[CART_CLEAR_COD_ADMIN] Cleared {cleared[0]} items for user {payment.user.id} after COD {status_action}")
+            except Cart.DoesNotExist:
+                logger.debug(f"[CART_CLEAR_COD_ADMIN] No cart found for user {payment.user.id}")
+            except Exception as ce:
+                logger.error(f"[CART_CLEAR_COD_ADMIN] Error clearing cart after COD {status_action}: {str(ce)}")
 
         # Audit log
         log_audit(

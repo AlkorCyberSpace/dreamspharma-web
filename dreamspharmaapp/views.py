@@ -1096,188 +1096,187 @@ class GetItemMasterView(APIView):
     
     def get(self, request, user_id=None):
         try:
-            # 🎯 Get store-specific ERP config based on location
             from .erp_service import ERPService
             from .erp_token_service import get_erp_token_for_store_config
-            
-            # Get customer location or store ID
-            latitude = request.query_params.get('latitude')
+
+            # ── Pagination params ──────────────────────────────────────────
+            try:
+                page = max(1, int(request.query_params.get('page', 1)))
+            except (ValueError, TypeError):
+                page = 1
+
+            try:
+                page_size = min(50, max(1, int(request.query_params.get('page_size', 10))))
+            except (ValueError, TypeError):
+                page_size = 10
+
+            # ── Store config ───────────────────────────────────────────────
+            latitude  = request.query_params.get('latitude')
             longitude = request.query_params.get('longitude')
-            store_id = request.query_params.get('storeId')
-            
-            # Select store based on location or store_id
+            store_id  = request.query_params.get('storeId')
+
             if latitude and longitude:
                 store_info = ERPService.get_nearest_store_config(latitude, longitude)
             elif store_id:
                 store_info = ERPService.get_config_by_store_id(store_id)
             else:
                 store_info = ERPService._get_fallback_config()
-            
+
             erp_config = store_info['erp_config']
-            logger.info(f"[GET_ITEM_MASTER] Using store: {store_info.get('store_name')} | Store ID: {erp_config['store_id']}")
-            
-            # ✅ STEP 2 & 3: Generate token PER STORE with storeId
+
+            # ── ERP token ──────────────────────────────────────────────────
             api_key = get_erp_token_for_store_config(erp_config)
             if not api_key:
                 return Response({
                     'code': '503',
                     'type': 'getMasterData',
-                    'message': 'ERP service temporarily unavailable - token generation failed'
+                    'message': 'ERP service temporarily unavailable — token generation failed',
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            
-            logger.info(f"[GET_ITEM_MASTER] [OK] Token generated for store {erp_config['store_id']}")
-            
+
             try:
-                # FETCH DIRECTLY FROM ERP SERVER
+                # ── Fetch all items from ERP ───────────────────────────────
                 erp_server_url = f"{erp_config['base_url']}/ws_c2_services_get_master_data"
-                
-                logger.info(f"[GET_ITEM_MASTER] Fetching from ERP: {erp_server_url}")
-                
-                # Build complete parameters for ERP API (using store-specific config)
                 erp_params = {
-                    'apiKey': api_key,
+                    'apiKey':   api_key,
                     'prodCode': erp_config['prod_code'],
-                    'c2Code': erp_config['c2_code'],
-                    'storeId': erp_config['store_id']
+                    'c2Code':   erp_config['c2_code'],
+                    'storeId':  erp_config['store_id'],
                 }
-                
                 erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
-                
+
                 if erp_response.status_code != 200:
-                    logger.error(f"ERP Server error: {erp_response.status_code} - {erp_response.text}")
                     return Response({
                         'code': '500',
                         'type': 'getMasterData',
-                        'message': f'ERP Server error: {erp_response.text}'
+                        'message': f'ERP Server error: {erp_response.text}',
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-                erp_data = erp_response.json()
-                items = erp_data.get('data', [])
-                
-                # Get user from URL param first, then query params, then authenticated user
+
+                all_items = erp_response.json().get('data', [])
+
+                # ── Paginate ───────────────────────────────────────────────
+                total_items = len(all_items)
+                total_pages = max(1, (total_items + page_size - 1) // page_size)
+                page        = min(page, total_pages)
+                start       = (page - 1) * page_size
+                paged_items = all_items[start: start + page_size]
+
+                # ── Resolve user ───────────────────────────────────────────
                 user = None
-                actual_user_id = user_id
-                
-                if not actual_user_id:
-                    # Try query parameter
-                    actual_user_id = request.query_params.get('userId')
-                
+                actual_user_id = user_id or request.query_params.get('userId')
+
                 if actual_user_id:
                     try:
                         user = CustomUser.objects.get(id=actual_user_id)
                     except CustomUser.DoesNotExist:
-                        logger.warning(f"[GET_ITEM_MASTER] User {actual_user_id} not found")
                         pass
-                
-                # Get cart/wishlist info for user
-                user_cart = None
+
+                user_cart     = None
                 user_wishlist = None
-                
+
                 if user:
                     try:
                         user_cart = Cart.objects.get(user=user)
                     except Cart.DoesNotExist:
                         pass
-                    
                     try:
                         user_wishlist = Wishlist.objects.get(user=user)
                     except Wishlist.DoesNotExist:
                         pass
-                
-                # Enhance each item with product info from Django database
-                for item in items:
+
+                # ── Enrich only the current page's items ───────────────────
+                for item in paged_items:
                     item_code = item.get('c_item_code')
-                    
-                    # Try to get ProductInfo (images, subheading, description) from database
+
                     try:
-                        item_master = ItemMaster.objects.get(item_code=item_code)
+                        item_master  = ItemMaster.objects.get(item_code=item_code)
                         product_info = ProductInfo.objects.get(item=item_master)
-                        
-                        # Add enriched data
+
                         item['subheading'] = product_info.subheading
                         item['description'] = product_info.description
-                        item['type_label'] = product_info.type_label
-                        item['brand_id'] = product_info.category.id if product_info.category else None
-                        item['brand_name'] = product_info.category.name if product_info.category else ''
-                        item['brand_logo'] = request.build_absolute_uri(product_info.category.icon.url) if product_info.category and product_info.category.icon else ''
-                        
-                        # Add images
-                        images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
+                        item['type_label']  = product_info.type_label
+                        item['brand_id']    = product_info.category.id   if product_info.category else None
+                        item['brand_name']  = product_info.category.name if product_info.category else ''
+                        item['brand_logo']  = (
+                            request.build_absolute_uri(product_info.category.icon.url)
+                            if product_info.category and product_info.category.icon else ''
+                        )
+                        images = ProductImage.objects.filter(
+                            product_info=product_info
+                        ).order_by('image_order')
                         item['images'] = [
                             {
-                                'image': request.build_absolute_uri(img.image.url),
-                                'image_order': img.image_order
+                                'image':       request.build_absolute_uri(img.image.url),
+                                'image_order': img.image_order,
                             }
                             for img in images
                         ]
+
                     except (ItemMaster.DoesNotExist, ProductInfo.DoesNotExist):
-                        # Item exists in ERP but not in our product info database
-                        # That's okay - SUPERADMIN can add product info later
                         item['subheading'] = ''
                         item['description'] = ''
-                        item['type_label'] = ''
-                        item['brand_id'] = None
-                        item['brand_name'] = ''
-                        item['brand_logo'] = ''
-                        item['images'] = []
-                    
-                    # Add cart and wishlist status
-                    item['cart_status'] = False
+                        item['type_label']  = ''
+                        item['brand_id']    = None
+                        item['brand_name']  = ''
+                        item['brand_logo']  = ''
+                        item['images']      = []
+
+                    item['cart_status']     = False
                     item['wishlist_status'] = False
-                    
+
                     if user and item_code:
                         try:
                             item_master = ItemMaster.objects.get(item_code=item_code)
-                            
-                            # Check if item is in cart
                             if user_cart:
                                 item['cart_status'] = CartItem.objects.filter(
-                                    cart=user_cart,
-                                    item=item_master
+                                    cart=user_cart, item=item_master,
                                 ).exists()
-                            
-                            # Check if item is in wishlist
                             if user_wishlist:
                                 item['wishlist_status'] = WishlistItem.objects.filter(
-                                    wishlist=user_wishlist,
-                                    item=item_master
+                                    wishlist=user_wishlist, item=item_master,
                                 ).exists()
                         except ItemMaster.DoesNotExist:
                             pass
-                
-                logger.info(f"[GET_ITEM_MASTER] Fetched {len(items)} items from ERP server with product enhancements")
-                
+
                 return Response({
-                    'code': '200',
-                    'type': 'getMasterData',
-                    'data': items,
-                    'message': f'Fetched {len(items)} items from ERP server',
-                    'c2Code': erp_config['c2_code'],
-                    'storeId': erp_config['store_id'],
-                    'prodCode': erp_config['prod_code'],
-                    'storeName': store_info.get('store_name'),
-                    'distanceKm': store_info.get('distance_km')
+                    'code':    '200',
+                    'type':    'getMasterData',
+                    'data':    paged_items,
+                    'message': f'Page {page} of {total_pages} ({total_items} total items)',
+                    'pagination': {
+                        'current_page': page,
+                        'page_size':    page_size,
+                        'total_items':  total_items,
+                        'total_pages':  total_pages,
+                        'has_next':     page < total_pages,
+                        'has_previous': page > 1,
+                    },
+                    'c2Code':     erp_config['c2_code'],
+                    'storeId':    erp_config['store_id'],
+                    'prodCode':   erp_config['prod_code'],
+                    'storeName':  store_info.get('store_name'),
+                    'distanceKm': store_info.get('distance_km'),
                 }, status=status.HTTP_200_OK)
-            
+
             except requests.exceptions.ConnectionError:
                 return Response({
                     'code': '503',
                     'type': 'getMasterData',
-                    'message': 'ERP Server is not reachable. Make sure erp_test_server.py is running on port 44000'
+                    'message': 'ERP Server is not reachable.',
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             except Exception as e:
-                logger.error(f"Error fetching from ERP server: {str(e)}")
+                logger.error(f"Error fetching from ERP: {e}")
                 return Response({
                     'code': '500',
                     'type': 'getMasterData',
-                    'message': f'Error: {str(e)}'
+                    'message': f'Error: {e}',
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         except Exception as e:
-            logger.error(f"Error in GetItemMasterView: {str(e)}")
+            logger.error(f"Error in GetItemMasterView: {e}")
             return Response({
                 'code': '500',
                 'type': 'getMasterData',
-                'message': f'Error: {str(e)}'
+                'message': f'Error: {e}',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1916,50 +1915,23 @@ class CreateSalesOrderView(APIView):
                 sales_order.save()
                 logger.info(f"[ORDER_DEBUG] document_pk: {sales_order.document_pk}")
 
-                # ── WALLET DEDUCTION (inside atomic transaction) ──
-                wallet_deducted = Decimal('0')
-                use_wallet = serializer.validated_data.get('use_wallet', False)
-                wallet_user_id = serializer.validated_data.get('user_id')
-
-                if use_wallet and wallet_user_id:
-                    try:
-                        wallet_user = CustomUser.objects.get(id=wallet_user_id, role='RETAILER')
-                        from .wallet_service import debit_wallet
-                        
-                        wallet, _ = RetailerWallet.objects.get_or_create(retailer=wallet_user)
-                        order_total = Decimal(str(sales_order.order_total))
-                        wallet_applicable = min(wallet.balance, order_total)
-
-                        if wallet_applicable > 0:
-                            result = debit_wallet(
-                                retailer=wallet_user,
-                                amount=wallet_applicable,
-                                source='ORDER_PAYMENT',
-                                order=sales_order,
-                                description=f'Wallet applied to order {sales_order.order_id}'
-                            )
-                            if result['success']:
-                                wallet_deducted = wallet_applicable
-                                # Update bill total to reflect wallet deduction
-                                sales_order.bill_total = max(
-                                    Decimal('0'),
-                                    Decimal(str(sales_order.bill_total)) - wallet_deducted
-                                )
-                                sales_order.save()
-                                logger.info(
-                                    f"[WALLET_ORDER] Order: {sales_order.order_id} | "
-                                    f"Deducted: ₹{wallet_deducted} | "
-                                    f"Remaining to pay: ₹{sales_order.bill_total}"
-                                )
-                            else:
-                                logger.warning(
-                                    f"[WALLET_ORDER] Deduction failed for order "
-                                    f"{sales_order.order_id}: {result['error']}"
-                                )
-                    except CustomUser.DoesNotExist:
-                        logger.warning(f"[WALLET_ORDER] User {wallet_user_id} not found, skipping wallet")
-                    except Exception as we:
-                        logger.error(f"[WALLET_ORDER] Error applying wallet: {str(we)}")
+                # ── WALLET HANDLING - ONLY STORE INTENT, APPLY AFTER PAYMENT SUCCEEDS ──
+                # ✅ FIX: Don't deduct wallet here - only track that user wants to use wallet
+                # Wallet will be applied ONLY AFTER payment succeeds (in VerifyPaymentView/WebhookView)
+                wallet_requested = serializer.validated_data.get('use_wallet', False)
+                wallet_intent_user_id = serializer.validated_data.get('user_id') if wallet_requested else None
+                
+                # Store wallet intent in order for later reference
+                sales_order.wallet_requested = wallet_requested
+                sales_order.wallet_intent_user_id = wallet_intent_user_id
+                sales_order.save()
+                
+                logger.info(
+                    f"[WALLET_INTENT] Order: {sales_order.order_id} | "
+                    f"Wallet Requested: {wallet_requested} | "
+                    f"Will be applied AFTER payment succeeds"
+                )
+                wallet_deducted = Decimal('0')  # Nothing deducted yet
 
                 # ── SYNC ORDER TO ERP SERVER ──
                 # Build ERP payload with all items
@@ -6240,11 +6212,11 @@ class RetailerOrdersView(APIView):
             elif order.ord_conversion_flag:
                 # Order confirmed
                 order_status = 'Confirmed'
-                is_completed = False
+                is_completed = True
             elif payment and payment.status == 'SUCCESS' and payment.payment_method not in ('COD',):
                 # Online payment received = auto-Confirmed
                 order_status = 'Confirmed'
-                is_completed = False
+                is_completed = True
             else:
                 # COD or pending order
                 order_status = 'Pending'
@@ -6561,6 +6533,17 @@ class SuperAdminOrdersView(APIView):
                 'needs_admin_confirmation': needs_admin_confirmation,
                 'requires_admin_action': needs_admin_confirmation,
             })
+
+        # ── Post-loop filter for payment-derived statuses ──────────────────
+        # DB-level flags can't capture Razorpay Cancelled/Confirmed or 'completed'.
+        # 'completed' is a virtual alias: Dispatched + Cancelled (terminal states).
+        COMPLETED_STATUSES = ('Dispatched', 'Cancelled')
+        if status_filter:
+            if status_filter == 'completed':
+                results = [r for r in results if r['status'] in COMPLETED_STATUSES]
+            elif status_filter in ('Cancelled', 'Confirmed'):
+                # These are payment-derived — filter after status is resolved per-order
+                results = [r for r in results if r['status'] == status_filter]
 
         return Response({
             'message': f'Found {len(results)} order(s)',

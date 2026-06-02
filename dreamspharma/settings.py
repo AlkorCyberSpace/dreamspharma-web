@@ -247,6 +247,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 
+
 STATIC_URL = 'static/'
 
 MEDIA_URL = '/media/'
@@ -331,9 +332,10 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'class': 'logging.StreamHandler',
+            '()': 'logging.StreamHandler',
             'formatter': 'simple',
             'level': 'INFO',
+            'stream': 'ext://sys.stdout',
         },
         'pharmacy_orders_file': {
             'level': 'INFO',
@@ -342,6 +344,7 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 10,  # 10MB
             'backupCount': 10,
             'formatter': 'verbose',
+            'encoding': 'utf-8',
         },
         'error_file': {
             'level': 'ERROR',
@@ -350,6 +353,7 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 10,  # 10MB
             'backupCount': 10,
             'formatter': 'verbose',
+            'encoding': 'utf-8',
         },
     },
     'loggers': {

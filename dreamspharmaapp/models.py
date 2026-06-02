@@ -656,6 +656,31 @@ class SalesOrder(models.Model):
         null=True
     )
     
+    # ==================== WALLET INTENT TRACKING ====================
+    # ✅ FIX: Track wallet intent (requested during checkout) separately from actual deduction
+    # Wallet is applied ONLY AFTER successful payment, not during order creation
+    wallet_requested = models.BooleanField(
+        default=False,
+        help_text="Whether customer requested to use wallet for this order"
+    )
+    wallet_intent_user_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="User ID of wallet owner (for wallet deduction after payment succeeds)"
+    )
+    wallet_applied_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        help_text="Amount actually deducted from wallet (zero until payment succeeds)"
+    )
+    wallet_applied_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When wallet was applied (only after payment succeeds)"
+    )
+    
     def save(self, *args, **kwargs):
         """Auto-generate order_id if not provided"""
         if not self.order_id:
