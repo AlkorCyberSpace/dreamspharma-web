@@ -30,7 +30,7 @@ ITEMS = [
         "stockBalQty": 984,
         "std_disc": 24.24,
         "max_disc": 0.00,
-        "expiryDate": "2027-11-01",
+        "expiryDate": "2027-5-13",
         "mrp": 75.03
     },
     {
@@ -109,7 +109,800 @@ ITEMS = [
         "max_disc": 3.00,
         "expiryDate": "2027-01-15",
         "mrp": 12.50
-    }
+    },
+     {
+    "c_item_code": "I00101",
+    "itemName": "CETIRIZINE 10MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "CET001",
+    "stockBalQty": 850,
+    "std_disc": 18.00,
+    "max_disc": 3.00,
+    "expiryDate": "2028-03-12",
+    "mrp": 22.50
+  },
+  {
+    "c_item_code": "I00102",
+    "itemName": "AZITHROMYCIN 500MG",
+    "itemQtyPerBox": 5,
+    "batchNo": "AZI001",
+    "stockBalQty": 420,
+    "std_disc": 20.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-01-10",
+    "mrp": 98.75
+  },
+  {
+    "c_item_code": "I00103",
+    "itemName": "VITAMIN C 500MG",
+    "itemQtyPerBox": 20,
+    "batchNo": "VITC01",
+    "stockBalQty": 760,
+    "std_disc": 12.00,
+    "max_disc": 2.00,
+    "expiryDate": "2028-05-20",
+    "mrp": 55.00
+  },
+  {
+    "c_item_code": "I00104",
+    "itemName": "OMEPRAZOLE 20MG",
+    "itemQtyPerBox": 15,
+    "batchNo": "OME001",
+    "stockBalQty": 640,
+    "std_disc": 17.00,
+    "max_disc": 4.00,
+    "expiryDate": "2027-11-18",
+    "mrp": 68.90
+  },
+  {
+    "c_item_code": "I00105",
+    "itemName": "METFORMIN 500MG",
+    "itemQtyPerBox": 15,
+    "batchNo": "MET001",
+    "stockBalQty": 950,
+    "std_disc": 19.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-02-25",
+    "mrp": 72.40
+  },
+  {
+    "c_item_code": "I00106",
+    "itemName": "ORS POWDER",
+    "itemQtyPerBox": 1,
+    "batchNo": "ORS001",
+    "stockBalQty": 300,
+    "std_disc": 8.00,
+    "max_disc": 1.00,
+    "expiryDate": "2027-09-15",
+    "mrp": 18.00
+  },
+  {
+    "c_item_code": "I00107",
+    "itemName": "DOXYCYCLINE 100MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "DOX001",
+    "stockBalQty": 520,
+    "std_disc": 21.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-04-08",
+    "mrp": 88.00
+  },
+  {
+    "c_item_code": "I00108",
+    "itemName": "PANTOPRAZOLE 40MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "PAN001",
+    "stockBalQty": 430,
+    "std_disc": 16.00,
+    "max_disc": 3.00,
+    "expiryDate": "2027-12-20",
+    "mrp": 105.50
+  },
+  {
+    "c_item_code": "I00109",
+    "itemName": "MULTIVITAMIN CAPSULE",
+    "itemQtyPerBox": 30,
+    "batchNo": "MVC001",
+    "stockBalQty": 700,
+    "std_disc": 14.00,
+    "max_disc": 2.00,
+    "expiryDate": "2028-06-14",
+    "mrp": 145.00
+  },
+  {
+    "c_item_code": "I00110",
+    "itemName": "CALCIUM + VIT D3",
+    "itemQtyPerBox": 15,
+    "batchNo": "CAL001",
+    "stockBalQty": 610,
+    "std_disc": 13.00,
+    "max_disc": 2.50,
+    "expiryDate": "2028-01-30",
+    "mrp": 132.75
+  },
+  {
+    "c_item_code": "I00111",
+    "itemName": "LEVOCETIRIZINE SYRUP",
+    "itemQtyPerBox": 1,
+    "batchNo": "LEV001",
+    "stockBalQty": 275,
+    "std_disc": 11.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-10-05",
+    "mrp": 68.00
+  },
+  {
+    "c_item_code": "I00112",
+    "itemName": "RANITIDINE 150MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "RAN001",
+    "stockBalQty": 390,
+    "std_disc": 18.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-03-01",
+    "mrp": 48.60
+  },
+  {
+    "c_item_code": "I00113",
+    "itemName": "CIPROFLOXACIN 500MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "CIP001",
+    "stockBalQty": 460,
+    "std_disc": 22.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-07-12",
+    "mrp": 96.50
+  },
+  {
+    "c_item_code": "I00114",
+    "itemName": "LOSARTAN 50MG",
+    "itemQtyPerBox": 15,
+    "batchNo": "LOS001",
+    "stockBalQty": 720,
+    "std_disc": 17.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-05-25",
+    "mrp": 124.00
+  },
+  {
+    "c_item_code": "I00115",
+    "itemName": "ATORVASTATIN 10MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "ATO001",
+    "stockBalQty": 540,
+    "std_disc": 16.00,
+    "max_disc": 3.50,
+    "expiryDate": "2028-08-10",
+    "mrp": 138.25
+  },
+  {
+    "c_item_code": "I00116",
+    "itemName": "TELMISARTAN 40MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "TEL001",
+    "stockBalQty": 610,
+    "std_disc": 18.00,
+    "max_disc": 4.50,
+    "expiryDate": "2028-02-15",
+    "mrp": 165.00
+  },
+  {
+    "c_item_code": "I00117",
+    "itemName": "GLIMEPIRIDE 2MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "GLI001",
+    "stockBalQty": 450,
+    "std_disc": 15.00,
+    "max_disc": 3.00,
+    "expiryDate": "2027-12-28",
+    "mrp": 84.40
+  },
+  {
+    "c_item_code": "I00118",
+    "itemName": "MONTELUKAST 10MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "MON001",
+    "stockBalQty": 380,
+    "std_disc": 19.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-04-22",
+    "mrp": 112.90
+  },
+  {
+    "c_item_code": "I00119",
+    "itemName": "ZINCOVIT TABLET",
+    "itemQtyPerBox": 15,
+    "batchNo": "ZIN001",
+    "stockBalQty": 930,
+    "std_disc": 14.00,
+    "max_disc": 2.50,
+    "expiryDate": "2028-01-19",
+    "mrp": 95.00
+  },
+  {
+    "c_item_code": "I00120",
+    "itemName": "B-COMPLEX CAPSULE",
+    "itemQtyPerBox": 20,
+    "batchNo": "BCX001",
+    "stockBalQty": 810,
+    "std_disc": 12.00,
+    "max_disc": 2.00,
+    "expiryDate": "2028-06-30",
+    "mrp": 76.25
+  },
+  {
+    "c_item_code": "I00121",
+    "itemName": "DICLOFENAC GEL",
+    "itemQtyPerBox": 1,
+    "batchNo": "DIC001",
+    "stockBalQty": 250,
+    "std_disc": 10.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-11-05",
+    "mrp": 89.00
+  },
+  {
+    "c_item_code": "I00122",
+    "itemName": "COLD RELIEF SYRUP",
+    "itemQtyPerBox": 1,
+    "batchNo": "CRS001",
+    "stockBalQty": 310,
+    "std_disc": 13.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-10-14",
+    "mrp": 65.75
+  },
+  {
+    "c_item_code": "I00123",
+    "itemName": "INSULIN GLARGINE",
+    "itemQtyPerBox": 1,
+    "batchNo": "INS001",
+    "stockBalQty": 120,
+    "std_disc": 8.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-09-09",
+    "mrp": 685.00
+  },
+  {
+    "c_item_code": "I00124",
+    "itemName": "CEFIXIME 200MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "CEF001",
+    "stockBalQty": 470,
+    "std_disc": 21.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-03-17",
+    "mrp": 142.80
+  },
+  {
+    "c_item_code": "I00125",
+    "itemName": "ANTI FUNGAL CREAM",
+    "itemQtyPerBox": 1,
+    "batchNo": "AFC001",
+    "stockBalQty": 290,
+    "std_disc": 11.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-12-11",
+    "mrp": 78.50
+  },
+  {
+    "c_item_code": "I00126",
+    "itemName": "DIGESTIVE ENZYME SYRUP",
+    "itemQtyPerBox": 1,
+    "batchNo": "DES001",
+    "stockBalQty": 180,
+    "std_disc": 9.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-08-27",
+    "mrp": 110.00
+  },
+  {
+    "c_item_code": "I00127",
+    "itemName": "IRON + FOLIC ACID",
+    "itemQtyPerBox": 30,
+    "batchNo": "IFA001",
+    "stockBalQty": 660,
+    "std_disc": 15.00,
+    "max_disc": 3.00,
+    "expiryDate": "2028-05-08",
+    "mrp": 98.20
+  },
+  {
+    "c_item_code": "I00113",
+    "itemName": "CIPROFLOXACIN 500MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "CIP001",
+    "stockBalQty": 460,
+    "std_disc": 22.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-07-12",
+    "mrp": 96.50
+  },
+  {
+    "c_item_code": "I00114",
+    "itemName": "LOSARTAN 50MG",
+    "itemQtyPerBox": 15,
+    "batchNo": "LOS001",
+    "stockBalQty": 720,
+    "std_disc": 17.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-05-25",
+    "mrp": 124.00
+  },
+  {
+    "c_item_code": "I00115",
+    "itemName": "ATORVASTATIN 10MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "ATO001",
+    "stockBalQty": 540,
+    "std_disc": 16.00,
+    "max_disc": 3.50,
+    "expiryDate": "2028-08-10",
+    "mrp": 138.25
+  },
+  {
+    "c_item_code": "I00116",
+    "itemName": "TELMISARTAN 40MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "TEL001",
+    "stockBalQty": 610,
+    "std_disc": 18.00,
+    "max_disc": 4.50,
+    "expiryDate": "2028-02-15",
+    "mrp": 165.00
+  },
+  {
+    "c_item_code": "I00117",
+    "itemName": "GLIMEPIRIDE 2MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "GLI001",
+    "stockBalQty": 450,
+    "std_disc": 15.00,
+    "max_disc": 3.00,
+    "expiryDate": "2027-12-28",
+    "mrp": 84.40
+  },
+  {
+    "c_item_code": "I00118",
+    "itemName": "MONTELUKAST 10MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "MON001",
+    "stockBalQty": 380,
+    "std_disc": 19.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-04-22",
+    "mrp": 112.90
+  },
+  {
+    "c_item_code": "I00119",
+    "itemName": "ZINCOVIT TABLET",
+    "itemQtyPerBox": 15,
+    "batchNo": "ZIN001",
+    "stockBalQty": 930,
+    "std_disc": 14.00,
+    "max_disc": 2.50,
+    "expiryDate": "2028-01-19",
+    "mrp": 95.00
+  },
+  {
+    "c_item_code": "I00120",
+    "itemName": "B-COMPLEX CAPSULE",
+    "itemQtyPerBox": 20,
+    "batchNo": "BCX001",
+    "stockBalQty": 810,
+    "std_disc": 12.00,
+    "max_disc": 2.00,
+    "expiryDate": "2028-06-30",
+    "mrp": 76.25
+  },
+  {
+    "c_item_code": "I00121",
+    "itemName": "DICLOFENAC GEL",
+    "itemQtyPerBox": 1,
+    "batchNo": "DIC001",
+    "stockBalQty": 250,
+    "std_disc": 10.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-11-05",
+    "mrp": 89.00
+  },
+  {
+    "c_item_code": "I00122",
+    "itemName": "COLD RELIEF SYRUP",
+    "itemQtyPerBox": 1,
+    "batchNo": "CRS001",
+    "stockBalQty": 310,
+    "std_disc": 13.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-10-14",
+    "mrp": 65.75
+  },
+  {
+    "c_item_code": "I00123",
+    "itemName": "INSULIN GLARGINE",
+    "itemQtyPerBox": 1,
+    "batchNo": "INS001",
+    "stockBalQty": 120,
+    "std_disc": 8.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-09-09",
+    "mrp": 685.00
+  },
+  {
+    "c_item_code": "I00124",
+    "itemName": "CEFIXIME 200MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "CEF001",
+    "stockBalQty": 470,
+    "std_disc": 21.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-03-17",
+    "mrp": 142.80
+  },
+  {
+    "c_item_code": "I00125",
+    "itemName": "ANTI FUNGAL CREAM",
+    "itemQtyPerBox": 1,
+    "batchNo": "AFC001",
+    "stockBalQty": 290,
+    "std_disc": 11.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-12-11",
+    "mrp": 78.50
+  },
+  {
+    "c_item_code": "I00126",
+    "itemName": "DIGESTIVE ENZYME SYRUP",
+    "itemQtyPerBox": 1,
+    "batchNo": "DES001",
+    "stockBalQty": 180,
+    "std_disc": 9.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-08-27",
+    "mrp": 110.00
+  },
+  {
+    "c_item_code": "I00127",
+    "itemName": "IRON + FOLIC ACID",
+    "itemQtyPerBox": 30,
+    "batchNo": "IFA001",
+    "stockBalQty": 660,
+    "std_disc": 15.00,
+    "max_disc": 3.00,
+    "expiryDate": "2028-05-08",
+    "mrp": 98.20
+  },
+  {
+    "c_item_code": "I00128",
+    "itemName": "DOLO 650MG TAB",
+    "itemQtyPerBox": 15,
+    "batchNo": "DOL6501",
+    "stockBalQty": 1450,
+    "std_disc": 23.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-08-14",
+    "mrp": 32.50
+  },
+  {
+    "c_item_code": "I00129",
+    "itemName": "PREGABALIN 75MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "PRE001",
+    "stockBalQty": 320,
+    "std_disc": 17.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-02-09",
+    "mrp": 185.75
+  },
+  {
+    "c_item_code": "I00130",
+    "itemName": "LEVOTHYROXINE 50MCG",
+    "itemQtyPerBox": 20,
+    "batchNo": "LEV050",
+    "stockBalQty": 840,
+    "std_disc": 14.00,
+    "max_disc": 3.00,
+    "expiryDate": "2028-07-01",
+    "mrp": 128.40
+  },
+  {
+    "c_item_code": "I00131",
+    "itemName": "ALBENDAZOLE 400MG",
+    "itemQtyPerBox": 1,
+    "batchNo": "ALB001",
+    "stockBalQty": 270,
+    "std_disc": 12.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-11-23",
+    "mrp": 18.90
+  },
+  {
+    "c_item_code": "I00132",
+    "itemName": "ONDANSETRON 4MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "OND001",
+    "stockBalQty": 510,
+    "std_disc": 19.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-03-30",
+    "mrp": 56.25
+  },
+  {
+    "c_item_code": "I00133",
+    "itemName": "LORATADINE 10MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "LOR001",
+    "stockBalQty": 690,
+    "std_disc": 15.00,
+    "max_disc": 3.00,
+    "expiryDate": "2028-05-17",
+    "mrp": 42.80
+  },
+  {
+    "c_item_code": "I00134",
+    "itemName": "ACECLOFENAC + PARACETAMOL",
+    "itemQtyPerBox": 10,
+    "batchNo": "ACP001",
+    "stockBalQty": 580,
+    "std_disc": 20.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-01-21",
+    "mrp": 74.50
+  },
+  {
+    "c_item_code": "I00135",
+    "itemName": "AMLODIPINE 5MG",
+    "itemQtyPerBox": 15,
+    "batchNo": "AML001",
+    "stockBalQty": 760,
+    "std_disc": 16.00,
+    "max_disc": 3.50,
+    "expiryDate": "2028-04-11",
+    "mrp": 66.00
+  },
+  {
+    "c_item_code": "I00136",
+    "itemName": "NEUROBION FORTE",
+    "itemQtyPerBox": 30,
+    "batchNo": "NEU001",
+    "stockBalQty": 420,
+    "std_disc": 13.00,
+    "max_disc": 2.50,
+    "expiryDate": "2028-06-26",
+    "mrp": 195.00
+  },
+  {
+    "c_item_code": "I00137",
+    "itemName": "LACTIC ACID BACILLUS CAPSULE",
+    "itemQtyPerBox": 10,
+    "batchNo": "LAB001",
+    "stockBalQty": 310,
+    "std_disc": 11.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-10-08",
+    "mrp": 58.75
+  },
+  {
+    "c_item_code": "I00138",
+    "itemName": "COUGH EXPECTORANT SYRUP",
+    "itemQtyPerBox": 1,
+    "batchNo": "CES001",
+    "stockBalQty": 225,
+    "std_disc": 10.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-12-19",
+    "mrp": 72.00
+  },
+  {
+    "c_item_code": "I00139",
+    "itemName": "HYDROXYZINE 25MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "HYD001",
+    "stockBalQty": 295,
+    "std_disc": 14.00,
+    "max_disc": 3.00,
+    "expiryDate": "2028-02-28",
+    "mrp": 48.90
+  },
+  {
+    "c_item_code": "I00140",
+    "itemName": "BETADINE OINTMENT",
+    "itemQtyPerBox": 1,
+    "batchNo": "BET001",
+    "stockBalQty": 340,
+    "std_disc": 9.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-09-25",
+    "mrp": 95.00
+  },
+  {
+    "c_item_code": "I00141",
+    "itemName": "CALPOL 500MG",
+    "itemQtyPerBox": 15,
+    "batchNo": "CAL001",
+    "stockBalQty": 1180,
+    "std_disc": 21.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-07-09",
+    "mrp": 34.75
+  },
+  {
+    "c_item_code": "I00142",
+    "itemName": "RABEPRAZOLE 20MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "RAB001",
+    "stockBalQty": 505,
+    "std_disc": 18.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-03-05",
+    "mrp": 118.60
+  },
+  {
+    "c_item_code": "I00143",
+    "itemName": "MEFTAL SPAS",
+    "itemQtyPerBox": 10,
+    "batchNo": "MFS001",
+    "stockBalQty": 640,
+    "std_disc": 20.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-06-18",
+    "mrp": 52.40
+  },
+  {
+    "c_item_code": "I00144",
+    "itemName": "PAN-D CAPSULE",
+    "itemQtyPerBox": 15,
+    "batchNo": "PAND01",
+    "stockBalQty": 730,
+    "std_disc": 18.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-01-29",
+    "mrp": 145.80
+  },
+  {
+    "c_item_code": "I00145",
+    "itemName": "ECOSPRIN 75MG",
+    "itemQtyPerBox": 14,
+    "batchNo": "ECO001",
+    "stockBalQty": 580,
+    "std_disc": 15.00,
+    "max_disc": 3.00,
+    "expiryDate": "2028-05-10",
+    "mrp": 34.60
+  },
+  {
+    "c_item_code": "I00146",
+    "itemName": "CLAVAM 625MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "CLV001",
+    "stockBalQty": 410,
+    "std_disc": 22.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-04-16",
+    "mrp": 198.90
+  },
+  {
+    "c_item_code": "I00147",
+    "itemName": "DERMICOOL POWDER",
+    "itemQtyPerBox": 1,
+    "batchNo": "DER001",
+    "stockBalQty": 360,
+    "std_disc": 11.00,
+    "max_disc": 2.00,
+    "expiryDate": "2027-11-12",
+    "mrp": 78.25
+  },
+  {
+    "c_item_code": "I00148",
+    "itemName": "BENADRYL COUGH SYRUP",
+    "itemQtyPerBox": 1,
+    "batchNo": "BEN001",
+    "stockBalQty": 295,
+    "std_disc": 10.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-10-04",
+    "mrp": 96.00
+  },
+  {
+    "c_item_code": "I00149",
+    "itemName": "MONOCEF-O 200MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "MON001",
+    "stockBalQty": 330,
+    "std_disc": 21.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-02-22",
+    "mrp": 176.50
+  },
+  {
+    "c_item_code": "I00150",
+    "itemName": "AUGMENTIN 625MG",
+    "itemQtyPerBox": 10,
+    "batchNo": "AUG001",
+    "stockBalQty": 275,
+    "std_disc": 20.00,
+    "max_disc": 5.00,
+    "expiryDate": "2028-03-13",
+    "mrp": 214.00
+  },
+  {
+    "c_item_code": "I00151",
+    "itemName": "VOLINI SPRAY",
+    "itemQtyPerBox": 1,
+    "batchNo": "VOL001",
+    "stockBalQty": 185,
+    "std_disc": 9.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-12-30",
+    "mrp": 165.75
+  },
+  {
+    "c_item_code": "I00152",
+    "itemName": "DIGENE GEL",
+    "itemQtyPerBox": 1,
+    "batchNo": "DIG001",
+    "stockBalQty": 410,
+    "std_disc": 12.00,
+    "max_disc": 2.50,
+    "expiryDate": "2028-01-08",
+    "mrp": 115.40
+  },
+  {
+    "c_item_code": "I00153",
+    "itemName": "ENO FRUIT SALT",
+    "itemQtyPerBox": 1,
+    "batchNo": "ENO001",
+    "stockBalQty": 520,
+    "std_disc": 8.00,
+    "max_disc": 1.00,
+    "expiryDate": "2027-09-14",
+    "mrp": 18.50
+  },
+  {
+    "c_item_code": "I00154",
+    "itemName": "VICKS VAPORUB",
+    "itemQtyPerBox": 1,
+    "batchNo": "VIC001",
+    "stockBalQty": 610,
+    "std_disc": 10.00,
+    "max_disc": 2.00,
+    "expiryDate": "2028-05-27",
+    "mrp": 72.90
+  },
+  {
+    "c_item_code": "I00155",
+    "itemName": "MOOV PAIN RELIEF CREAM",
+    "itemQtyPerBox": 1,
+    "batchNo": "MOV001",
+    "stockBalQty": 245,
+    "std_disc": 9.00,
+    "max_disc": 1.50,
+    "expiryDate": "2027-11-07",
+    "mrp": 132.00
+  },
+  {
+    "c_item_code": "I00156",
+    "itemName": "CROCIN ADVANCE",
+    "itemQtyPerBox": 15,
+    "batchNo": "CRC001",
+    "stockBalQty": 980,
+    "std_disc": 19.00,
+    "max_disc": 4.00,
+    "expiryDate": "2028-08-03",
+    "mrp": 36.80
+  },
+  {
+    "c_item_code": "I00157",
+    "itemName": "ORS ELECTROLYTE DRINK",
+    "itemQtyPerBox": 1,
+    "batchNo": "ORSD01",
+    "stockBalQty": 300,
+    "std_disc": 7.00,
+    "max_disc": 1.00,
+    "expiryDate": "2027-10-20",
+    "mrp": 24.00
+  }
+
 ]
 
 # Stock Data
@@ -794,6 +1587,155 @@ def create_test_invoice():
             "createdBy": "SYSTEM",
             "docDiscount": "0.00",
             "docTotal": str(doc_total),
+            "detail": []
+        }
+        
+        # Try to fetch real items from local Django DB
+        try:
+            import os
+            import sys
+            import django
+            if 'DJANGO_SETTINGS_MODULE' not in os.environ:
+                sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+                os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'dreamspharma.settings')
+                django.setup()
+            
+            from dreamspharmaapp.models import SalesOrder
+            sales_order = SalesOrder.objects.get(order_id=order_id)
+            
+            detail_items = []
+            for item in sales_order.items.all():
+                detail_items.append({
+                    "productId": item.item_code or "TEST_PRD",
+                    "productName": item.item_name or "Test Product",
+                    "hsnCode": item.hsn_code or "30049090",
+                    "qtyPerBox": "1",
+                    "batch": item.batch_no or "TEST_BCH",
+                    "qty": str(item.total_loose_qty or 1),
+                    "expiryDate": str(item.expiry_date) if item.expiry_date else "2027-12-31",
+                    "mrp": str(item.mrp or 0),
+                    "saleRate": str(item.sale_rate or 0),
+                    "discAmt": str(item.disc_amt or 0),
+                    "discPer": str(item.disc_per or 0),
+                    "itemTotal": str(item.item_total or 0),
+                    "cgstPer": str(item.cgst_per or 0),
+                    "cgstAmt": str(item.cgst_amt or 0),
+                    "sgstPer": str(item.sgst_per or 0),
+                    "sgstAmt": str(item.sgst_amt or 0),
+                    "igstPer": str(item.igst_per or 0),
+                    "igstAmt": str(item.igst_amt or 0),
+                    "cessPer": "0.00",
+                    "cessAmt": "0.00"
+                })
+            
+            if detail_items:
+                invoice["detail"] = detail_items
+                print(f"[CREATE INVOICE] Successfully loaded {len(detail_items)} items from local DB for {order_id}")
+        except Exception as e:
+            print(f"[CREATE INVOICE WARNING] Could not load items from DB for {order_id}, using fallback data. Error: {e}")
+            invoice["detail"] = [
+                {
+                    "productId": "I00003",
+                    "productName": "DOLO 250MG SUSP",
+                    "hsnCode": "30049090",
+                    "qtyPerBox": "1",
+                    "batch": "DOLN096",
+                    "qty": "10.000",
+                    "expiryDate": "2027-11-01",
+                    "mrp": "75.030",
+                    "saleRate": "56.270",
+                    "discAmt": "188.30",
+                    "discPer": "25.00",
+                    "itemTotal": "562.700",
+                    "cgstPer": "0.00",
+                    "cgstAmt": "0.00",
+                    "sgstPer": "0.00",
+                    "sgstAmt": "0.00",
+                    "igstPer": "5.00",
+                    "igstAmt": "28.14",
+                    "cessPer": "0.00",
+                    "cessAmt": "0.00"
+                }
+            ]
+
+        # Add or replace invoice in order
+        ORDERS[str(order_id)]["invoices"] = [invoice]
+        ORDERS[str(order_id)]["billTotal"] = str(doc_total)
+        
+        print(f"[CREATE INVOICE SUCCESS] Created invoice {doc_no} for order {order_id}")
+        
+        return jsonify({
+            "code": "200",
+            "type": "createTestInvoice",
+            "message": f"Test invoice {doc_no} created successfully for order {order_id}",
+            "orderId": order_id,
+            "invoice": invoice
+        }), 201
+    except Exception as e:
+        print(f"[CREATE INVOICE ERROR] {str(e)}")
+        return jsonify({
+            "code": "500",
+            "type": "createTestInvoice",
+            "message": str(e)
+        }), 500
+
+
+@app.route('/ws_c2_services_create_invoice', methods=['GET', 'POST'])
+def ws_c2_services_create_invoice():
+    """Create an invoice for an order with reference code"""
+    try:
+        if request.method == 'GET':
+            data = request.args.to_dict()
+        else:
+            data = request.get_json() or request.args.to_dict()
+        
+        order_id = data.get('orderId')
+        reference_code = data.get('referenceCode') or data.get('docNo')
+        doc_total = float(data.get('docTotal', '542.50'))
+        
+        print(f"[WS_CREATE_INVOICE] Creating invoice for order: {order_id}, reference: {reference_code}")
+        
+        if not order_id:
+            return jsonify({
+                "code": "400",
+                "message": "orderId is required"
+            }), 400
+        
+        if not reference_code:
+            return jsonify({
+                "code": "400",
+                "message": "referenceCode or docNo is required"
+            }), 400
+        
+        # Create or get existing order
+        if str(order_id) not in ORDERS:
+            ORDERS[str(order_id)] = {
+                "orderId": str(order_id),
+                "custCode": "GC02",
+                "customerName": "Test Retailer",
+                "fromGstNo": "07NQQAE5107K2ZW",
+                "toGstNo": "07NQQAE5107K2ZW",
+                "customerType": "Un - Registered",
+                "doctorName": "-",
+                "documentPk": "26001540100",
+                "brCode": "001",
+                "tranYear": "26",
+                "tranPrefix": "6",
+                "tranSrno": "100",
+                "createdDate": datetime.now().strftime("%Y-%m-%d"),
+                "billTotal": str(doc_total),
+                "invoices": []
+            }
+        
+        # Create invoice object with reference code
+        invoice = {
+            "docNo": reference_code,
+            "referenceCode": reference_code,
+            "docDate": datetime.now().strftime("%Y-%m-%d"),
+            "docStatus": "Invoice Created",
+            "createdBy": "SYSTEM",
+            "docDiscount": "0.00",
+            "docTotal": str(doc_total),
             "detail": [
                 {
                     "productId": "I00003",
@@ -816,50 +1758,32 @@ def create_test_invoice():
                     "igstAmt": "28.14",
                     "cessPer": "0.00",
                     "cessAmt": "0.00"
-                },
-                {
-                    "productId": "I00017",
-                    "productName": "AMALGIN",
-                    "hsnCode": "30049099",
-                    "qtyPerBox": "1",
-                    "batch": "AMG001",
-                    "qty": "5.000",
-                    "expiryDate": "2027-12-01",
-                    "mrp": "85.500",
-                    "saleRate": "72.675",
-                    "discAmt": "64.13",
-                    "discPer": "15.00",
-                    "itemTotal": "363.375",
-                    "cgstPer": "0.00",
-                    "cgstAmt": "0.00",
-                    "sgstPer": "0.00",
-                    "sgstAmt": "0.00",
-                    "igstPer": "5.00",
-                    "igstAmt": "18.17",
-                    "cessPer": "0.00",
-                    "cessAmt": "0.00"
                 }
             ]
         }
         
-        # Add or replace invoice in order
-        ORDERS[str(order_id)]["invoices"] = [invoice]
+        # Add invoice to order
+        if "invoices" not in ORDERS[str(order_id)]:
+            ORDERS[str(order_id)]["invoices"] = []
+        
+        ORDERS[str(order_id)]["invoices"].append(invoice)
         ORDERS[str(order_id)]["billTotal"] = str(doc_total)
         
-        print(f"[CREATE INVOICE SUCCESS] Created invoice {doc_no} for order {order_id}")
+        print(f"[WS_CREATE_INVOICE SUCCESS] Created invoice {reference_code} for order {order_id}")
         
         return jsonify({
             "code": "200",
-            "type": "createTestInvoice",
-            "message": f"Test invoice {doc_no} created successfully for order {order_id}",
+            "type": "ws_c2_services_create_invoice",
+            "message": f"Invoice {reference_code} created successfully for order {order_id}",
             "orderId": order_id,
+            "referenceCode": reference_code,
             "invoice": invoice
         }), 201
     except Exception as e:
-        print(f"[CREATE INVOICE ERROR] {str(e)}")
+        print(f"[WS_CREATE_INVOICE ERROR] {str(e)}")
         return jsonify({
             "code": "500",
-            "type": "createTestInvoice",
+            "type": "ws_c2_services_create_invoice",
             "message": str(e)
         }), 500
 

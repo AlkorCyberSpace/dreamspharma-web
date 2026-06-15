@@ -406,16 +406,11 @@ class ItemMasterSerializer(serializers.ModelSerializer):
     def get_images(self, obj):
         """Get product images from ProductInfo"""
         try:
-            request = self.context.get('request')
             images = obj.product_info.images.all().order_by('image_order')[:3]
             image_urls = []
             for img in images:
-                if request:
-                    image_url = request.build_absolute_uri(img.image.url)
-                else:
-                    image_url = img.image.url
                 image_urls.append({
-                    'image': image_url,
+                    'image': img.image.url,
                     'image_order': img.image_order
                 })
             return image_urls
@@ -951,9 +946,10 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['image_order', 'imageUrl']
     
     def get_imageUrl(self, obj):
-        request = self.context.get('request')
+        """Return the image URL"""
         if obj.image:
-            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+            # Return the image URL directly - just the relative path
+            return obj.image.url
         return None
 
 
@@ -1446,17 +1442,12 @@ class ProductRecommendationSerializer(serializers.ModelSerializer):
     def get_images(self, obj):
         """Get ALL product images ordered by image_order"""
         try:
-            request = self.context.get('request')
             from .models import ProductImage
             images = ProductImage.objects.filter(product_info=obj.product_info).order_by('image_order')
             result = []
             for img in images:
-                if request:
-                    image_url = request.build_absolute_uri(img.image.url)
-                else:
-                    image_url = img.image.url
                 result.append({
-                    'image': image_url,
+                    'image': img.image.url,
                     'image_order': img.image_order
                 })
             return result
@@ -1635,16 +1626,11 @@ class CategoryProductWithERPSerializer(serializers.Serializer):
     def get_images(self, obj):
         """Get ALL product images"""
         try:
-            request = self.context.get('request')
             images = obj.product_info.images.all().order_by('image_order')
             result = []
             for img in images:
-                if request:
-                    image_url = request.build_absolute_uri(img.image.url)
-                else:
-                    image_url = img.image.url
                 result.append({
-                    'image': image_url,
+                    'image': img.image.url,
                     'image_order': img.image_order
                 })
             return result
@@ -1922,17 +1908,12 @@ class OfferProductSerializer(serializers.Serializer):
     def get_images(self, obj):
         """Get product images"""
         try:
-            request = self.context.get('request')
             if hasattr(obj, 'product_info'):
                 images = obj.product_info.images.all().order_by('image_order')[:3]
                 image_urls = []
                 for img in images:
-                    if request:
-                        image_url = request.build_absolute_uri(img.image.url)
-                    else:
-                        image_url = img.image.url
                     image_urls.append({
-                        'image': image_url,
+                        'image': img.image.url,
                         'image_order': img.image_order
                     })
                 return image_urls

@@ -490,8 +490,8 @@ const Orders = () => {
                       key={pageNum}
                       onClick={() => paginate(pageNum)}
                       className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
-                          ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
-                          : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                        ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                        : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
                         }`}
                     >
                       {pageNum}
