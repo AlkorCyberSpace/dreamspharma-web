@@ -6,7 +6,7 @@ GET-only endpoints for retrieving notifications about new offers/discounts
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.utils import timezone
 from .models import RetailerNotification
 from .serializers import RetailerNotificationListSerializer, RetailerNotificationSerializer
@@ -14,29 +14,24 @@ from .serializers import RetailerNotificationListSerializer, RetailerNotificatio
 
 class RetailerNotificationsListView(APIView):
     """
-    GET /api/retailer-notifications/?user_id={user_id}
+    GET /api/retailer-notifications/
     
-    Get all notifications for a retailer (paginated)
+    Get all notifications for the authenticated retailer (paginated)
+    Requires JWT authentication
     
     Query Parameters:
-    - user_id: Retailer user ID (required)
     - limit: Number of results (default: 20)
     - offset: Pagination offset (default: 0)
     - unread_only: Filter to unread notifications (true/false)
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Get notifications for a retailer"""
+        """Get notifications for authenticated retailer"""
         try:
-            # Get user_id from query params
-            user_id = request.query_params.get('user_id')
-            
-            if not user_id:
-                return Response({
-                    'status': 'error',
-                    'message': 'user_id parameter is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
+            # Use authenticated user
+            user = request.user
+            user_id = user.id
             
             # Get pagination params
             limit = int(request.query_params.get('limit', 20))
@@ -77,12 +72,11 @@ class RetailerNotificationsListView(APIView):
 class RetailerNotificationDetailView(APIView):
     """
     GET /api/retailer-notifications/{notification_id}/
-    PUT /api/retailer-notifications/{notification_id}/?user_id={user_id} (mark as read)
+    PUT /api/retailer-notifications/{notification_id}/ (mark as read)
     DELETE /api/retailer-notifications/{notification_id}/
     
     Get, update, or delete a specific notification
-    
-    PUT requires user_id query parameter to verify ownership
+    PUT and DELETE require JWT authentication
     """
     permission_classes = [AllowAny]
     
@@ -109,10 +103,16 @@ class RetailerNotificationDetailView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def put(self, request, notification_id):
-        """Mark notification as read - requires user verification"""
+        """Mark notification as read - requires JWT authentication"""
         try:
-            # Get user_id from query params
-            user_id = request.query_params.get('user_id')
+            # Get authenticated user
+            if not request.user.is_authenticated:
+                return Response({
+                    'status': 'error',
+                    'message': 'Authentication required'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            user_id = request.user.id
             
             # Get the notification
             try:
@@ -124,7 +124,7 @@ class RetailerNotificationDetailView(APIView):
                 }, status=status.HTTP_404_NOT_FOUND)
             
             # Verify ownership - user_id must match the notification's retailer
-            if user_id and str(notification.retailer_id) != str(user_id):
+            if str(notification.retailer_id) != str(user_id):
                 return Response({
                     'status': 'error',
                     'message': 'You can only mark your own notifications as read'
@@ -148,10 +148,16 @@ class RetailerNotificationDetailView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def delete(self, request, notification_id):
-        """Delete a notification - requires user verification"""
+        """Delete a notification - requires JWT authentication"""
         try:
-            # Get user_id from query params
-            user_id = request.query_params.get('user_id')
+            # Get authenticated user
+            if not request.user.is_authenticated:
+                return Response({
+                    'status': 'error',
+                    'message': 'Authentication required'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            user_id = request.user.id
             
             # Get the notification
             try:
@@ -163,7 +169,7 @@ class RetailerNotificationDetailView(APIView):
                 }, status=status.HTTP_404_NOT_FOUND)
             
             # Verify ownership - user_id must match the notification's retailer
-            if user_id and str(notification.retailer_id) != str(user_id):
+            if str(notification.retailer_id) != str(user_id):
                 return Response({
                     'status': 'error',
                     'message': 'You can only delete your own notifications'
@@ -185,22 +191,17 @@ class RetailerNotificationDetailView(APIView):
 
 class RetailerNotificationCountView(APIView):
     """
-    GET /api/retailer-notifications/count/?user_id={user_id}
+    GET /api/retailer-notifications/count/
     
-    Get count of unread notifications for a retailer
+    Get count of unread notifications for authenticated retailer
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """Get unread notification count"""
+        """Get unread notification count for authenticated user"""
         try:
-            user_id = request.query_params.get('user_id')
-            
-            if not user_id:
-                return Response({
-                    'status': 'error',
-                    'message': 'user_id parameter is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
+            user_id = request.user.id
             
             unread_count = RetailerNotification.objects.filter(
                 retailer_id=user_id,

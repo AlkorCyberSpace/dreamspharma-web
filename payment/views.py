@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.conf import settings
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -176,11 +176,11 @@ class RazorpayClient:
 
 class InitiatePaymentView(APIView):
     """Initiate payment for an order"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             order_id = request.data.get('order_id')
             if not order_id:
                 return Response(
@@ -298,12 +298,12 @@ class InitiatePaymentView(APIView):
 
 class VerifyPaymentView(APIView):
     """Verify payment signature and complete payment"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     @transaction.atomic
-    def post(self, request, user_id):
+    def post(self, request):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             payment_id = request.data.get('payment_id')
             razorpay_order_id = request.data.get('razorpay_order_id')
             razorpay_payment_id = request.data.get('razorpay_payment_id')
@@ -484,11 +484,11 @@ class VerifyPaymentView(APIView):
 
 class PaymentStatusView(APIView):
     """Get payment status"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id, order_id=None, payment_id=None):
+    def get(self, request, order_id=None, payment_id=None):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             if not order_id and not payment_id:
                 # Get all payments for user
                 payments = Payment.objects.filter(user=user)
@@ -528,12 +528,12 @@ class PaymentStatusView(APIView):
 
 class InitiateRefundView(APIView):
     """Initiate refund for a payment"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     @transaction.atomic
-    def post(self, request, user_id):
+    def post(self, request):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             payment_id = request.data.get('payment_id')
             amount = request.data.get('amount')
             reason = request.data.get('reason', 'Customer requested refund')
@@ -814,12 +814,12 @@ class WebhookView(APIView):
 
 class InitiateCODPaymentView(APIView):
     """Initiate Cash on Delivery payment for an order"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         """Create COD payment record"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             order_id = request.data.get('order_id')
             if not order_id:
                 return Response(
@@ -922,13 +922,13 @@ class InitiateCODPaymentView(APIView):
 
 class ConfirmCODPaymentView(APIView):
     """Confirm COD payment collection (called after delivery)"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     @transaction.atomic
-    def post(self, request, user_id):
+    def post(self, request):
         """Mark COD payment as collected"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             payment_id = request.data.get('payment_id')
             collected_by = request.data.get('collected_by', 'Delivery Agent')
             

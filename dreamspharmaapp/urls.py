@@ -57,16 +57,14 @@ urlpatterns = [
     path('home/', views.HomeView.as_view(), name='home'),
     # Profile
     path('profile/', views.ProfileView.as_view(), name='profile'),
-    path('profile/<int:user_id>/', views.ProfileView.as_view(), name='profile-by-id'),
     # Change Password
-    path('auth/change-password/<int:user_id>/', views.ChangePasswordView.as_view(), name='change-password'),
+    path('auth/change-password/', views.ChangePasswordView.as_view(), name='change-password'),
     path('auth/superadmin-change-password/', views.SuperAdminChangePasswordView.as_view(), name='superadmin-change-password'),
     
     # ==================== ERP INTEGRATION ENDPOINTS ====================
     path('erp/ws_c2_services_generate_token', views.GenerateTokenView.as_view(), name='generate-token'),
-    # Item Masters
-    path('erp/ws_c2_services_get_master_data/<int:user_id>/', views.GetItemMasterView.as_view(), name='get-item-master'),
-    path('erp/ws_c2_services_get_master_data', views.GetItemMasterView.as_view(), name='get-item-master-no-user'),
+    # Item Masters (Token-based - user extracted from JWT)
+    path('erp/ws_c2_services_get_master_data', views.GetItemMasterView.as_view(), name='get-item-master'),
     # Product Info Update
     path('erp/update_product_info/', views.UpdateProductInfoView.as_view(), name='update-product-info'),
     path('erp/upload_product_image/', views.UploadProductImageView.as_view(), name='upload-product-image'),
@@ -80,28 +78,27 @@ urlpatterns = [
     path('erp/ws_c2_services_get_orderstatus', views.GetOrderStatusView.as_view(), name='get-order-status'),
     
     # ==================== CART ENDPOINTS ====================
-    path('cart/<int:user_id>/', views.CartView.as_view(), name='cart'),
-    path('cart/add/<int:user_id>/', views.AddToCartView.as_view(), name='add-to-cart'),
+    path('cart/', views.CartView.as_view(), name='cart'),
+    path('cart/add/', views.AddToCartView.as_view(), name='add-to-cart'),
     path('cart/item/<int:item_id>/', views.UpdateCartItemView.as_view(), name='update-cart-item'),
     
     # ==================== ORDERS ENDPOINTS ====================
-    path('orders/<int:user_id>/', views.RetailerOrdersView.as_view(), name='retailer-orders'),
+    path('orders/', views.RetailerOrdersView.as_view(), name='retailer-orders'),
     
     # ==================== WISHLIST ENDPOINTS ====================
     path('wishlist/', views.WishlistView.as_view(), name='wishlist'),
-    path('wishlist/<int:user_id>/', views.WishlistView.as_view(), name='wishlist-by-user'),
-    path('wishlist/add/<int:user_id>/', views.AddToWishlistView.as_view(), name='add-to-wishlist'),
+    path('wishlist/add/', views.AddToWishlistView.as_view(), name='add-to-wishlist'),
     path('wishlist/item/<int:item_id>/', views.RemoveFromWishlistView.as_view(), name='remove-from-wishlist'),
     path('wishlist/item/<int:item_id>/update/', views.UpdateWishlistItemView.as_view(), name='update-wishlist-item'),
     path('wishlist/move-to-cart/', views.MoveToCartView.as_view(), name='move-to-cart'),
     
     # ==================== ADDRESS ENDPOINTS ====================
-    path('address/<int:user_id>/', views.ListAddressesView.as_view(), name='list-addresses'),
-    path('address/create/<int:user_id>/', views.CreateAddressView.as_view(), name='create-address'),
-    path('address/<int:user_id>/<int:address_id>/', views.UpdateAddressView.as_view(), name='update-address'),
-    path('address/<int:user_id>/<int:address_id>/delete/', views.DeleteAddressView.as_view(), name='delete-address'),
-    path('address/<int:user_id>/<int:address_id>/default/', views.SetDefaultAddressView.as_view(), name='set-default-address'),
-    path('checkout/preview/<int:user_id>/', views.OrderConfirmationPreviewView.as_view(), name='checkout-preview'),
+    path('address/', views.ListAddressesView.as_view(), name='list-addresses'),
+    path('address/create/', views.CreateAddressView.as_view(), name='create-address'),
+    path('address/<int:address_id>/', views.UpdateAddressView.as_view(), name='update-address'),
+    path('address/<int:address_id>/delete/', views.DeleteAddressView.as_view(), name='delete-address'),
+    path('address/<int:address_id>/default/', views.SetDefaultAddressView.as_view(), name='set-default-address'),
+    path('checkout/preview/', views.OrderConfirmationPreviewView.as_view(), name='checkout-preview'),
     path('checkout/address/', views.CheckoutWithAddressView.as_view(), name='checkout-with-address'),
     
     # ==================== NOTIFICATIONS ENDPOINTS ====================
@@ -115,25 +112,24 @@ urlpatterns = [
     
     # ==================== PRODUCT ENDPOINTS ====================
     path('products/', views.AllProductsView.as_view(), name='all-products'),
-    path('search/<int:user_id>/', views.SearchProductsView.as_view(), name='search-products'),
+    path('search/', views.SearchProductsView.as_view(), name='search-products'),
     path('search/popular/', views.PopularSearchView.as_view(), name='popular-search'),
     path('search/log/', views.LogSearchView.as_view(), name='log-search'),
     
     # ==================== RECOMMENDATION ENDPOINTS ====================
-    path('recommendations/for-you/<int:user_id>/', views.PersonalizedRecommendationsView.as_view(), name='personalized-recommendations'),
-    path('recommendations/frequently-bought/<int:user_id>/', views.FrequentlyBoughtTogetherView.as_view(), name='frequently-bought-together'),
+    path('recommendations/for-you/', views.PersonalizedRecommendationsView.as_view(), name='personalized-recommendations'),
+    path('recommendations/frequently-bought/', views.FrequentlyBoughtTogetherView.as_view(), name='frequently-bought-together'),
     path('recommendations/top-selling/', views.TopSellingProductsView.as_view(), name='top-selling-products'),
     path('recommendations/popular/', views.PopularProductsView.as_view(), name='popular-products'),
-    path('recommendations/recently-viewed/<int:user_id>/', views.RecentlyViewedView.as_view(), name='recently-viewed'),
-    path('recommendations/user-activity/<int:user_id>/', views.UserRecentActivityView.as_view(), name='user-activity'),
+    path('recommendations/recently-viewed/', views.RecentlyViewedView.as_view(), name='recently-viewed'),
+    path('recommendations/user-activity/', views.UserRecentActivityView.as_view(), name='user-activity'),
     
     # Category List for Retailers
     path('categories/', views.CategoryListView.as_view(), name='category-list'),
     path('categories/<int:user_id>/', views.CategoryListView.as_view(), name='category-list-with-user'),
 
     # Related products (category-based, user-specific)
-    path('products/<str:product_id>/related/<int:user_id>/', views.related_products, name='related-products'),
-    path('orders/<int:user_id>/', views.RetailerOrdersView.as_view(), name='retailer-orders'),
+    path('products/<str:product_id>/related/', views.related_products, name='related-products'),
     path('orders/<str:order_id>/invoice/', InvoiceDownloadView.as_view(), name='download-invoice'),
     path('superadmin/orders/', views.SuperAdminOrdersView.as_view(), name='superadmin-orders'),
     
@@ -144,9 +140,9 @@ urlpatterns = [
     
     # ==================== CREDIT NOTE ENDPOINTS ====================
     # Retailer endpoints
-    path('credit-notes/order-products/<int:user_id>/', views.GetProductsByOrderView.as_view(), name='credit-note-order-products'),
-    path('credit-notes/create/<int:user_id>/', views.RetailerCreditNoteCreateView.as_view(), name='credit-note-create'),
-    path('credit-notes/<int:user_id>/', views.RetailerCreditNoteListView.as_view(), name='credit-note-list'),
+    path('credit-notes/order-products/', views.GetProductsByOrderView.as_view(), name='credit-note-order-products'),
+    path('credit-notes/create/', views.RetailerCreditNoteCreateView.as_view(), name='credit-note-create'),
+    path('credit-notes/', views.RetailerCreditNoteListView.as_view(), name='credit-note-list'),
     
     # Admin endpoints
     path('admin/credit-notes/', views.AdminCreditNoteListView.as_view(), name='admin-credit-note-list'),
@@ -157,16 +153,14 @@ urlpatterns = [
     # ==================== WALLET ENDPOINTS ====================
     # Wallet applied during sales order creation now - see CreateSalesOrderView
     # Legacy endpoint deprecated - use use_wallet parameter in /erp/ws_c2_services_create_sale_order
-    path('wallet/<int:user_id>/', views.RetailerWalletView.as_view(), name='retailer-wallet'),
-    path('wallet/apply/<int:user_id>/', views.ApplyWalletToOrderView.as_view(), name='apply-wallet-to-order'),
+    path('wallet/', views.RetailerWalletView.as_view(), name='retailer-wallet'),
+    path('wallet/apply/', views.ApplyWalletToOrderView.as_view(), name='apply-wallet-to-order'),
 
     # ==================== STARTUP LOCATION ENDPOINTS ====================
     #   POST /api/location/detect/           — Public. GPS coords → address + nearest store (anonymous)
-    #   POST /api/location/detect/<user_id>/ — Public. Same, but also saves to user profile
-    #   GET  /api/location/me/<user_id>/     — Public. Retrieve last saved location for user
-    #   POST /api/location/save/<user_id>/   — Public. Explicitly update saved location for user
+    #   GET  /api/location/me/               — Authenticated. Retrieve last saved location for user
+    #   POST /api/location/save/             — Authenticated. Explicitly update saved location for user
     path('location/detect/',              views.StartupDetectLocationView.as_view(), name='startup-location-detect'),
-    path('location/detect/<int:user_id>/', views.StartupDetectLocationView.as_view(), name='startup-location-detect-user'),
-    path('location/me/<int:user_id>/',    views.GetMyLocationView.as_view(),          name='get-my-location'),
-    path('location/save/<int:user_id>/',  views.SaveMyLocationView.as_view(),          name='save-my-location'),
+    path('location/me/',                  views.GetMyLocationView.as_view(),          name='get-my-location'),
+    path('location/save/',                views.SaveMyLocationView.as_view(),         name='save-my-location'),
 ]

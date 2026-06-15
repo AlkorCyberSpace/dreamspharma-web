@@ -1,6 +1,6 @@
 # Related Products API (category-based)
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from .serializers import ProductListSerializer
 from rest_framework import status
 from rest_framework.response import Response
@@ -74,34 +74,24 @@ from rest_framework.permissions import IsAuthenticated
 
 class ProfileView(APIView):
     """
-    API endpoint for retrieving and updating retailer profile only.
-    GET: Retrieve current retailer's profile or by user_id (superadmin only)
+    API endpoint for retrieving and updating retailer profile.
+    GET: Retrieve current retailer's profile
     PUT: Update current retailer's profile
+    POST: Upload customer photo to profile
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, user_id=None):
+    def get(self, request):
         user = request.user
-        # If user_id is provided, only superadmin or the user themselves can fetch others' profiles
-        if user_id is not None:
-            # AnonymousUser has no role/id, so allow access for anyone if user is not authenticated
-            if user.is_authenticated:
-                if getattr(user, 'role', None) != 'SUPERADMIN' and getattr(user, 'id', None) != user_id:
-                    return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-            target_user = get_object_or_404(User, id=user_id)
-        else:
-            # If not authenticated, cannot get own profile
-            if not user.is_authenticated:
-                return Response({'error': 'Authentication required to access your own profile.'}, status=status.HTTP_401_UNAUTHORIZED)
-            target_user = user
-        if getattr(target_user, 'role', None) != 'RETAILER':
+        if user.role != 'RETAILER':
             return Response({'error': 'Only retailers have profiles at this endpoint.'}, status=status.HTTP_403_FORBIDDEN)
         
         # Try to get KYC info using queryset to avoid RelatedObjectDoesNotExist issues
         kyc = None
         kyc_exists = False
         try:
-            kyc = KYC.objects.get(user=target_user)
+            kyc = KYC.objects.get(user=user)
             kyc_exists = True
         except KYC.DoesNotExist:
             kyc_exists = False
@@ -110,15 +100,15 @@ class ProfileView(APIView):
             kyc_exists = False
         
         profile = {
-            'id': target_user.id,
-            'name': target_user.first_name or target_user.username,
+            'id': user.id,
+            'name': user.first_name or user.username,
             'shop_name': kyc.shop_name if kyc else '',
             'shop_address': kyc.shop_address if kyc else '',
             'customer_name': kyc.customer_name if kyc else '',
             'customer_id': kyc.customer_id if kyc else '',
-            'email': target_user.email,
+            'email': user.email,
             'customer_email': kyc.shop_email if kyc else '',
-            'phone': target_user.phone_number or (kyc.customer_mobile if kyc else ''),
+            'phone': user.phone_number or (kyc.customer_mobile if kyc else ''),
             'store_photo': request.build_absolute_uri(kyc.store_photo.url) if kyc and kyc.store_photo else '',
             'customer_photo': request.build_absolute_uri(kyc.customer_photo.url) if kyc and kyc.customer_photo else '',
             'kyc_exists': kyc_exists,
@@ -126,20 +116,13 @@ class ProfileView(APIView):
         }
         return Response(profile, status=status.HTTP_200_OK)
 
-    def post(self, request, user_id=None):
+    def post(self, request):
         """
         POST: Upload customer photo to profile
-        Expects user_id as URL parameter or uses authenticated user
+        Requires JWT authentication
         """
-        # Determine which user to update
-        if user_id is not None:
-            user = get_object_or_404(User, id=user_id)
-        else:
-            if not request.user.is_authenticated:
-                return Response({'error': 'Authentication required to upload customer photo.'}, status=status.HTTP_401_UNAUTHORIZED)
-            user = request.user
-        
-        if getattr(user, 'role', None) != 'RETAILER':
+        user = request.user
+        if user.role != 'RETAILER':
             return Response({'error': 'Only retailers can upload customer photo.'}, status=status.HTTP_403_FORBIDDEN)
         
         # Check if customer_photo is provided
@@ -177,12 +160,10 @@ class ProfileView(APIView):
         }
         return Response(profile, status=status.HTTP_200_OK)
 
-    def put(self, request, user_id=None):
+    def put(self, request):
         # Only allow updating specific profile fields
-        if user_id is None:
-            return Response({'error': 'user_id is required in the URL.'}, status=status.HTTP_400_BAD_REQUEST)
-        user = get_object_or_404(User, id=user_id)
-        if getattr(user, 'role', None) != 'RETAILER':
+        user = request.user
+        if user.role != 'RETAILER':
             return Response({'error': 'Only retailers can update their profile.'}, status=status.HTTP_403_FORBIDDEN)
 
         # Only allow updating name (first_name), and KYC fields: shop_name, shop_email, shop_address, shopphone number, store_photo, customer_photo
@@ -273,13 +254,17 @@ class SuperAdminLoginView(APIView):
 class RetailerLoginView(APIView):
     """
     API endpoint for retailer login with email and password.
-    POST /api/retailer-auth/login/ - Step 1: Login with email + password, OTP sent to email
+    POST /api/retailer-auth/login/ - Email + Password login
+    
+    FIRST LOGIN:  OTP is sent to email for verification
+    RETURNING:    Tokens generated immediately (no OTP needed)
     """
     permission_classes = [AllowAny]
     
     def post(self, request):
         """
-        Step 1: Login with email and password. OTP is sent to email for verification.
+        Login with email and password.
+        OTP is sent on every login for additional security.
         
         Request Body:
         {
@@ -290,7 +275,15 @@ class RetailerLoginView(APIView):
         Response:
         {
             "message": "Email and password verified. OTP sent to your email.",
-            "email": "retailer@example.com"
+            "email": "retailer@example.com",
+            "otp_required": true,
+            "otp_expires_in": 60,
+            "user": {
+                "id": 1,
+                "username": "retailer@example.com",
+                "email": "retailer@example.com",
+                "phone_number": "+1234567890"
+            }
         }
         """
         serializer = RetailerLoginSerializer(data=request.data)
@@ -299,10 +292,11 @@ class RetailerLoginView(APIView):
         
         user = serializer.validated_data['user']
         
-        # Delete any existing OTPs for this user
+        # ─── SEND OTP ON EVERY LOGIN ───────────────────────────
+        # Delete any existing OTP records for this user
         OTP.objects.filter(user=user).delete()
         
-        # Generate and send OTP via email
+        # Create new OTP
         otp_obj = OTP.objects.create(user=user)
         otp_code = otp_obj.generate_otp()
         
@@ -323,6 +317,7 @@ class RetailerLoginView(APIView):
         return Response({
             'message': 'Email and password verified. OTP sent to your email.',
             'email': user.email,
+            'otp_required': True,
             'otp_expires_in': 60,
             'user': {
                 'id': user.id,
@@ -335,25 +330,33 @@ class RetailerLoginView(APIView):
 
 class RetailerVerifyOTPView(APIView):
     """
-    API endpoint for retailer OTP verification during login.
-    POST /api/retailer-auth/verify-otp/ - Step 2: Verify OTP and get JWT tokens
+    API endpoint for retailer OTP verification during FIRST LOGIN only.
+    POST /api/retailer-auth/verify-otp/ - Verify OTP and get JWT tokens (first login only)
+    
+    After first login is verified, all subsequent logins skip OTP and go directly to tokens.
     """
     permission_classes = [AllowAny]
     
     def post(self, request):
         """
-        Step 2: Verify OTP to complete login.
+        Verify OTP to complete first login and get tokens.
         
         Request Body:
         {
             "otp_code": "1234"
         }
         
-        Response (Success):
+        Response (Success - First Login Complete):
         {
             "message": "OTP verified successfully. You are now logged in.",
-            "access": "JWT_TOKEN",
-            "refresh": "REFRESH_TOKEN"
+            "user": { "id": 1, "email": "user@example.com" },
+            "tokens": {
+                "access": "...",
+                "refresh": "...",
+                "access_expires_in": 900,
+                "refresh_expires_in": 31536000,
+                "token_type": "Bearer"
+            }
         }
         
         Response (Error - Invalid OTP):
@@ -382,6 +385,11 @@ class RetailerVerifyOTPView(APIView):
             # OTP verified successfully
             otp_obj.is_verified = True
             otp_obj.save()
+            
+            # Mark first login as complete (skip OTP on future logins)
+            if not user.first_login_otp_verified:
+                user.first_login_otp_verified = True
+                user.save()
             
             # Update user status based on workflow stage
             if user.status == 'PENDING_OTP_VERIFICATION':
@@ -419,8 +427,8 @@ class RetailerVerifyOTPView(APIView):
                 'tokens': {
                     'access': str(refresh.access_token),
                     'refresh': str(refresh),
-                    'access_expires_in': int(access_lifetime.total_seconds()),  # 600 seconds (10 min)
-                    'refresh_expires_in': int(refresh_lifetime.total_seconds()),  # 604800 seconds (7 days)
+                    'access_expires_in': int(access_lifetime.total_seconds()),  # 900 seconds (15 min)
+                    'refresh_expires_in': int(refresh_lifetime.total_seconds()),  # 31536000 seconds (365 days)
                     'token_type': 'Bearer'
                 }
             }, status=status.HTTP_200_OK)
@@ -858,18 +866,20 @@ class PasswordResetView(APIView):
         return Response({"message": "Password reset successful. You can now log in with your new password."}, status=status.HTTP_200_OK)
 
 class ChangePasswordView(APIView):
-    permission_classes = [AllowAny]
+    """
+    Change password for authenticated users (retailers)
+    POST /api/auth/change-password/
+    Requires JWT authentication
+    """
+    permission_classes = [IsAuthenticated]
 
-    def post(self, request, user_id=None):
+    def post(self, request):
+        user = request.user
+        if user.role != 'RETAILER':
+            return Response({"error": "Only retailers can change password at this endpoint."}, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = ChangePasswordSerializer(data=request.data)
         if serializer.is_valid():
-            try:
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
-                user = User.objects.get(id=user_id)
-            except User.DoesNotExist:
-                return Response({"user_id": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-
             if not user.check_password(serializer.validated_data['oldpassword']):
                 return Response(
                     {"oldpassword": "Old password is incorrect."},
@@ -961,8 +971,8 @@ class TokenRefreshView(APIView):
     POST /api/retailer-auth/token/refresh/ - Refresh access token silently
     
     Industry-standard approach:
-    - Access token: 10 minutes (short-lived for security)
-    - Refresh token: 7 days (user stays logged in)
+    - Access token: 15 minutes (short-lived for security)
+    - Refresh token: 365 days (user stays logged in year-long)
     - Token rotation: New refresh token on each refresh (more secure)
     
     Mobile app should:
@@ -987,9 +997,9 @@ class TokenRefreshView(APIView):
         Response (Success):
         {
             "access": "NEW_ACCESS_TOKEN",
-            "refresh": "NEW_REFRESH_TOKEN",  // Token rotation enabled
-            "access_expires_in": 600,  // 10 minutes in seconds
-            "refresh_expires_in": 604800  // 7 days in seconds
+            "refresh": "NEW_REFRESH_TOKEN",  // Token rotation enabled (30 days)
+            "access_expires_in": 900,  // 15 minutes in seconds
+            "refresh_expires_in": 2592000  // 30 days in seconds
         }
         
         Response (Error - Expired/Invalid):
@@ -1012,7 +1022,7 @@ class TokenRefreshView(APIView):
             
             # Get user from token
             user_id = refresh.payload.get('user_id')
-            user = User.objects.get(id=user_id)
+            user = CustomUser.objects.get(id=user_id)
             
             # Check if user is still active and approved
             if not user.is_active:
@@ -1084,17 +1094,18 @@ class GetItemMasterView(APIView):
     GET: Fetch item details DIRECTLY from ERP test server (real-time data)
     Enhanced with product images, subheading, and description from Django database
     
-    URL Patterns:
-    - /api/erp/ws_c2_services_get_master_data/                (no user - no wishlist/cart status)
-    - /api/erp/ws_c2_services_get_master_data/<user_id>/      (with user - includes wishlist/cart status)
-    - /api/erp/ws_c2_services_get_master_data?userId=<id>     (query param - includes wishlist/cart status)
+    URL Pattern:
+    - /api/erp/ws_c2_services_get_master_data/      (JWT authenticated - includes wishlist/cart status)
+    - /api/erp/ws_c2_services_get_master_data?latitude=&longitude=   (store by location)
+    - /api/erp/ws_c2_services_get_master_data?storeId=<id>          (store by ID)
     
-    🎯 NEW: Token is now automatically generated in background!
-    Frontend doesn't need to provide apiKey - backend handles it automatically
+    🎯 Authentication: Bearer token (JWT access token)
+    User is automatically extracted from the access token's JWT payload
+    Token is silently refreshed by frontend using the refresh endpoint
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id=None):
+    def get(self, request):
         try:
             from .erp_service import ERPService
             from .erp_token_service import get_erp_token_for_store_config
@@ -1160,15 +1171,8 @@ class GetItemMasterView(APIView):
                 start       = (page - 1) * page_size
                 paged_items = all_items[start: start + page_size]
 
-                # ── Resolve user ───────────────────────────────────────────
-                user = None
-                actual_user_id = user_id or request.query_params.get('userId')
-
-                if actual_user_id:
-                    try:
-                        user = CustomUser.objects.get(id=actual_user_id)
-                    except CustomUser.DoesNotExist:
-                        pass
+                # ── Get user from JWT token ────────────────────────────────
+                user = request.user if request.user.is_authenticated else None
 
                 user_cart     = None
                 user_wishlist = None
@@ -1608,7 +1612,7 @@ class FetchStockView(APIView):
                 'message': f'Error: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class CreateSalesOrderView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         
@@ -1724,8 +1728,8 @@ class CreateSalesOrderView(APIView):
                 # ── Capture IP from request ──
                 client_ip = safe_ip(get_client_ip(request))
                 
-                # Support both camelCase and snake_case for user_id
-                user_id_raw = safe_str(serializer.validated_data.get('userId') or serializer.validated_data.get('user_id'))
+                # Always use JWT token's user ID — IsAuthenticated guarantees request.user is valid
+                user_id_raw = str(request.user.id)
 
                 # ── Build order_kwargs with all safe values ──
                 order_kwargs = dict(
@@ -2262,16 +2266,10 @@ class CartView(APIView):
     GET: Retrieve cart with all items and totals
     DELETE: Clear entire cart
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+    def get(self, request):
+        user = request.user
         
         cart, created = Cart.objects.get_or_create(user=user)
         serializer = CartSerializer(cart)
@@ -2295,14 +2293,8 @@ class CartView(APIView):
             'data': cart_data
         }, status=status.HTTP_200_OK)
     
-    def delete(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+    def delete(self, request):
+        user = request.user
         
         try:
             cart = Cart.objects.get(user=user)
@@ -2329,9 +2321,9 @@ class AddToCartView(APIView):
     Uses atomic transaction to prevent race conditions
     Logs all additions for audit trail
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         from django.db import transaction
         
         serializer = AddToCartSerializer(data=request.data)
@@ -2348,14 +2340,8 @@ class AddToCartView(APIView):
         store_id = serializer.validated_data.get('storeId')
         # [UPDATED] Token now auto-generated - no need for apiKey from request
         
-        # Get user from database
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # Get user from authenticated request
+        user = request.user
             
         if not store_id and user.preferred_store:
             store_id = user.preferred_store.store_id
@@ -2391,7 +2377,7 @@ class AddToCartView(APIView):
                 # Check stock availability - CRITICAL for pharmacy (includes expiry check)
                 stock_status = get_item_stock_status(item_code, store_id=store_id)
                 if not stock_status['available']:
-                    logger.warning(f"User {user_id} tried to add unavailable item {item_code} - Status: {stock_status['status']}")
+                    logger.warning(f"User {user.id} tried to add unavailable item {item_code} - Status: {stock_status['status']}")
                     return Response({
                         'success': False,
                         'message': f'{item.item_name} is {stock_status["status"]}',
@@ -2403,7 +2389,7 @@ class AddToCartView(APIView):
                 
                 # Check if requested quantity is available
                 if quantity > stock_status['qty']:
-                    logger.warning(f"User {user_id} requested {quantity} units but only {stock_status['qty']} available for {item_code}")
+                    logger.warning(f"User {user.id} requested {quantity} units but only {stock_status['qty']} available for {item_code}")
                     return Response({
                         'success': False,
                         'message': f'Only {stock_status["qty"]} units available',
@@ -2462,7 +2448,7 @@ class AddToCartView(APIView):
         
         except Exception as e:
             # Transaction automatically rolled back
-            logger.error(f"[CART_ERROR] User: {user_id} | Item: {item_code} | Error: {str(e)}", exc_info=True)
+            logger.error(f"[CART_ERROR] User: {request.user.id} | Item: {item_code} | Error: {str(e)}", exc_info=True)
             return Response({
                 'success': False,
                 'message': 'An error occurred while adding item to cart. Please try again.'
@@ -2474,26 +2460,12 @@ class UpdateCartItemView(APIView):
     Update cart item quantity
     PUT: Update quantity of specific cart item
     DELETE: Remove item from cart
-    Query params: user_id (required)
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def put(self, request, item_id):
-        # Get user_id from query params
-        user_id = request.query_params.get('userId')
-        if not user_id:
-            return Response({
-                'success': False,
-                'message': 'userId query parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # Get user from authenticated request
+        user = request.user
         
         serializer = UpdateCartItemSerializer(data=request.data)
         if not serializer.is_valid():
@@ -2538,21 +2510,8 @@ class UpdateCartItemView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
     
     def delete(self, request, item_id):
-        # Get user_id from query params
-        user_id = request.query_params.get('userId')
-        if not user_id:
-            return Response({
-                'success': False,
-                'message': 'userId query parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # Get user from authenticated request
+        user = request.user
         
         try:
             cart = Cart.objects.get(user=user)
@@ -2591,32 +2550,17 @@ class UpdateWishlistItemView(APIView):
     PUT: Update quantity of specific wishlist item
     DELETE: Remove item from wishlist (if quantity becomes 0)
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def put(self, request, item_id):
         """
         Increase or decrease wishlist item quantity.
         Request body: { "quantity": <int> }
-        Query param: user_id (required)
         """
         from .models import Wishlist, WishlistItem
         
-        # Get user_id from query params
-        user_id = request.query_params.get('user_id')
-        if not user_id:
-            return Response({
-                'success': False,
-                'message': 'user_id query parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Get user from database
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # Get user from authenticated request
+        user = request.user
         
         quantity = request.data.get('quantity')
         if quantity is None:
@@ -2668,7 +2612,7 @@ class UpdateWishlistItemView(APIView):
         else:
             wishlist_item.quantity = quantity
             wishlist_item.save()
-            logger.info(f"[WISHLIST_UPDATE] User: {user.id} ({user.username}) | WishlistItem: {item_id} | Quantity: {quantity}")
+            logger.info(f"[WISHLIST_UPDATE] User: {request.user.id} ({request.user.username}) | WishlistItem: {item_id} | Quantity: {quantity}")
             from .serializers import WishlistSerializer
             wishlist_serializer = WishlistSerializer(wishlist)
             return Response({
@@ -2683,33 +2627,11 @@ class WishlistView(APIView):
     GET: Retrieve wishlist with all items
     DELETE: Clear entire wishlist
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id=None):
-        # Get user_id from URL path or query params
-        if not user_id:
-            user_id = request.query_params.get('user_id')
-        
+    def get(self, request):
         store_id = request.query_params.get('storeId')
         user = request.user
-        
-        if user_id:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            try:
-                user = User.objects.get(id=user_id)
-            except User.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': f'User with id {user_id} not found',
-                    'data': []
-                }, status=status.HTTP_404_NOT_FOUND)
-        elif not user.is_authenticated:
-            return Response({
-                'success': False,
-                'message': 'Authentication required or user_id must be provided',
-                'data': []
-            }, status=status.HTTP_401_UNAUTHORIZED)
         
         wishlist, created = Wishlist.objects.get_or_create(user=user)
         
@@ -2796,19 +2718,13 @@ class AddToWishlistView(APIView):
     Always fetches latest item details from ERP - No cached fallback
     FAILS if ERP is down (no stale data shown to customers)
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         from django.db import transaction
         
-        # ✅ FIX: Get user from database instead of request.user
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # Get user from authenticated request
+        user = request.user
         
         serializer = AddToWishlistSerializer(data=request.data)
         if not serializer.is_valid():
@@ -2881,7 +2797,7 @@ class AddToWishlistView(APIView):
                 }, status=status.HTTP_201_CREATED)
         
         except Exception as e:
-            logger.error(f"[WISHLIST_ERROR] User: {user_id} | Item: {item_code} | Error: {str(e)}", exc_info=True)
+            logger.error(f"[WISHLIST_ERROR] User: {user.id} | Item: {item_code} | Error: {str(e)}", exc_info=True)
             return Response({
                 'success': False,
                 'message': 'An error occurred while adding item to wishlist. Please try again.'
@@ -2893,7 +2809,7 @@ class RemoveFromWishlistView(APIView):
     Remove item from wishlist
     DELETE: Remove specific item from wishlist
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def delete(self, request, item_id):
         try:
@@ -2925,7 +2841,7 @@ class MoveToCartView(APIView):
     Move item from wishlist to cart
     POST: Move item to cart and remove from wishlist
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         serializer = MoveToCartSerializer(data=request.data)
@@ -3178,7 +3094,7 @@ class SearchProductsView(APIView):
     """
     permission_classes = [AllowAny]
     
-    def get(self, request, user_id):
+    def get(self, request):
         try:
             # Get search query from params
             query = request.query_params.get('q') or request.query_params.get('search')
@@ -3820,15 +3736,15 @@ def get_item_stock_status(item_code, store_id=None):
 
 class ListAddressesView(APIView):
     """List all delivery addresses for user"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id):
+    def get(self, request):
         """Get all addresses"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             addresses = Address.objects.filter(user=user, is_active=True).order_by('-is_default', '-created_at')
             serializer = AddressListSerializer(addresses, many=True)
-            logger.info(f"[ADDRESS_LIST] User {user_id} retrieved {len(addresses)} addresses")
+            logger.info(f"[ADDRESS_LIST] User {request.user.id} retrieved {len(addresses)} addresses")
             return Response({
                 'success': True,
                 'count': len(addresses),
@@ -3836,7 +3752,7 @@ class ListAddressesView(APIView):
                 'message': 'Addresses retrieved successfully'
             }, status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"[ADDRESS_ERROR] Error listing addresses for user {user_id}: {str(e)}")
+            logger.error(f"[ADDRESS_ERROR] Error listing addresses for user {request.user.id}: {str(e)}")
             return Response({
                 'success': False,
                 'message': f'Error retrieving addresses: {str(e)}'
@@ -3845,9 +3761,9 @@ class ListAddressesView(APIView):
 
 class CreateAddressView(APIView):
     """Add a new delivery address"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         """Create new address"""
         try:
             # Check if Content-Type is incorrect and try to parse it anyway
@@ -3858,15 +3774,15 @@ class CreateAddressView(APIView):
                 # Try to parse the body as JSON if Content-Type is text/plain
                 try:
                     request_data = json.loads(request.body.decode('utf-8'))
-                    logger.info(f"[ADDRESS_CREATE] Parsed text/plain request body as JSON for user {user_id}")
+                    logger.info(f"[ADDRESS_CREATE] Parsed text/plain request body as JSON for user {request.user.id}")
                 except (json.JSONDecodeError, UnicodeDecodeError) as parse_err:
-                    logger.error(f"[ADDRESS_ERROR] Could not parse text/plain request body for user {user_id}: {str(parse_err)}")
+                    logger.error(f"[ADDRESS_ERROR] Could not parse text/plain request body for user {request.user.id}: {str(parse_err)}")
                     return Response({
                         'success': False,
                         'message': 'Invalid Content-Type. Please set Content-Type to application/json and ensure body is valid JSON'
                     }, status=status.HTTP_400_BAD_REQUEST)
             
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             serializer = CreateAddressSerializer(data=request_data)
             if serializer.is_valid():
                 # Check if user already has this exact address
@@ -3887,7 +3803,7 @@ class CreateAddressView(APIView):
                 address = serializer.save(user=user)
                 response_serializer = AddressListSerializer(address)
                 gps_info = f"GPS: ({address.latitude}, {address.longitude})" if address.latitude and address.longitude else "No GPS"
-                logger.info(f"[ADDRESS_CREATE] User {user_id} added address: {address.name} ({address.address_type}) - {gps_info}")
+                logger.info(f"[ADDRESS_CREATE] User {request.user.id} added address: {address.name} ({address.address_type}) - {gps_info}")
                 
                 return Response({
                     'success': True,
@@ -3901,7 +3817,7 @@ class CreateAddressView(APIView):
                     'errors': serializer.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"[ADDRESS_ERROR] Error creating address for user {user_id}: {str(e)}")
+            logger.error(f"[ADDRESS_ERROR] Error creating address for user {request.user.id}: {str(e)}")
             return Response({
                 'success': False,
                 'message': f'Error creating address: {str(e)}'
@@ -3910,12 +3826,12 @@ class CreateAddressView(APIView):
 
 class UpdateAddressView(APIView):
     """Update an existing delivery address"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def put(self, request, user_id, address_id):
+    def put(self, request, address_id):
         """Update address"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             address = get_object_or_404(Address, id=address_id, user=user)
         except:
             return Response({
@@ -3929,7 +3845,7 @@ class UpdateAddressView(APIView):
                 address = serializer.save()
                 response_serializer = AddressListSerializer(address)
                 gps_info = f"GPS: ({address.latitude}, {address.longitude})" if address.latitude and address.longitude else "No GPS"
-                logger.info(f"[ADDRESS_UPDATE] User {user_id} updated address ID {address_id} - {gps_info}")
+                logger.info(f"[ADDRESS_UPDATE] User {request.user.id} updated address ID {address_id} - {gps_info}")
                 
                 return Response({
                     'success': True,
@@ -3943,7 +3859,7 @@ class UpdateAddressView(APIView):
                     'errors': serializer.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"[ADDRESS_ERROR] Error updating address {address_id} for user {user_id}: {str(e)}")
+            logger.error(f"[ADDRESS_ERROR] Error updating address {address_id} for user {request.user.id}: {str(e)}")
             return Response({
                 'success': False,
                 'message': f'Error updating address: {str(e)}'
@@ -3952,12 +3868,12 @@ class UpdateAddressView(APIView):
 
 class DeleteAddressView(APIView):
     """Delete a delivery address (soft delete)"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def delete(self, request, user_id, address_id):
+    def delete(self, request, address_id):
         """Delete address"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             address = get_object_or_404(Address, id=address_id, user=user)
         except:
             return Response({
@@ -3968,14 +3884,14 @@ class DeleteAddressView(APIView):
         try:
             address.is_active = False
             address.save()
-            logger.info(f"[ADDRESS_DELETE] User {user_id} deleted address ID {address_id}")
+            logger.info(f"[ADDRESS_DELETE] User {request.user.id} deleted address ID {address_id}")
             
             return Response({
                 'success': True,
                 'message': 'Address deleted successfully'
             }, status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"[ADDRESS_ERROR] Error deleting address {address_id} for user {user_id}: {str(e)}")
+            logger.error(f"[ADDRESS_ERROR] Error deleting address {address_id} for user {request.user.id}: {str(e)}")
             return Response({
                 'success': False,
                 'message': f'Error deleting address: {str(e)}'
@@ -3984,12 +3900,12 @@ class DeleteAddressView(APIView):
 
 class SetDefaultAddressView(APIView):
     """Set an address as default"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id, address_id):
+    def post(self, request, address_id):
         """Set address as default"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             address = get_object_or_404(Address, id=address_id, user=user)
         except:
             return Response({
@@ -4005,7 +3921,7 @@ class SetDefaultAddressView(APIView):
                 address.is_default = True
                 address.save()
             response_serializer = AddressListSerializer(address)
-            logger.info(f"[ADDRESS_DEFAULT] User {user_id} set address ID {address_id} as default")
+            logger.info(f"[ADDRESS_DEFAULT] User {request.user.id} set address ID {address_id} as default")
             
             return Response({
                 'success': True,
@@ -4013,7 +3929,7 @@ class SetDefaultAddressView(APIView):
                 'data': response_serializer.data
             }, status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"[ADDRESS_ERROR] Error setting default address {address_id} for user {user_id}: {str(e)}")
+            logger.error(f"[ADDRESS_ERROR] Error setting default address {address_id} for user {request.user.id}: {str(e)}")
             return Response({
                 'success': False,
                 'message': f'Error setting default address: {str(e)}'
@@ -4444,9 +4360,9 @@ class NearbyAddressesView(APIView):
 
 class OrderConfirmationPreviewView(APIView):
     """Get order confirmation preview with delivery address before payment"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         """Get order preview with selected address"""
         try:
             serializer = SelectAddressSerializer(data=request.data)
@@ -4459,14 +4375,8 @@ class OrderConfirmationPreviewView(APIView):
             
             address_id = serializer.validated_data['address_id']
             
-            # Get user from user_id parameter
-            try:
-                user = CustomUser.objects.get(id=user_id)
-            except CustomUser.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': 'User not found'
-                }, status=status.HTTP_404_NOT_FOUND)
+            # Get user from authenticated request
+            user = request.user
             
             # Verify address belongs to user
             try:
@@ -4526,7 +4436,7 @@ class OrderConfirmationPreviewView(APIView):
             wallet_applicable = min(wallet_balance, amount_payable)
             amount_after_wallet = max(0, amount_payable - wallet_applicable)
             
-            logger.info(f"[CHECKOUT_PREVIEW] User {user.username} generated order preview with address ID {address_id}")
+            logger.info(f"[CHECKOUT_PREVIEW] User {request.user.username} generated order preview with address ID {address_id}")
             
             return Response({
                 'success': True,
@@ -4566,6 +4476,7 @@ class FrequentlyBoughtTogetherView(APIView):
     """
     Get products frequently bought together with a specific item (with ERP enrichment)
     GET: Fetch products often purchased with the provided item based on order history
+    Requires JWT authentication
     
     Query Parameters:
         - itemCode: Item code to get frequently bought together items (required)
@@ -4581,24 +4492,15 @@ class FrequentlyBoughtTogetherView(APIView):
     3. Fetch from ERP: Get live pricing, stock, expiry for each
     4. Return results with fresh ERP data
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id):
+    def get(self, request):
         try:
             item_code = request.query_params.get('itemCode')
             limit = int(request.query_params.get('limit', 5))
             days = int(request.query_params.get('days', 90))
             # [UPDATED] Token now auto-generated - no need for apiKey from request
             use_erp = True  # Always use ERP with auto-generated token
-            
-            # Check if user exists
-            try:
-                user = CustomUser.objects.get(id=user_id)
-            except CustomUser.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': f'User with id {user_id} not found'
-                }, status=status.HTTP_404_NOT_FOUND)
             
             if not item_code:
                 return Response({
@@ -4865,15 +4767,13 @@ class PersonalizedRecommendationsView(APIView):
     """
     Get personalized recommendations based on user's purchase & search history
     GET: Fetch products recommended based on user's buying pattern
-    
-    URL Parameters:
-        - user_id: User ID (required)
+    Requires JWT authentication
     
     Query Parameters:
         - limit: Max number of recommendations (default: 15)
         - apiKey: Optional API key to fetch fresh data from ERP
     
-    Example: /api/recommendations/for-you/88/?limit=15&apiKey=xyz
+    Example: /api/recommendations/for-you/?limit=15&apiKey=xyz
     
     Algorithm:
     1. Get user's purchase history (categories they bought from)
@@ -4883,22 +4783,16 @@ class PersonalizedRecommendationsView(APIView):
     5. Fetch fresh ERP data
     6. Return personalized recommendations
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id):
+    def get(self, request):
+        user_id = request.user.id
         try:
             limit = int(request.query_params.get('limit', 15))
             # [UPDATED] Token now auto-generated - no need for apiKey from request
             use_erp = True  # Always use ERP with auto-generated token
             
-            # Validate user exists
-            try:
-                user = User.objects.get(id=user_id)
-            except User.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': f'User with ID {user_id} not found'
-                }, status=status.HTTP_404_NOT_FOUND)
+            user_id = str(request.user.id)
             
             # ✅ Step 1: Get user's purchase history (categories & items already bought)
             user_purchases = SalesOrderItem.objects.filter(
@@ -5205,14 +5099,12 @@ class RecentlyViewedView(APIView):
     """
     Get recently viewed products for a user
     GET: Fetch products recently viewed by this user in order (most recent first)
-    
-    Path Parameters:
-        - user_id: User to get recently viewed products for (required)
+    Requires JWT authentication
     
     Query Parameters:
         - limit: Max number of products (default: 10)
     
-    Example: /api/recommendations/recently-viewed/5/?limit=10
+    Example: /api/recommendations/recently-viewed/?limit=10
     
     Data Flow:
     1. Get ProductView records for user
@@ -5221,20 +5113,12 @@ class RecentlyViewedView(APIView):
     4. Fetch live ERP data for each
     5. Return with fresh pricing/stock info
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id):
+    def get(self, request):
+        user_id = request.user.id
         try:
             limit = int(request.query_params.get('limit', 10))
-            
-            # Check if user exists
-            try:
-                user = CustomUser.objects.get(id=user_id)
-            except CustomUser.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': f'User with id {user_id} not found'
-                }, status=status.HTTP_404_NOT_FOUND)
             
             # ✅ Step 1: Get recently viewed products for this user
             from django.db.models import Max
@@ -5329,9 +5213,7 @@ class UserRecentActivityView(APIView):
     """
     Get all recent user activity in one API call
     GET: Fetch user's recently viewed products, cart items, and wishlist items
-    
-    Path Parameters:
-        - user_id: User to get activity for (required)
+    Requires JWT authentication
     
     Query Parameters:
         - limit: Max number of items per category (default: 10)
@@ -5339,7 +5221,7 @@ class UserRecentActivityView(APIView):
         - cart_limit: Specific limit for cart items (overrides limit)
         - wishlist_limit: Specific limit for wishlist items (overrides limit)
     
-    Example: /api/recommendations/user-activity/88/?limit=5
+    Example: /api/recommendations/user-activity/?limit=5
     Response includes all three: recentlyViewed, recentlyCart, recentlyWishlist
     
     Data Flow:
@@ -5349,24 +5231,16 @@ class UserRecentActivityView(APIView):
     4. Fetch live ERP data for all
     5. Return consolidated response with all activities
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id):
+    def get(self, request):
+        user_id = request.user.id
         try:
             # Get limits from query params
             limit = int(request.query_params.get('limit', 10))
             viewed_limit = int(request.query_params.get('viewed_limit', limit))
             cart_limit = int(request.query_params.get('cart_limit', limit))
             wishlist_limit = int(request.query_params.get('wishlist_limit', limit))
-            
-            # Check if user exists
-            try:
-                user = CustomUser.objects.get(id=user_id)
-            except CustomUser.DoesNotExist:
-                return Response({
-                    'success': False,
-                    'message': f'User with id {user_id} not found'
-                }, status=status.HTTP_404_NOT_FOUND)
             
             # ✅ Fetch ERP data once (reuse for all)
             erp_items = fetch_all_items_from_erp()
@@ -5564,7 +5438,7 @@ class UserRecentActivityView(APIView):
                 'success': True,
                 'data': {
                     'userId': user_id,
-                    'userName': user.username,
+                    'userName': request.user.username,
                     'recentlyViewed': {
                         'items': recently_viewed_data,
                         'count': len(recently_viewed_data)
@@ -5859,7 +5733,7 @@ class RecentlyAddedToWishlistView(APIView):
 class CategoryListView(ListAPIView):
     queryset = Category.objects.filter(is_active=True)
     serializer_class = CategoryWithProductsSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
         """Validate user_id from URL path before processing request"""
@@ -5969,9 +5843,11 @@ class CategoryListView(ListAPIView):
 
 
 @api_view(['GET'])
-def related_products(request, product_id, user_id):
+@permission_classes([IsAuthenticated])
+def related_products(request, product_id):
     """
-    Get related products by category (excluding the current product), enriched with ERP data if available
+    Get related products by category (excluding the current product), enriched with ERP data if available.
+    Requires JWT authentication.
     """
     from .views import fetch_all_items_from_erp, parse_date
     try:
@@ -6143,22 +6019,17 @@ class RegisterDeviceTokenView(APIView):
     
 class RetailerOrdersView(APIView):
     """
-    Get all orders for a specific retailer
-    GET /api/orders/<user_id>/
+    Get all orders for the authenticated retailer
+    GET /api/orders/
     Query params: ?status=active|completed|all (default: all)
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, user_id):
+    def get(self, request):
 
-        # ── Validate user ──
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # ── Use authenticated user ──
+        user = request.user
 
         filter_status = request.query_params.get('status', 'all').lower()
         if filter_status not in ['active', 'completed', 'all']:
@@ -6362,7 +6233,7 @@ class RetailerOrdersView(APIView):
             )
 
         logger.info(
-            f"[RETAILER_ORDERS] User {user_id} | "
+            f"[RETAILER_ORDERS] User {user.id} | "
             f"Active: {len(active_orders)} | "
             f"Completed: {len(completed_orders)}"
         )
@@ -6721,18 +6592,18 @@ class SuperAdminUpdateOrderStatusView(APIView):
 class RetailerCreditNoteCreateView(APIView):
     """
     Retailer raises a credit note request
-    POST /api/credit-notes/create/<user_id>/
+    POST /api/credit-notes/create/
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id, role='RETAILER')
-        except CustomUser.DoesNotExist:
+    def post(self, request):
+        user = request.user
+        if user.role != 'RETAILER':
             return Response({
                 'success': False,
-                'message': 'Retailer not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Only retailers can create credit notes'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         serializer = CreditNoteCreateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -6755,7 +6626,7 @@ class RetailerCreditNoteCreateView(APIView):
         elif invoice_ref:
             try:
                 invoice = Invoice.objects.filter(
-                    sales_order__user_id=str(user_id)
+                    sales_order__user_id=str(user.id)
                 ).filter(
                     details__product_name__icontains=serializer.validated_data.get('product_name', '')
                 ).first()
@@ -6802,18 +6673,18 @@ class RetailerCreditNoteCreateView(APIView):
 class RetailerCreditNoteListView(APIView):
     """
     Retailer views their own credit note history
-    GET /api/credit-notes/<user_id>/
+    GET /api/credit-notes/
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id, role='RETAILER')
-        except CustomUser.DoesNotExist:
+    def get(self, request):
+        user = request.user
+        if user.role != 'RETAILER':
             return Response({
                 'success': False,
-                'message': 'Retailer not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Only retailers can view credit notes'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         # Optional status filter
         status_filter = request.query_params.get('status')
@@ -7275,19 +7146,19 @@ Dream Pharma Support Team
 
 class RetailerWalletView(APIView):
     """
-    GET /api/wallet/<user_id>/
+    GET /api/wallet/
     Returns wallet balance and transaction history
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id, role='RETAILER')
-        except CustomUser.DoesNotExist:
+    def get(self, request):
+        user = request.user
+        if user.role != 'RETAILER':
             return Response({
                 'success': False,
-                'message': 'Retailer not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Only retailers can access wallet'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         from .models import RetailerWallet, WalletTransaction
 
@@ -7322,22 +7193,22 @@ class RetailerWalletView(APIView):
 
 class ApplyWalletToOrderView(APIView):
     """
-    POST /api/wallet/apply/<user_id>/
+    POST /api/wallet/apply/
     Checkout preview - Show breakdown of wallet application (NO ACTUAL DEDUCTION)
     
     Actual wallet deduction happens only when order is placed with use_wallet=true
     in CreateSalesOrderView
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def post(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id, role='RETAILER')
-        except CustomUser.DoesNotExist:
+    def post(self, request):
+        user = request.user
+        if user.role != 'RETAILER':
             return Response({
                 'success': False,
-                'message': 'Retailer not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Only retailers can access wallet'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         order_total = request.data.get('order_total', 0)
         use_wallet = request.data.get('use_wallet', False)
@@ -7393,13 +7264,21 @@ class ApplyWalletToOrderView(APIView):
 
 class GetProductsByOrderView(APIView):
     """
-    GET /api/credit-notes/order-products/<user_id>/?order_id=RET001
+    GET /api/credit-notes/order-products/?order_id=RET001
     When retailer types Order ID in credit note form,
     this returns products from that order for the dropdown
+    Requires JWT authentication
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, user_id):
+    def get(self, request):
+        user = request.user
+        if user.role != 'RETAILER':
+            return Response({
+                'success': False,
+                'message': 'Only retailers can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         order_id = request.query_params.get('order_id', '').strip()
 
         if not order_id:
@@ -7408,19 +7287,11 @@ class GetProductsByOrderView(APIView):
                 'message': 'order_id query parameter is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            user = CustomUser.objects.get(id=user_id, role='RETAILER')
-        except CustomUser.DoesNotExist:
-            return Response({
-                'success': False,
-                'message': 'Retailer not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-
         # Order must belong to this retailer
         try:
             sales_order = SalesOrder.objects.get(
                 order_id=order_id,
-                user_id=str(user_id)
+                user_id=str(user.id)
             )
         except SalesOrder.DoesNotExist:
             return Response({
@@ -7651,12 +7522,11 @@ class StartupDetectLocationView(APIView):
 
 class GetMyLocationView(APIView):
     """
-    GET /api/location/me/<user_id>/
+    GET /api/location/me/
 
     Returns the last saved location (posted via SaveMyLocationView).
     This retrieves the GPS coordinates and address data that was saved.
-
-    URL param: user_id (integer)
+    Requires JWT authentication.
 
     Response (200):
     {
@@ -7671,15 +7541,15 @@ class GetMyLocationView(APIView):
         }
     }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, user_id):
-        user = get_object_or_404(User, id=user_id)
+    def get(self, request):
+        user = request.user
 
         if not user.last_latitude or not user.last_longitude:
             return Response({
                 'success': True,
-                'message': f'No location saved yet. Please call POST /api/location/save/{user_id}/ to save a location.',
+                'message': f'No location saved yet. Please call POST /api/location/save/ to save a location.',
                 'data': None,
             }, status=status.HTTP_200_OK)
 
@@ -7708,7 +7578,7 @@ class GetMyLocationView(APIView):
                 'erp_prod_code': ps.prod_code,
             })
 
-        logger.info(f"[GET_MY_LOCATION] User {user_id} fetched last saved location.")
+        logger.info(f"[GET_MY_LOCATION] User {user.id} fetched last saved location.")
 
         return Response({
             'success': True,
@@ -7718,13 +7588,12 @@ class GetMyLocationView(APIView):
 
 class SaveMyLocationView(APIView):
     """
-    POST /api/location/save/<user_id>/
+    POST /api/location/save/
 
     Called when the user explicitly taps "Change Location".
     Accepts new GPS coordinates, re-runs nearest-store logic,
     and updates the user's saved location + preferred_store.
-
-    URL param: user_id (integer)
+    Requires JWT authentication.
 
     Request body:
     {
@@ -7740,10 +7609,10 @@ class SaveMyLocationView(APIView):
         "data": { ... same shape as /detect/ ... }
     }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
-    def post(self, request, user_id):
-        user = get_object_or_404(User, id=user_id)
+    def post(self, request):
+        user = request.user
 
         serializer = StartupLocationInputSerializer(data=request.data)
         if not serializer.is_valid():
@@ -7777,7 +7646,7 @@ class SaveMyLocationView(APIView):
         ])
 
         logger.info(
-            f"[SAVE_MY_LOCATION] User {user_id} updated location: "
+            f"[SAVE_MY_LOCATION] User {user.id} updated location: "
             f"({lat}, {lon}) -> store {payload['store_id']}"
         )
 
