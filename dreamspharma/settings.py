@@ -34,6 +34,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:60220",
     "http://127.0.0.1:60220",
 ]
+
 CORS_ALLOW_CREDENTIALS = True
 from corsheaders.defaults import default_headers
 
