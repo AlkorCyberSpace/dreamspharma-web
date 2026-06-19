@@ -124,60 +124,60 @@ export default function AuditLogs() {
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
     useEffect(() => {
-    const fetchAuditLogs = async () => {
-        try {
-            const response = await getAuditLogsAPI();
+        const fetchAuditLogs = async () => {
+            try {
+                const params = {
+                    page: currentPage,
+                    page_size: itemsPerPage,
+                };
+                if (search) params.search = search;
+                if (categoryFilter !== "All") params.category = categoryFilter;
 
-            if (response && response.data) {
-                const formatted = response.data.data.map((log) => ({
-                    id: log.log_id,
-                    action: log.action,
-                    performedBy: log.performed_by,
-                    targetEntity: log.target_entity,
-                    details: log.details,
-                    category: log.category,
-                    timestamp: log.created_at,
-                }));
+                const response = await getAuditLogsAPI(params);
 
-                setAuditData(formatted);
+                if (response && response.data) {
+                    const formatted = response.data.data.map((log) => ({
+                        id: log.log_id,
+                        action: log.action,
+                        performedBy: log.performed_by,
+                        targetEntity: log.target_entity,
+                        details: log.details,
+                        category: log.category,
+                        timestamp: log.created_at,
+                    }));
+
+                    setAuditData(formatted);
+                    if (response.data.pagination) {
+                        setTotalPages(response.data.pagination.total_pages);
+                        setTotalItems(response.data.pagination.total);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch audit logs:", error);
             }
-        } catch (error) {
-            console.error("Failed to fetch audit logs:", error);
-        }
-    };
+        };
 
-    fetchAuditLogs();
-}, []);
+        const timer = setTimeout(() => {
+            fetchAuditLogs();
+        }, 300);
 
-    const filtered = useMemo(() => {
-        const q = search.toLowerCase();
-        return auditData.filter((item) => {
-            const matchSearch =
-                item.id.toLowerCase().includes(q) ||
-                item.action.toLowerCase().includes(q) ||
-                item.performedBy.toLowerCase().includes(q) ||
-                item.targetEntity.toLowerCase().includes(q) ||
-                item.details.toLowerCase().includes(q);
-            const matchCat =
-                categoryFilter === "All" || item.category === categoryFilter;
-            return matchSearch && matchCat;
-        });
-    }, [search, categoryFilter, auditData]);
-
-    // Pagination logic
-    const totalPages = Math.ceil(filtered.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
-
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+        return () => clearTimeout(timer);
+    }, [currentPage, search, categoryFilter, itemsPerPage]);
 
     // Reset pagination when filter changes
     useEffect(() => {
         setCurrentPage(1);
     }, [search, categoryFilter]);
+
+    const indexOfLastItem = Math.min(currentPage * itemsPerPage, totalItems);
+    const indexOfFirstItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage;
+    const currentItems = auditData;
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
     // const handleExportCSV = () => {
     //     const headers = ["Log ID", "Action", "Performed By", "Target Entity", "Details", "Category", "Timestamp"];
     //     const rows = filtered.map((r) => [
@@ -254,7 +254,7 @@ export default function AuditLogs() {
                             </tr>
                         </thead>
                         <tbody className="text-sm text-gray-700">
-                            {filtered.length === 0 ? (
+                            {currentItems.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
                                         No audit entries found.
@@ -294,10 +294,17 @@ export default function AuditLogs() {
                         </tbody>
                     </table>
                 </div>
+                <div className="px-6 py-3 text-xs text-gray-400 flex items-center justify-between border-t border-gray-50">
+                    <span>
+                        Showing <span className="font-medium text-gray-600">{indexOfFirstItem + (currentItems.length > 0 ? 1 : 0)}</span> to <span className="font-medium text-gray-600">{indexOfLastItem}</span> of{" "}
+                        <span className="font-medium text-gray-600">{totalItems}</span> entries
+                    </span>
+                    <span>Logs are retained for 90 days.</span>
+                </div>
 
                 {/* Pagination UI - Numbered Design */}
                 {totalPages > 1 && (
-                    <div className="mt-4 mb-4 flex items-center justify-end px-6 border-t border-gray-50 pt-4">
+                    <div className="mt-1 mb-2 flex items-center justify-end px-6 border-t border-gray-50 ">
                         <div className="flex gap-1.5">
                             <button
                                 onClick={() => paginate(Math.max(1, currentPage - 1))}
@@ -348,14 +355,6 @@ export default function AuditLogs() {
                     </div>
                 )}
 
-                {/* Footer */}
-                <div className="px-6 py-3 text-xs text-gray-400 flex items-center justify-between border-t border-gray-50">
-                    <span>
-                        Showing <span className="font-medium text-gray-600">{indexOfFirstItem + 1}</span> to <span className="font-medium text-gray-600">{Math.min(indexOfLastItem, filtered.length)}</span> of{" "}
-                        <span className="font-medium text-gray-600">{filtered.length}</span> entries
-                    </span>
-                    <span>Logs are retained for 90 days.</span>
-                </div>
             </div>
         </div>
     );

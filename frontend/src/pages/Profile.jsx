@@ -175,7 +175,7 @@ const Profile = () => {
 
       <div className="max-w-6xl">
         {/*  Upload Section */}
-        <div className="flex flex-col md:flex-row items-center gap-10 mb-10">
+        <div className="flex flex-col md:flex-row items-center gap-10 mb-6">
           <div className="relative">
             <div className={`w-44 h-44 rounded-full overflow-hidden border-4 border-white shadow-lg ring-1 ring-gray-100 bg-[#E7F1F4] flex items-center justify-center relative group cursor-pointer`} onClick={() => fileInputRef.current.click()}>
               {(loading || uploading) ? (
@@ -277,7 +277,7 @@ const Profile = () => {
 
         {/* Change Password Section */}
         <div className="mb-1">
-          <h2 className="text-lg font-semibold text-[#505050] mb-4 tracking-tight">Change Password</h2>
+          <h2 className="text-lg font-semibold text-[#505050] mb-2 tracking-tight">Change Password</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-[#505050] ml-1">Current Password</label>
@@ -320,7 +320,7 @@ const Profile = () => {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4 border-t border-gray-50 mt-1">
+        <div className="flex flex-col sm:flex-row justify-end gap-4  border-t border-gray-50 mt-1">
           <button
             onClick={handleCancel}
             className="px-4 py-1.5 border border-[#125B6C] text-[#125B6C] font-bold rounded-lg hover:bg-gray-50 transition-all uppercase tracking-wider text-sm min-w-[180px]"
