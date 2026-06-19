@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.conf import settings
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -176,11 +176,11 @@ class RazorpayClient:
 
 class InitiatePaymentView(APIView):
     """Initiate payment for an order"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             order_id = request.data.get('order_id')
             if not order_id:
                 return Response(
@@ -298,12 +298,12 @@ class InitiatePaymentView(APIView):
 
 class VerifyPaymentView(APIView):
     """Verify payment signature and complete payment"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     @transaction.atomic
-    def post(self, request, user_id):
+    def post(self, request):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             payment_id = request.data.get('payment_id')
             razorpay_order_id = request.data.get('razorpay_order_id')
             razorpay_payment_id = request.data.get('razorpay_payment_id')
@@ -388,6 +388,52 @@ class VerifyPaymentView(APIView):
             # Update sales order status if payment successful
             if payment.status == 'SUCCESS' and payment.sales_order:
                 payment.sales_order.ord_conversion_flag = True
+                
+                # ✅ FIX: Apply wallet ONLY after payment succeeds
+                if payment.sales_order.wallet_requested and payment.sales_order.wallet_intent_user_id:
+                    try:
+                        from dreamspharmaapp.models import CustomUser, RetailerWallet
+                        from dreamspharmaapp.wallet_service import debit_wallet
+                        
+                        wallet_user = CustomUser.objects.get(id=payment.sales_order.wallet_intent_user_id)
+                        wallet, _ = RetailerWallet.objects.get_or_create(retailer=wallet_user)
+                        
+                        # Apply wallet: take minimum of wallet balance and remaining bill
+                        order_total = payment.sales_order.bill_total
+                        wallet_applicable = min(wallet.balance, order_total)
+                        
+                        if wallet_applicable > 0:
+                            result = debit_wallet(
+                                retailer=wallet_user,
+                                amount=wallet_applicable,
+                                source='ORDER_PAYMENT',
+                                order=payment.sales_order,
+                                description=f'Wallet applied to order {payment.sales_order.order_id} after payment success'
+                            )
+                            if result['success']:
+                                # Update order with wallet deduction
+                                payment.sales_order.wallet_applied_amount = wallet_applicable
+                                payment.sales_order.wallet_applied_at = timezone.now()
+                                payment.sales_order.bill_total = max(
+                                    Decimal('0'),
+                                    payment.sales_order.bill_total - wallet_applicable
+                                )
+                                logger.info(
+                                    f"[WALLET_PAYMENT_SUCCESS] Order: {payment.sales_order.order_id} | "
+                                    f"Payment: SUCCESS | "
+                                    f"Wallet Deducted: ₹{wallet_applicable} | "
+                                    f"User: {wallet_user.username}"
+                                )
+                            else:
+                                logger.error(
+                                    f"[WALLET_PAYMENT_ERROR] Failed to deduct wallet for order "
+                                    f"{payment.sales_order.order_id}: {result['error']}"
+                                )
+                    except CustomUser.DoesNotExist:
+                        logger.warning(f"[WALLET_PAYMENT_ERROR] Wallet user not found for order {payment.sales_order.order_id}")
+                    except Exception as we:
+                        logger.error(f"[WALLET_PAYMENT_ERROR] Error applying wallet: {str(we)}")
+                
                 payment.sales_order.save()
                 
                 # Trigger invoice sync from ERP in background
@@ -438,11 +484,11 @@ class VerifyPaymentView(APIView):
 
 class PaymentStatusView(APIView):
     """Get payment status"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def get(self, request, user_id, order_id=None, payment_id=None):
+    def get(self, request, order_id=None, payment_id=None):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             if not order_id and not payment_id:
                 # Get all payments for user
                 payments = Payment.objects.filter(user=user)
@@ -482,12 +528,12 @@ class PaymentStatusView(APIView):
 
 class InitiateRefundView(APIView):
     """Initiate refund for a payment"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     @transaction.atomic
-    def post(self, request, user_id):
+    def post(self, request):
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             payment_id = request.data.get('payment_id')
             amount = request.data.get('amount')
             reason = request.data.get('reason', 'Customer requested refund')
@@ -638,6 +684,52 @@ class WebhookView(APIView):
                     # Update sales order
                     if payment.sales_order:
                         payment.sales_order.ord_conversion_flag = True
+                        
+                        # ✅ FIX: Apply wallet ONLY after payment succeeds
+                        if payment.sales_order.wallet_requested and payment.sales_order.wallet_intent_user_id:
+                            try:
+                                from dreamspharmaapp.models import CustomUser, RetailerWallet
+                                from dreamspharmaapp.wallet_service import debit_wallet
+                                
+                                wallet_user = CustomUser.objects.get(id=payment.sales_order.wallet_intent_user_id)
+                                wallet, _ = RetailerWallet.objects.get_or_create(retailer=wallet_user)
+                                
+                                # Apply wallet: take minimum of wallet balance and remaining bill
+                                order_total = payment.sales_order.bill_total
+                                wallet_applicable = min(wallet.balance, order_total)
+                                
+                                if wallet_applicable > 0:
+                                    result = debit_wallet(
+                                        retailer=wallet_user,
+                                        amount=wallet_applicable,
+                                        source='ORDER_PAYMENT',
+                                        order=payment.sales_order,
+                                        description=f'Wallet applied to order {payment.sales_order.order_id} after payment success (webhook)'
+                                    )
+                                    if result['success']:
+                                        # Update order with wallet deduction
+                                        payment.sales_order.wallet_applied_amount = wallet_applicable
+                                        payment.sales_order.wallet_applied_at = timezone.now()
+                                        payment.sales_order.bill_total = max(
+                                            Decimal('0'),
+                                            payment.sales_order.bill_total - wallet_applicable
+                                        )
+                                        logger.info(
+                                            f"[WALLET_WEBHOOK_SUCCESS] Order: {payment.sales_order.order_id} | "
+                                            f"Payment Event: {event} | "
+                                            f"Wallet Deducted: ₹{wallet_applicable} | "
+                                            f"User: {wallet_user.username}"
+                                        )
+                                    else:
+                                        logger.error(
+                                            f"[WALLET_WEBHOOK_ERROR] Failed to deduct wallet for order "
+                                            f"{payment.sales_order.order_id}: {result['error']}"
+                                        )
+                            except CustomUser.DoesNotExist:
+                                logger.warning(f"[WALLET_WEBHOOK_ERROR] Wallet user not found for order {payment.sales_order.order_id}")
+                            except Exception as we:
+                                logger.error(f"[WALLET_WEBHOOK_ERROR] Error applying wallet via webhook: {str(we)}")
+                        
                         payment.sales_order.save()
                         
                         # Trigger invoice sync from ERP in background
@@ -722,12 +814,12 @@ class WebhookView(APIView):
 
 class InitiateCODPaymentView(APIView):
     """Initiate Cash on Delivery payment for an order"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
-    def post(self, request, user_id):
+    def post(self, request):
         """Create COD payment record"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             order_id = request.data.get('order_id')
             if not order_id:
                 return Response(
@@ -792,6 +884,17 @@ class InitiateCODPaymentView(APIView):
                     success=True
                 )
                 
+                # Clear user's cart when COD is initiated (PENDING status)
+                try:
+                    from dreamspharmaapp.models import Cart
+                    user_cart = Cart.objects.get(user=user)
+                    cleared = user_cart.items.all().delete()
+                    logger.info(f"[CART_CLEAR_COD] Cleared {cleared[0]} items for user {user.id} after COD initiated (PENDING)")
+                except Cart.DoesNotExist:
+                    logger.debug(f"[CART_CLEAR_COD] No cart found for user {user.id}")
+                except Exception as ce:
+                    logger.error(f"[CART_CLEAR_COD] Error clearing cart after COD initiation: {str(ce)}")
+                
                 logger.info(f"[COD_INITIATED] Order {order_id} - Merchant Ref: {merchant_ref_id} - Amount: ₹{sales_order.order_total}")
                 
                 return Response({
@@ -819,13 +922,13 @@ class InitiateCODPaymentView(APIView):
 
 class ConfirmCODPaymentView(APIView):
     """Confirm COD payment collection (called after delivery)"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     @transaction.atomic
-    def post(self, request, user_id):
+    def post(self, request):
         """Mark COD payment as collected"""
         try:
-            user = get_object_or_404(User, id=user_id)
+            user = request.user
             payment_id = request.data.get('payment_id')
             collected_by = request.data.get('collected_by', 'Delivery Agent')
             
@@ -872,6 +975,52 @@ class ConfirmCODPaymentView(APIView):
             # Update sales order conversion flag
             if payment.sales_order:
                 payment.sales_order.ord_conversion_flag = True
+                
+                # ✅ FIX: Apply wallet ONLY after COD success
+                if payment.sales_order.wallet_requested and payment.sales_order.wallet_intent_user_id:
+                    try:
+                        from dreamspharmaapp.models import CustomUser, RetailerWallet
+                        from dreamspharmaapp.wallet_service import debit_wallet
+                        
+                        wallet_user = CustomUser.objects.get(id=payment.sales_order.wallet_intent_user_id)
+                        wallet, _ = RetailerWallet.objects.get_or_create(retailer=wallet_user)
+                        
+                        # Apply wallet: take minimum of wallet balance and remaining bill
+                        order_total = payment.sales_order.bill_total
+                        wallet_applicable = min(wallet.balance, order_total)
+                        
+                        if wallet_applicable > 0:
+                            result = debit_wallet(
+                                retailer=wallet_user,
+                                amount=wallet_applicable,
+                                source='ORDER_PAYMENT',
+                                order=payment.sales_order,
+                                description=f'Wallet applied to COD order {payment.sales_order.order_id}'
+                            )
+                            if result['success']:
+                                # Update order with wallet deduction
+                                payment.sales_order.wallet_applied_amount = wallet_applicable
+                                payment.sales_order.wallet_applied_at = timezone.now()
+                                payment.sales_order.bill_total = max(
+                                    Decimal('0'),
+                                    payment.sales_order.bill_total - wallet_applicable
+                                )
+                                logger.info(
+                                    f"[WALLET_COD_SUCCESS] Order: {payment.sales_order.order_id} | "
+                                    f"COD Collected | "
+                                    f"Wallet Deducted: ₹{wallet_applicable} | "
+                                    f"User: {wallet_user.username}"
+                                )
+                            else:
+                                logger.error(
+                                    f"[WALLET_COD_ERROR] Failed to deduct wallet for COD order "
+                                    f"{payment.sales_order.order_id}: {result['error']}"
+                                )
+                    except CustomUser.DoesNotExist:
+                        logger.warning(f"[WALLET_COD_ERROR] Wallet user not found for order {payment.sales_order.order_id}")
+                    except Exception as we:
+                        logger.error(f"[WALLET_COD_ERROR] Error applying wallet to COD: {str(we)}")
+                
                 payment.sales_order.save()
             
             # Log the payment confirmation
@@ -883,6 +1032,17 @@ class ConfirmCODPaymentView(APIView):
                 response_status_code=200,
                 success=True
             )
+            
+            # Clear user's cart after successful COD payment collection
+            try:
+                from dreamspharmaapp.models import Cart
+                user_cart = Cart.objects.get(user=payment.user)
+                cleared = user_cart.items.all().delete()
+                logger.info(f"[CART_CLEAR_COD] Cleared {cleared[0]} items for user {payment.user.id} after successful COD collection")
+            except Cart.DoesNotExist:
+                logger.debug(f"[CART_CLEAR_COD] No cart found for user {payment.user.id}")
+            except Exception as ce:
+                logger.error(f"[CART_CLEAR_COD] Error clearing cart after COD collection: {str(ce)}")
             
             logger.info(f"[COD_COLLECTED] Payment {payment.payment_id} - Amount: ₹{payment.amount} - Collected by: {collected_by}")
             

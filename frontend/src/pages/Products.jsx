@@ -358,9 +358,9 @@ export default function Products() {
                                 disabled={currentPage === 1}
                                 className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                             >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-90"><path d="m6 9 6 6 6-6" /></svg>
                             </button>
-                            
+
                             {[...Array(totalPages)].map((_, i) => {
                                 const pageNum = i + 1;
                                 if (
@@ -373,11 +373,10 @@ export default function Products() {
                                         <button
                                             key={pageNum}
                                             onClick={() => setCurrentPage(pageNum)}
-                                            className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
-                                                currentPage === pageNum
-                                                    ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
-                                                    : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
-                                            }`}
+                                            className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
+                                                ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
+                                                : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
+                                                }`}
                                         >
                                             {pageNum}
                                         </button>
@@ -396,7 +395,7 @@ export default function Products() {
                                 disabled={currentPage === totalPages}
                                 className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                             >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="-rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="-rotate-90"><path d="m6 9 6 6 6-6" /></svg>
                             </button>
                         </div>
                     </div>

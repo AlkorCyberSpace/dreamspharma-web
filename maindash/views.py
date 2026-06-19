@@ -1583,7 +1583,7 @@ class SuperAdminOrdersView(APIView):
 
         # Post-loop filter for payment-based statuses that can't be filtered via DB flags
         if status_filter and status_filter in ('Processing', 'Cancelled', 'Dispatched'):
-            results = [r for r in results if r['status'] == status_filter]
+                results = [r for r in results if r['status'] == status_filter]
 
         return Response({
             'message': f'Found {len(results)} order(s)',
@@ -1641,15 +1641,7 @@ class SuperAdminMarkCODDeliveredView(APIView):
             log_details = f'Marked COD payment for Order "{order_id}" as paid/collected'
 
         elif status_action == 'confirmed':
-            # Mark payment as collected if not already
-            if not payment.cod_collected:
-                payment.cod_collected = True
-                payment.cod_collected_at = timezone.now()
-                payment.cod_collected_by = request.user.username
-                payment.status = 'SUCCESS'
-                payment.save()
-            
-            # Update order to mark as confirmed
+            # Mark order as confirmed - payment stays PENDING, no cart clear
             order.ord_conversion_flag = True
             order.save()
             action_msg = 'COD Order Confirmed'
@@ -1670,6 +1662,18 @@ class SuperAdminMarkCODDeliveredView(APIView):
             order.save()
             action_msg = 'COD Order Delivered'
             log_details = f'Marked COD Order "{order_id}" as delivered and payment collected'
+
+        # Clear user's cart only for 'paid' and 'delivered' (not 'confirmed' which is still pending)
+        if status_action in ['paid', 'delivered']:
+            try:
+                from dreamspharmaapp.models import Cart
+                user_cart = Cart.objects.get(user=payment.user)
+                cleared = user_cart.items.all().delete()
+                logger.info(f"[CART_CLEAR_COD_ADMIN] Cleared {cleared[0]} items for user {payment.user.id} after COD {status_action}")
+            except Cart.DoesNotExist:
+                logger.debug(f"[CART_CLEAR_COD_ADMIN] No cart found for user {payment.user.id}")
+            except Exception as ce:
+                logger.error(f"[CART_CLEAR_COD_ADMIN] Error clearing cart after COD {status_action}: {str(ce)}")
 
         # Audit log
         log_audit(
@@ -2495,28 +2499,68 @@ class InventoryInsightsView(APIView):
         import logging
         logger = logging.getLogger(__name__)
         
-        config = ERPService.get_config_by_store_id(store_id)
-        erp_config = config['erp_config']
-        
         stock_data = []
         try:
-            api_key = get_erp_token_for_store_config(erp_config)
-            erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
-            erp_params = {
-                'apiKey': api_key,
-                'storeId': erp_config['store_id'],
-                'c2Code': erp_config['c2_code']
-            }
+            config = ERPService.get_config_by_store_id(store_id)
+            if not config or 'erp_config' not in config:
+                logger.warning(f"ERP config not found for store {store_id}")
+                return Response({
+                    'success': True,
+                    'data': {
+                        'expiring_soon': [],
+                        'out_of_stock': [],
+                        'fast_moving': [],
+                        'slow_moving': []
+                    },
+                    'message': 'No ERP configuration found'
+                })
             
-            erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
-            if erp_response.status_code == 200:
-                resp_json = erp_response.json()
-                if isinstance(resp_json, dict):
-                    stock_data = resp_json.get('data', [])
-                elif isinstance(resp_json, list):
-                    stock_data = resp_json
+            erp_config = config['erp_config']
+            
+            try:
+                api_key = get_erp_token_for_store_config(erp_config)
+                erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                erp_params = {
+                    'apiKey': api_key,
+                    'storeId': erp_config['store_id'],
+                    'c2Code': erp_config['c2_code']
+                }
+                
+                logger.info(f"Fetching stock from ERP: {erp_server_url}")
+                erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
+                if erp_response.status_code == 200:
+                    resp_json = erp_response.json()
+                    if isinstance(resp_json, dict):
+                        stock_data = resp_json.get('data', [])
+                    elif isinstance(resp_json, list):
+                        stock_data = resp_json
+                    logger.info(f"Fetched {len(stock_data)} items from ERP")
+                else:
+                    logger.warning(f"ERP API returned status {erp_response.status_code}")
+            except requests.exceptions.Timeout:
+                logger.error(f"ERP API timeout for store {store_id}")
+            except Exception as e:
+                logger.error(f"Error fetching stock from ERP: {e}", exc_info=True)
         except Exception as e:
-            logger.error(f"Error fetching stock for insights: {e}")
+            logger.error(f"Error in InventoryInsightsView: {e}", exc_info=True)
+            return Response({
+                'success': False,
+                'error': f'Error fetching inventory insights: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Validate stock data
+        if not stock_data:
+            logger.warning(f"No stock data fetched from ERP for store {store_id}")
+            return Response({
+                'success': True,
+                'data': {
+                    'expiring_soon': [],
+                    'out_of_stock': [],
+                    'fast_moving': [],
+                    'slow_moving': []
+                },
+                'message': 'No stock data available from ERP'
+            })
             
         erp_stock_dict = {
             item['itemCode']: {
@@ -2526,94 +2570,142 @@ class InventoryInsightsView(APIView):
             for item in stock_data if 'itemCode' in item
         }
         
+        if not erp_stock_dict:
+            logger.warning(f"No valid stock items found in ERP response for store {store_id}")
+            return Response({
+                'success': True,
+                'data': {
+                    'expiring_soon': [],
+                    'out_of_stock': [],
+                    'fast_moving': [],
+                    'slow_moving': []
+                },
+                'message': 'No valid stock items found'
+            })
+        
         # 2. Correlate with local ItemMaster for Expiry Dates
         from dreamspharmaapp.models import ItemMaster, SalesOrderItem
-        item_masters = ItemMaster.objects.filter(item_code__in=erp_stock_dict.keys())
-        expiry_dict = {im.item_code: im.expiry_date for im in item_masters}
+        try:
+            item_masters = ItemMaster.objects.filter(item_code__in=erp_stock_dict.keys())
+            expiry_dict = {im.item_code: im.expiry_date for im in item_masters}
+            logger.info(f"Found {len(expiry_dict)} items with expiry dates in ItemMaster")
+        except Exception as e:
+            logger.error(f"Error fetching ItemMaster data: {e}")
+            expiry_dict = {}
         
         # 3. Calculate Insights
-        from datetime import date, timedelta
-        from django.db.models import Sum
-        
-        today = date.today()
-        ninety_days_later = today + timedelta(days=90)
-        thirty_days_ago = today - timedelta(days=30)
-        
-        expiring_soon = []
-        out_of_stock = []
-        
-        for code, info in erp_stock_dict.items():
-            qty = info['qty']
-            name = info['name']
-            exp = expiry_dict.get(code)
+        try:
+            from datetime import date, timedelta
+            from django.db.models import Sum
             
-            # Expiring Soon
-            if exp and today <= exp <= ninety_days_later and qty > 0:
-                days_left = (exp - today).days
-                expiring_soon.append({
-                    'product': name,
-                    'stock': qty,
-                    'expiry': f"{days_left} days",
-                    'sort_val': days_left
-                })
-                
-            # Out of Stock
-            if qty == 0:
-                expiring_soon_label = f"{(exp - today).days} days" if (exp and exp >= today) else "Expired"
-                if not exp: expiring_soon_label = "N/A"
-                out_of_stock.append({
-                    'product': name,
-                    'stock': 0,
-                    'expiry': expiring_soon_label
-                })
-                
-        expiring_soon = sorted(expiring_soon, key=lambda x: x['sort_val'])[:10]
-        out_of_stock = out_of_stock[:10]
-        
-        # Fast Moving (High sales in last 30 days)
-        recent_sales = SalesOrderItem.objects.filter(
-            sales_order__ord_date__gte=thirty_days_ago
-        ).values('item_code', 'item_name').annotate(
-            total_sold=Sum('total_loose_qty')
-        ).order_by('-total_sold')[:10]
-        
-        fast_moving = []
-        sold_codes_30d = set()
-        for sale in recent_sales:
-            code = sale['item_code']
-            sold_codes_30d.add(code)
-            qty = erp_stock_dict.get(code, {}).get('qty', 0)
-            exp = expiry_dict.get(code)
-            days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
-            fast_moving.append({
-                'product': sale['item_name'] or code,
-                'stock': qty,
-                'expiry': days_left,
-                'sold_last_30_days': sale['total_sold']
-            })
+            today = date.today()
+            ninety_days_later = today + timedelta(days=90)
+            thirty_days_ago = today - timedelta(days=30)
             
-        # Slow Moving (High stock, low/zero sales)
-        slow_moving_candidates = []
-        for code, info in erp_stock_dict.items():
-            if info['qty'] > 100 and code not in sold_codes_30d:
-                exp = expiry_dict.get(code)
-                days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
-                slow_moving_candidates.append({
-                    'product': info['name'],
-                    'stock': info['qty'],
-                    'expiry': days_left,
-                    'sort_val': info['qty']
-                })
+            expiring_soon = []
+            out_of_stock = []
+            
+            for code, info in erp_stock_dict.items():
+                try:
+                    qty = info['qty']
+                    name = info['name'] or f"Item {code}"
+                    exp = expiry_dict.get(code)
+                    
+                    # Expiring Soon
+                    if exp and today <= exp <= ninety_days_later and qty > 0:
+                        days_left = (exp - today).days
+                        expiring_soon.append({
+                            'product': name,
+                            'stock': qty,
+                            'expiry': f"{days_left} days",
+                            'sort_val': days_left
+                        })
+                        
+                    # Out of Stock
+                    if qty == 0:
+                        expiring_soon_label = f"{(exp - today).days} days" if (exp and exp >= today) else "Expired"
+                        if not exp: expiring_soon_label = "N/A"
+                        out_of_stock.append({
+                            'product': name,
+                            'stock': 0,
+                            'expiry': expiring_soon_label
+                        })
+                except Exception as e:
+                    logger.warning(f"Error processing item {code}: {e}")
+                    continue
+                    
+            expiring_soon = sorted(expiring_soon, key=lambda x: x['sort_val'])[:10]
+            out_of_stock = out_of_stock[:10]
+            
+            # Fast Moving (High sales in last 30 days)
+            try:
+                recent_sales = SalesOrderItem.objects.filter(
+                    sales_order__ord_date__gte=thirty_days_ago
+                ).values('item_code', 'item_name').annotate(
+                    total_sold=Sum('total_loose_qty')
+                ).order_by('-total_sold')[:10]
                 
-        slow_moving = sorted(slow_moving_candidates, key=lambda x: x['sort_val'], reverse=True)[:10]
+                fast_moving = []
+                sold_codes_30d = set()
+                for sale in recent_sales:
+                    try:
+                        code = sale['item_code']
+                        sold_codes_30d.add(code)
+                        qty = erp_stock_dict.get(code, {}).get('qty', 0)
+                        exp = expiry_dict.get(code)
+                        days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
+                        fast_moving.append({
+                            'product': sale['item_name'] or code,
+                            'stock': qty,
+                            'expiry': days_left,
+                            'sold_last_30_days': sale['total_sold']
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error processing fast moving item: {e}")
+                        continue
+                logger.info(f"Found {len(fast_moving)} fast moving items")
+            except Exception as e:
+                logger.error(f"Error calculating fast moving items: {e}")
+                fast_moving = []
+                sold_codes_30d = set()
+                
+            # Slow Moving (High stock, low/zero sales)
+            try:
+                slow_moving_candidates = []
+                for code, info in erp_stock_dict.items():
+                    try:
+                        if info['qty'] > 100 and code not in sold_codes_30d:
+                            exp = expiry_dict.get(code)
+                            days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
+                            slow_moving_candidates.append({
+                                'product': info['name'] or f"Item {code}",
+                                'stock': info['qty'],
+                                'expiry': days_left,
+                                'sort_val': info['qty']
+                            })
+                    except Exception as e:
+                        logger.warning(f"Error processing slow moving candidate {code}: {e}")
+                        continue
+                    
+                slow_moving = sorted(slow_moving_candidates, key=lambda x: x['sort_val'], reverse=True)[:10]
+                logger.info(f"Found {len(slow_moving)} slow moving items")
+            except Exception as e:
+                logger.error(f"Error calculating slow moving items: {e}")
+                slow_moving = []
 
-        return Response({
-            'success': True,
-            'data': {
-                'expiring_soon': expiring_soon,
-                'out_of_stock': out_of_stock,
-                'fast_moving': fast_moving,
-                'slow_moving': slow_moving
-            }
-        })
+            return Response({
+                'success': True,
+                'data': {
+                    'expiring_soon': expiring_soon,
+                    'out_of_stock': out_of_stock,
+                    'fast_moving': fast_moving,
+                    'slow_moving': slow_moving
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error calculating inventory insights: {e}", exc_info=True)
+            return Response({
+                'success': False,
+                'error': f'Error calculating insights: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

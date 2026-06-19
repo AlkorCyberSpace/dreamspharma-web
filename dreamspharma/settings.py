@@ -31,7 +31,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5173",
+    "http://localhost:60220",
+    "http://127.0.0.1:60220",
 ]
+
 CORS_ALLOW_CREDENTIALS = True
 from corsheaders.defaults import default_headers
 
@@ -100,6 +103,9 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',  # Public by default, override in views
+    ),
     # ==================== RATE LIMITING ====================
     # ✅ PRODUCTION FIX #3: Prevent abuse and overload
     # Without rate limiting: 1 attacker × 1000 requests/sec = system crash
@@ -121,11 +127,11 @@ REST_FRAMEWORK = {
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    # Short-lived access token (10 minutes) - mobile app refreshes silently
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=10),
+    # Short-lived access token (15 minutes) - mobile app refreshes silently
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     
-    # Long-lived refresh token (7 days) - user stays logged in
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    # Long-lived refresh token (365 days) - user stays logged in year-long
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=365),
     
     # Rotate refresh tokens on every refresh (more secure)
     'ROTATE_REFRESH_TOKENS': True,
@@ -173,7 +179,7 @@ CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000  # Prevent memory leaks in workers
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'pharma',        
+        'NAME': 'pharmanew',        
         'USER': 'postgres',      
         'PASSWORD': 'Soorya@123',
         'HOST': 'localhost',     
@@ -245,6 +251,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
+
 
 
 STATIC_URL = 'static/'
@@ -331,9 +338,10 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'class': 'logging.StreamHandler',
+            '()': 'logging.StreamHandler',
             'formatter': 'simple',
             'level': 'INFO',
+            'stream': 'ext://sys.stdout',
         },
         'pharmacy_orders_file': {
             'level': 'INFO',
@@ -342,6 +350,7 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 10,  # 10MB
             'backupCount': 10,
             'formatter': 'verbose',
+            'encoding': 'utf-8',
         },
         'error_file': {
             'level': 'ERROR',
@@ -350,6 +359,7 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 10,  # 10MB
             'backupCount': 10,
             'formatter': 'verbose',
+            'encoding': 'utf-8',
         },
     },
     'loggers': {
