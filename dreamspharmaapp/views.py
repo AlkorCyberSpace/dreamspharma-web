@@ -1125,6 +1125,7 @@ class GetItemMasterView(APIView):
             latitude  = request.query_params.get('latitude')
             longitude = request.query_params.get('longitude')
             store_id  = request.query_params.get('storeId')
+            input_date_time = request.query_params.get('inputDateTime', '2026-01-28 10:10:00')
 
             if latitude and longitude:
                 store_info = ERPService.get_nearest_store_config(latitude, longitude)
@@ -1147,13 +1148,15 @@ class GetItemMasterView(APIView):
             try:
                 # ── Fetch all items from ERP ───────────────────────────────
                 erp_server_url = f"{erp_config['base_url']}/ws_c2_services_get_master_data"
-                erp_params = {
-                    'apiKey':   api_key,
-                    'prodCode': erp_config['prod_code'],
-                    'c2Code':   erp_config['c2_code'],
-                    'storeId':  erp_config['store_id'],
+                erp_payload = {
+                    'apiKey':        api_key,
+                    'prodCode':      erp_config['prod_code'],
+                    'c2Code':        erp_config['c2_code'],
+                    'storeId':       erp_config['store_id'],
+                    'inputDateTime': input_date_time,
+                    'itemcodes':     []
                 }
-                erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
+                erp_response = requests.get(erp_server_url, json=erp_payload, timeout=10)
 
                 if erp_response.status_code != 200:
                     return Response({
@@ -1189,7 +1192,9 @@ class GetItemMasterView(APIView):
 
                 # ── Enrich only the current page's items ───────────────────
                 for item in paged_items:
-                    item_code = item.get('c_item_code')
+                    item_code = item.get('c_item_code') or item.get('itemCode')
+                    item['c_item_code'] = item_code
+                    item['itemCode'] = item_code
 
                     try:
                         item_master  = ItemMaster.objects.get(item_code=item_code)
@@ -1532,6 +1537,7 @@ class FetchStockView(APIView):
             latitude = request.query_params.get('latitude')
             longitude = request.query_params.get('longitude')
             store_id = request.query_params.get('storeId')
+            input_date_time = request.query_params.get('inputDateTime', '2026-01-28 10:10:00')
             
             # Select store based on location or store_id
             if latitude and longitude:
@@ -1558,18 +1564,20 @@ class FetchStockView(APIView):
             try:
                 # FETCH DIRECTLY FROM ERP SERVER (real-time stock data)
                 # Official API uses port 45000 for stock fetching
-                erp_server_url = f"{erp_config['transaction_url']}/ws_c2_services_fetch_stock"
+                erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
                 
                 logger.info(f"[FETCH_STOCK] Fetching from ERP: {erp_server_url}")
                 
-                # Build ERP request parameters (using store-specific config)
-                erp_params = {
+                # Build ERP request payload (using store-specific config)
+                erp_payload = {
                     'apiKey': api_key,
                     'storeId': erp_config['store_id'],
-                    'c2Code': erp_config['c2_code']
+                    'c2Code': erp_config['c2_code'],
+                    'prodCode': erp_config['prod_code'],
+                    'inputDateTime': input_date_time
                 }
                 
-                erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
+                erp_response = requests.get(erp_server_url, json=erp_payload, timeout=10)
                 
                 if erp_response.status_code != 200:
                     logger.error(f"ERP Server error: {erp_response.status_code} - {erp_response.text}")
@@ -1587,6 +1595,12 @@ class FetchStockView(APIView):
                     stock_items = erp_data
                 else:
                     stock_items = []
+                
+                # Normalize keys for compatibility
+                for item in stock_items:
+                    item_code_val = item.get('c_item_code') or item.get('itemCode')
+                    item['c_item_code'] = item_code_val
+                    item['itemCode'] = item_code_val
                 
                 logger.info(f"[FETCH_STOCK] Fetched {len(stock_items)} stock items from ERP server")
                 
@@ -3262,6 +3276,7 @@ class SearchProductsView(APIView):
             
             # ✅ Track product views for recently viewed feature
             try:
+                user_id = user.id if user else None
                 if user_id:  # Only track if user_id provided
                     for product_info in product_infos:
                         ProductView.objects.update_or_create(
@@ -3538,23 +3553,19 @@ def fetch_item_from_erp(item_code, store_id=None):
     [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        from .erp_token_service import get_erp_token_for_request, get_erp_token_for_store_config
+        from .erp_token_service import get_erp_token_for_store_config
         from .erp_service import ERPService
         
         if store_id:
             store_info = ERPService.get_config_by_store_id(store_id)
-            if not store_info:
-                store_info = ERPService._get_fallback_config()
-            erp_config = store_info['erp_config']
-            api_key = get_erp_token_for_store_config(erp_config)
-            params = {
-                'apiKey': api_key,
-                'c2Code': erp_config['c2_code'],
-                'storeId': erp_config['store_id']
-            }
         else:
-            api_key = get_erp_token_for_request()
-            params = {'apiKey': api_key}
+            store_info = ERPService._get_fallback_config()
+            
+        if not store_info:
+            store_info = ERPService._get_fallback_config()
+            
+        erp_config = store_info['erp_config']
+        api_key = get_erp_token_for_store_config(erp_config)
             
         if not api_key:
             logger.error("Could not get auto-generated token")
@@ -3563,7 +3574,17 @@ def fetch_item_from_erp(item_code, store_id=None):
         # Fetch all items from ERP
         erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_get_master_data"
         
-        response = requests.get(erp_url, params=params, timeout=10)
+        # 🎯 Official Ecogreen API uses GET with JSON body for master data
+        erp_payload = {
+            'apiKey':        api_key,
+            'prodCode':      erp_config['prod_code'],
+            'c2Code':        erp_config['c2_code'],
+            'storeId':       erp_config['store_id'],
+            'inputDateTime': '2026-01-28 10:10:00',
+            'itemcodes':     [item_code]
+        }
+        
+        response = requests.get(erp_url, json=erp_payload, timeout=10)
         response.raise_for_status()
         
         data = response.json()
@@ -3572,7 +3593,11 @@ def fetch_item_from_erp(item_code, store_id=None):
         
         # Find the specific item
         for item_data in data.get('data', []):
-            if item_data.get('c_item_code') == item_code:
+            item_code_val = item_data.get('c_item_code') or item_data.get('itemCode')
+            if item_code_val == item_code:
+                # Normalize keys for compatibility
+                item_data['c_item_code'] = item_code_val
+                item_data['itemCode'] = item_code_val
                 return item_data
         
         return None
@@ -3591,23 +3616,19 @@ def fetch_all_items_from_erp(store_id=None):
     [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        from .erp_token_service import get_erp_token_for_request, get_erp_token_for_store_config
+        from .erp_token_service import get_erp_token_for_store_config
         from .erp_service import ERPService
         
         if store_id:
             store_info = ERPService.get_config_by_store_id(store_id)
-            if not store_info:
-                store_info = ERPService._get_fallback_config()
-            erp_config = store_info['erp_config']
-            api_key = get_erp_token_for_store_config(erp_config)
-            params = {
-                'apiKey': api_key,
-                'c2Code': erp_config['c2_code'],
-                'storeId': erp_config['store_id']
-            }
         else:
-            api_key = get_erp_token_for_request()
-            params = {'apiKey': api_key}
+            store_info = ERPService._get_fallback_config()
+            
+        if not store_info:
+            store_info = ERPService._get_fallback_config()
+            
+        erp_config = store_info['erp_config']
+        api_key = get_erp_token_for_store_config(erp_config)
             
         if not api_key:
             logger.error("[ERP_ERROR] Could not get auto-generated token")
@@ -3617,7 +3638,17 @@ def fetch_all_items_from_erp(store_id=None):
         
         logger.info(f"[ERP_FETCH_ALL] Fetching all items from ERP: {erp_url}")
         
-        response = requests.get(erp_url, params=params, timeout=15)
+        # 🎯 Official Ecogreen API uses GET with JSON body for master data
+        erp_payload = {
+            'apiKey':        api_key,
+            'prodCode':      erp_config['prod_code'],
+            'c2Code':        erp_config['c2_code'],
+            'storeId':       erp_config['store_id'],
+            'inputDateTime': '2026-01-28 10:10:00',
+            'itemcodes':     []
+        }
+        
+        response = requests.get(erp_url, json=erp_payload, timeout=15)
         response.raise_for_status()
         
         data = response.json()
@@ -3626,6 +3657,14 @@ def fetch_all_items_from_erp(store_id=None):
             return []
         
         items = data.get('data', [])
+        
+        # Normalize keys for compatibility (c_item_code and itemCode)
+        for item in items:
+            item_code_val = item.get('c_item_code') or item.get('itemCode')
+            if item_code_val:
+                item['c_item_code'] = item_code_val
+                item['itemCode'] = item_code_val
+                
         logger.info(f"[ERP_FETCH_ALL] Successfully fetched {len(items)} items from ERP")
         return items
         
@@ -5791,51 +5830,23 @@ class CategoryListView(ListAPIView):
         context['cart_wishlist_user'] = user
         
         # ============ ERP TOKEN & STOCK ENRICHMENT ============
-        # Priority 1: Check if apiKey provided via query params (manual override)
-        api_key = self.request.query_params.get('apiKey')
-        
-        # Priority 2: Auto-generate token if not provided
-        if not api_key:
-            try:
-                from .erp_token_service import get_erp_token_for_request
-                api_key = get_erp_token_for_request()
-                logger.info(f"[CATEGORIES] Using auto-generated ERP token")
-            except Exception as e:
-                logger.warning(f"[CATEGORIES] Failed to generate ERP token: {str(e)}")
-                api_key = None
-        else:
-            logger.info(f"[CATEGORIES] Using provided apiKey from query params")
-        
         # Fetch ERP master data to enrich with stock quantities
-        if api_key:
-            try:
-                erp_base_url = settings.ERP_BASE_URL
-                erp_server_url = f"{erp_base_url}/ws_c2_services_get_master_data"
+        try:
+            items = fetch_all_items_from_erp()
+            if items:
+                # Create mapping of item_code -> stockBalQty from ERP
+                stock_map = {}
+                for item in items:
+                    if item.get('c_item_code'):
+                        stock_map[item['c_item_code']] = item.get('stockBalQty', 0)
                 
-                logger.info(f"[CATEGORIES] Fetching ERP data from: {erp_server_url}")
-                
-                erp_response = requests.get(erp_server_url, params={'apiKey': api_key}, timeout=15)
-                
-                if erp_response.status_code == 200:
-                    erp_data = erp_response.json()
-                    items = erp_data.get('data', [])
-                    
-                    # Create mapping of item_code -> stockBalQty from ERP
-                    stock_map = {}
-                    for item in items:
-                        if item.get('c_item_code'):
-                            stock_map[item['c_item_code']] = item.get('stockBalQty', 0)
-                    
-                    context['erp_stock_map'] = stock_map
-                    logger.info(f"[CATEGORIES] [SUCCESS] Successfully enriched with {len(stock_map)} ERP items")
-                else:
-                    logger.error(f"[CATEGORIES] ERP Server error: {erp_response.status_code}")
-                    context['erp_stock_map'] = {}
-            except Exception as e:
-                logger.error(f"[CATEGORIES] [FAILED] Failed to fetch ERP data: {str(e)}")
+                context['erp_stock_map'] = stock_map
+                logger.info(f"[CATEGORIES] [SUCCESS] Successfully enriched with {len(stock_map)} ERP items")
+            else:
+                logger.error("[CATEGORIES] ERP Server returned no items or failed")
                 context['erp_stock_map'] = {}
-        else:
-            logger.warning(f"[CATEGORIES] No API key available - using database stock only")
+        except Exception as e:
+            logger.error(f"[CATEGORIES] [FAILED] Failed to fetch ERP data: {str(e)}")
             context['erp_stock_map'] = {}
         
         return context

@@ -91,7 +91,7 @@ export default function Categories() {
         try {
             const formData = new FormData();
             formData.append("name", formState.name);
-            formData.append("is_active", formState.is_active ? "True" : "False");
+            formData.append("is_active", formState.is_active ? "true" : "false");
             if (formState.icon) {
                 formData.append("icon", formState.icon);
             }
