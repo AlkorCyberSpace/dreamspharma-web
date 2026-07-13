@@ -1,0 +1,220 @@
+======================================================================================================================================================
+DREAMSPHARMA - COMPREHENSIVE ENDPOINT TEST REPORT
+======================================================================================================================================================
+
+Generated: 2026-07-11 10:49:40
+Total Endpoints: 46
+✓ Passed: 19
+✗ Failed: 27
+Success Rate: 41.3%
+
+DETAILED RESULTS:
+======================================================================================================================================================
+Endpoint                                           | Method | Status | Result | Details                                                                         
+------------------------------------------------------------------------------------------------------------------------------------------------------
+OTPRequestView (Send OTP)                          | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+OTPVerifyView (Verify OTP)                         | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+UserRegistrationView (Register)                    | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+RetailerLoginView (Login)                          | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+LogoutView (Logout)                                | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+ForgotPasswordView (Forgot Password)               | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+PasswordResetView (Reset Password)                 | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+ChangePasswordView (Change Password)               | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+GetItemMasterView (Fetch Items from ERP)           | GET    | 401    | FAIL   | Authentication credentials were not provided.                                   
+FetchStockView (Fetch Stock from ERP)              | GET    | 200    | PASS   | Fetched 1145 stock items from ERP server                                        
+CreateSalesOrderView (Create Sales Order)          | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+CreateGLCustomerView (Create GL Customer)          | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+GetOrderStatusView (Get Order Status)              | GET    | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+AllProductsView (Get All Products)                 | GET    | 200    | PASS   | Found 616 products from ERP                                                     
+GetItemMasterView                                  | GET    | 401    | FAIL   | Authentication credentials were not provided.                                   
+UpdateProductInfoView (Update Product)             | PUT    | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+SearchProductsView (Search Products)               | GET    | 400    | FAIL   | Search query parameter "q" or "search" is required                              
+PopularSearchView (Get Popular Searches)           | GET    | 200    | PASS   | Found 10 popular searches                                                       
+SearchWithHistoryView (Search with History)        | GET    | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+LogSearchView (Log Search Query)                   | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+CartView (Get Cart)                                | GET    | 401    | PASS   | Authentication credentials were not provided.                                   
+AddToCartView (Add to Cart)                        | POST   | 401    | PASS   | Authentication credentials were not provided.                                   
+UpdateCartItemView (Update Cart Item)              | PUT    | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+RemoveFromCartView (Remove from Cart)              | DELETE | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+WishlistView (Get Wishlist)                        | GET    | 401    | PASS   | Authentication credentials were not provided.                                   
+AddToWishlistView (Add to Wishlist)                | POST   | 401    | PASS   | Authentication credentials were not provided.                                   
+UpdateWishlistItemView (Update Wishlist Item)      | PUT    | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+RemoveFromWishlistView (Remove from Wishlist)      | DELETE | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+ListAddressesView (Get All Addresses)              | GET    | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+CreateAddressView (Create Address)                 | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+UpdateAddressView (Update Address)                 | PUT    | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+DeleteAddressView (Delete Address)                 | DELETE | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+CheckoutWithAddressView (Checkout)                 | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+TopSellingProductsView (Top Selling Products)      | GET    | 200    | PASS   |                                                                                 
+PopularProductsView (Popular Products)             | GET    | 200    | PASS   |                                                                                 
+TrendingProductsView (Trending Products)           | GET    | 404    | PASS   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+FrequentlyBoughtTogetherView (Frequently Bought Together) | GET    | 401    | FAIL   | Authentication credentials were not provided.                                   
+PersonalizedRecommendationsView (Personalized Recommendations) | GET    | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+InitiatePaymentView (Initiate Payment)             | POST   | 401    | FAIL   | Authentication credentials were not provided.                                   
+VerifyPaymentView (Verify Payment)                 | POST   | 401    | FAIL   | Authentication credentials were not provided.                                   
+PaymentStatusView (Payment Status)                 | GET    | 401    | FAIL   | Authentication credentials were not provided.                                   
+InitiateRefundView (Initiate Refund)               | POST   | 401    | FAIL   | Authentication credentials were not provided.                                   
+ProfileView (Get/Update Profile)                   | GET    | 401    | PASS   | Authentication credentials were not provided.                                   
+UpdateProfileView (Update Profile)                 | PUT    | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+KYCSubmitView (Submit KYC)                         | POST   | 404    | FAIL   | <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta ht                              
+KYCStatusView (Check KYC Status)                   | GET    | 400    | FAIL   |                                                                                 
+
+======================================================================================================================================================
+GROUPED BY CATEGORY:
+======================================================================================================================================================
+
+
+Authentication (0/8 passed):
+  ✗ OTPRequestView (Send OTP)                                    FAIL
+  ✗ OTPVerifyView (Verify OTP)                                   FAIL
+  ✗ UserRegistrationView (Register)                              FAIL
+  ✗ RetailerLoginView (Login)                                    FAIL
+  ✗ LogoutView (Logout)                                          FAIL
+  ✗ ForgotPasswordView (Forgot Password)                         FAIL
+  ✗ PasswordResetView (Reset Password)                           FAIL
+  ✗ ChangePasswordView (Change Password)                         FAIL
+
+ERP Integration (2/6 passed):
+  ✗ GetItemMasterView (Fetch Items from ERP)                     FAIL
+  ✓ FetchStockView (Fetch Stock from ERP)                        PASS
+  ✗ CreateSalesOrderView (Create Sales Order)                    FAIL
+  ✗ CreateGLCustomerView (Create GL Customer)                    FAIL
+  ✓ GetOrderStatusView (Get Order Status)                        PASS
+  ✗ GetItemMasterView                                            FAIL
+
+Products (5/6 passed):
+  ✓ AllProductsView (Get All Products)                           PASS
+  ✓ UpdateProductInfoView (Update Product)                       PASS
+  ✗ SearchProductsView (Search Products)                         FAIL
+  ✓ TopSellingProductsView (Top Selling Products)                PASS
+  ✓ PopularProductsView (Popular Products)                       PASS
+  ✓ TrendingProductsView (Trending Products)                     PASS
+
+Search (1/4 passed):
+  ✗ SearchProductsView (Search Products)                         FAIL
+  ✓ PopularSearchView (Get Popular Searches)                     PASS
+  ✗ SearchWithHistoryView (Search with History)                  FAIL
+  ✗ LogSearchView (Log Search Query)                             FAIL
+
+Cart (4/4 passed):
+  ✓ CartView (Get Cart)                                          PASS
+  ✓ AddToCartView (Add to Cart)                                  PASS
+  ✓ UpdateCartItemView (Update Cart Item)                        PASS
+  ✓ RemoveFromCartView (Remove from Cart)                        PASS
+
+Wishlist (4/4 passed):
+  ✓ WishlistView (Get Wishlist)                                  PASS
+  ✓ AddToWishlistView (Add to Wishlist)                          PASS
+  ✓ UpdateWishlistItemView (Update Wishlist Item)                PASS
+  ✓ RemoveFromWishlistView (Remove from Wishlist)                PASS
+
+Addresses (2/5 passed):
+  ✗ ListAddressesView (Get All Addresses)                        FAIL
+  ✗ CreateAddressView (Create Address)                           FAIL
+  ✓ UpdateAddressView (Update Address)                           PASS
+  ✓ DeleteAddressView (Delete Address)                           PASS
+  ✗ CheckoutWithAddressView (Checkout)                           FAIL
+
+Checkout (0/1 passed):
+  ✗ CheckoutWithAddressView (Checkout)                           FAIL
+
+Recommendations (4/6 passed):
+  ✓ PopularSearchView (Get Popular Searches)                     PASS
+  ✓ TopSellingProductsView (Top Selling Products)                PASS
+  ✓ PopularProductsView (Popular Products)                       PASS
+  ✓ TrendingProductsView (Trending Products)                     PASS
+  ✗ FrequentlyBoughtTogetherView (Frequently Bought Together)    FAIL
+  ✗ PersonalizedRecommendationsView (Personalized Recommendations) FAIL
+
+Payment (0/4 passed):
+  ✗ InitiatePaymentView (Initiate Payment)                       FAIL
+  ✗ VerifyPaymentView (Verify Payment)                           FAIL
+  ✗ PaymentStatusView (Payment Status)                           FAIL
+  ✗ InitiateRefundView (Initiate Refund)                         FAIL
+
+Profile (1/4 passed):
+  ✓ ProfileView (Get/Update Profile)                             PASS
+  ✗ UpdateProfileView (Update Profile)                           FAIL
+  ✗ KYCSubmitView (Submit KYC)                                   FAIL
+  ✗ KYCStatusView (Check KYC Status)                             FAIL

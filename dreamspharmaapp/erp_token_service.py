@@ -58,8 +58,8 @@ def generate_erp_token_for_store(store_config):
             f"Generating token for store {store_config['store_id']} ({store_config['c2_code']})"
         )
         
-        # 🎯 Official Ecogreen API uses GET for token generation
-        response = requests.get(erp_url, params=payload, timeout=10)
+        # 🎯 Official Ecogreen API uses GET with JSON body for token generation
+        response = requests.get(erp_url, json=payload, timeout=10)
 
         
         if response.status_code == 200:

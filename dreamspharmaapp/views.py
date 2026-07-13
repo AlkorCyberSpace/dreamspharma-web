@@ -1117,14 +1117,15 @@ class GetItemMasterView(APIView):
                 page = 1
 
             try:
-                page_size = min(50, max(1, int(request.query_params.get('page_size', 10))))
+                page_size = min(2000, max(1, int(request.query_params.get('page_size', 2000))))
             except (ValueError, TypeError):
-                page_size = 10
+                page_size = 2000
 
             # ── Store config ───────────────────────────────────────────────
             latitude  = request.query_params.get('latitude')
             longitude = request.query_params.get('longitude')
             store_id  = request.query_params.get('storeId')
+            input_date_time = request.query_params.get('inputDateTime', '2026-01-28 10:10:00')
 
             # ── Search & Filter params ──────────────────────────────────────
             search = request.query_params.get('search')
@@ -1152,13 +1153,15 @@ class GetItemMasterView(APIView):
             try:
                 # ── Fetch all items from ERP ───────────────────────────────
                 erp_server_url = f"{erp_config['base_url']}/ws_c2_services_get_master_data"
-                erp_params = {
-                    'apiKey':   api_key,
-                    'prodCode': erp_config['prod_code'],
-                    'c2Code':   erp_config['c2_code'],
-                    'storeId':  erp_config['store_id'],
+                erp_payload = {
+                    'apiKey':        api_key,
+                    'prodCode':      erp_config['prod_code'],
+                    'c2Code':        erp_config['c2_code'],
+                    'storeId':       erp_config['store_id'],
+                    'inputDateTime': input_date_time,
+                    'itemcodes':     []
                 }
-                erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
+                erp_response = requests.get(erp_server_url, json=erp_payload, timeout=10)
 
                 if erp_response.status_code != 200:
                     return Response({
@@ -1229,8 +1232,17 @@ class GetItemMasterView(APIView):
                         pass
 
                 # ── Enrich only the current page's items ───────────────────
-                for item in paged_items:
-                    item_code = item.get('c_item_code')
+                for idx, item in enumerate(paged_items):
+                    item_code = item.get('c_item_code') or item.get('itemCode')
+                    
+                    # Reconstruct dict to place c_item_code as the first key
+                    new_item = {'c_item_code': item_code}
+                    for k, v in item.items():
+                        if k not in ('c_item_code', 'itemCode'):
+                            new_item[k] = v
+                    
+                    paged_items[idx] = new_item
+                    item = new_item
 
                     try:
                         item_master  = ItemMaster.objects.get(item_code=item_code)
@@ -1255,6 +1267,20 @@ class GetItemMasterView(APIView):
                             }
                             for img in images
                         ]
+                        
+                        # Enrich CamelCase fields from local database cache if not present from ERP
+                        item['brandCode'] = item.get('brandCode') or item_master.brand_code
+                        item['brandName'] = item.get('brandName') or item_master.brand_name
+                        item['categoryCode'] = item.get('categoryCode') or item_master.category_code
+                        item['categoryName'] = item.get('categoryName') or item_master.category_name
+                        item['contentCode'] = item.get('contentCode') or item_master.content_code
+                        item['contentName'] = item.get('contentName') or item_master.content_name
+                        item['hsnSacName'] = item.get('hsnSacName') or item_master.hsn_sac_name
+                        item['itemFullName'] = item.get('itemFullName') or item_master.item_full_name
+                        item['itemShortName'] = item.get('itemShortName') or item_master.item_short_name
+                        item['packCode'] = item.get('packCode') or item_master.pack_code
+                        item['packName'] = item.get('packName') or item_master.pack_name
+                        item['hsnSacCode'] = item.get('hsnSacCode') or item_master.hsn_code
 
                     except (ItemMaster.DoesNotExist, ProductInfo.DoesNotExist):
                         item['subheading'] = ''
@@ -1264,6 +1290,20 @@ class GetItemMasterView(APIView):
                         item['brand_name']  = ''
                         item['brand_logo']  = ''
                         item['images']      = []
+                        
+                        # Fallback defaults for missing local cache
+                        item['brandCode'] = item.get('brandCode') or '-'
+                        item['brandName'] = item.get('brandName') or '-'
+                        item['categoryCode'] = item.get('categoryCode') or '-'
+                        item['categoryName'] = item.get('categoryName') or '-'
+                        item['contentCode'] = item.get('contentCode') or '-'
+                        item['contentName'] = item.get('contentName') or '-'
+                        item['hsnSacName'] = item.get('hsnSacName') or '-'
+                        item['itemFullName'] = item.get('itemFullName')
+                        item['itemShortName'] = item.get('itemShortName') or '-'
+                        item['packCode'] = item.get('packCode') or '-'
+                        item['packName'] = item.get('packName') or '-'
+                        item['hsnSacCode'] = item.get('hsnSacCode') or '-'
 
                     item['cart_status']     = False
                     item['wishlist_status'] = False
@@ -1578,6 +1618,7 @@ class FetchStockView(APIView):
             latitude = request.query_params.get('latitude')
             longitude = request.query_params.get('longitude')
             store_id = request.query_params.get('storeId')
+            input_date_time = request.query_params.get('inputDateTime', '2026-05-01 10:10:00')
             
             # Select store based on location or store_id
             if latitude and longitude:
@@ -1604,18 +1645,21 @@ class FetchStockView(APIView):
             try:
                 # FETCH DIRECTLY FROM ERP SERVER (real-time stock data)
                 # Official API uses port 45000 for stock fetching
-                erp_server_url = f"{erp_config['transaction_url']}/ws_c2_services_fetch_stock"
+                erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
                 
                 logger.info(f"[FETCH_STOCK] Fetching from ERP: {erp_server_url}")
                 
-                # Build ERP request parameters (using store-specific config)
-                erp_params = {
+                # Build ERP request payload (using store-specific config)
+                erp_payload = {
                     'apiKey': api_key,
                     'storeId': erp_config['store_id'],
-                    'c2Code': erp_config['c2_code']
+                    'c2Code': erp_config['c2_code'],
+                    'prodCode': erp_config['prod_code'],
+                    'inputDateTime': input_date_time,
+                    'itemCodes': []
                 }
                 
-                erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
+                erp_response = requests.get(erp_server_url, json=erp_payload, timeout=10)
                 
                 if erp_response.status_code != 200:
                     logger.error(f"ERP Server error: {erp_response.status_code} - {erp_response.text}")
@@ -1633,6 +1677,12 @@ class FetchStockView(APIView):
                     stock_items = erp_data
                 else:
                     stock_items = []
+                
+                # Normalize keys for compatibility
+                for item in stock_items:
+                    item_code_val = item.get('c_item_code') or item.get('itemCode')
+                    item['c_item_code'] = item_code_val
+                    item['itemCode'] = item_code_val
                 
                 logger.info(f"[FETCH_STOCK] Fetched {len(stock_items)} stock items from ERP server")
                 
@@ -2402,23 +2452,75 @@ class AddToCartView(APIView):
                 except Stock.DoesNotExist:
                     stock_record = None
                 
-                # Fetch fresh item details from ERP - REQUIRED, no fallback
+                # Fetch fresh item details from ERP - fall back to local DB or stock response
                 item_data = fetch_item_from_erp(item_code, store_id=store_id)
                 
-                if not item_data:
-                    return Response({
-                        'success': False,
-                        'message': 'ERP service temporarily unavailable. Please try again.'
-                    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                item = None
+                if item_data:
+                    # Update ItemMaster cache with fresh ERP data (essential fields only)
+                    item = update_itemmaster_cache(item_code, item_data)
+                else:
+                    # Try fallback to local database first
+                    item = ItemMaster.objects.filter(item_code=item_code).first()
                 
-                # Update ItemMaster cache with fresh ERP data (essential fields only)
-                item = update_itemmaster_cache(item_code, item_data)
+                # If still not found, check if it's in the stock response to auto-create ItemMaster
+                if not item:
+                    try:
+                        from .erp_token_service import get_erp_token_for_store_config
+                        from .erp_service import ERPService
+                        store_info = ERPService.get_config_by_store_id(store_id) if store_id else ERPService._get_fallback_config()
+                        if store_info:
+                            erp_config = store_info['erp_config']
+                            api_key = get_erp_token_for_store_config(erp_config)
+                            if api_key:
+                                erp_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                                erp_payload = {
+                                    'apiKey':        api_key,
+                                    'prodCode':      erp_config['prod_code'],
+                                    'c2Code':        erp_config['c2_code'],
+                                    'storeId':       erp_config['store_id'],
+                                    'inputDateTime': '2026-05-01 10:10:00',
+                                    'itemCodes':     []
+                                }
+                                response = requests.get(erp_url, json=erp_payload, timeout=10)
+                                if response.status_code == 200:
+                                    stock_items = response.json()
+                                    if isinstance(stock_items, dict):
+                                        stock_items = stock_items.get('data', [])
+                                    elif not isinstance(stock_items, list):
+                                        stock_items = []
+                                    for s_item in stock_items:
+                                        item_code_val = s_item.get('c_item_code') or s_item.get('itemCode')
+                                        if item_code_val == item_code:
+                                            # Auto-create ItemMaster
+                                            item, _ = ItemMaster.objects.get_or_create(
+                                                item_code=item_code,
+                                                defaults={
+                                                    'item_name': s_item.get('itemName') or 'Unknown Product',
+                                                    'item_qty_per_box': int(s_item.get('qtyBox', 1)),
+                                                    'batch_no': '',
+                                                    'std_disc': 0.0,
+                                                    'max_disc': 0.0,
+                                                    'mrp': 0.0,
+                                                }
+                                            )
+                                            # Create corresponding ProductInfo too
+                                            ProductInfo.objects.get_or_create(
+                                                item=item,
+                                                defaults={
+                                                    'type_label': s_item.get('contName') or 'Medicine',
+                                                    'description': 'Real-time stock product'
+                                                }
+                                            )
+                                            break
+                    except Exception as e:
+                        logger.error(f"Error auto-creating ItemMaster from stock response: {str(e)}")
                 
                 if not item:
                     return Response({
                         'success': False,
-                        'message': 'Failed to process item. Please try again.'
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                        'message': 'Product not found in system or ERP master.'
+                    }, status=status.HTTP_404_NOT_FOUND)
                 
                 # Check stock availability - CRITICAL for pharmacy (includes expiry check)
                 stock_status = get_item_stock_status(item_code, store_id=store_id)
@@ -2999,7 +3101,7 @@ class AllProductsView(APIView):
     def get(self, request):
         try:
             search = request.query_params.get('search')
-            limit = int(request.query_params.get('limit', 50))
+            limit = int(request.query_params.get('limit', 1000))
             
             # [UPDATED] Always use auto-generated token - try ERP first
             logger.info(f"[PRODUCTS] Fetching from ERP with auto-generated token")
@@ -3024,8 +3126,27 @@ class AllProductsView(APIView):
                     discount = float(item.get('std_disc', 0))
                     discounted = mrp * (1 - discount / 100) if mrp > 0 else 0
                     
+                    # Check cart and wishlist status
+                    cart_status = False
+                    wishlist_status = False
+                    if request.user.is_authenticated:
+                        try:
+                            from .models import CartItem, WishlistItem
+                            c_item_code = item.get('c_item_code') or item.get('itemCode')
+                            if c_item_code:
+                                cart_status = CartItem.objects.filter(
+                                    cart__user=request.user,
+                                    item__item_code=c_item_code
+                                ).exists()
+                                wishlist_status = WishlistItem.objects.filter(
+                                    wishlist__user=request.user,
+                                    item__item_code=c_item_code
+                                ).exists()
+                        except:
+                            pass
+
                     products.append({
-                        'c_item_code': item.get('c_item_code'),
+                        'c_item_code': item.get('c_item_code') or item.get('itemCode'),
                         'itemName': item.get('itemName'),
                         'itemQtyPerBox': item.get('itemQtyPerBox'),
                         'batchNo': item.get('batchNo'),
@@ -3035,6 +3156,8 @@ class AllProductsView(APIView):
                         'discountedPrice': round(discounted, 2),
                         'stockBalQty': item.get('stockBalQty', 0),
                         'expiryDate': item.get('expiryDate'),
+                        'cart_status': cart_status,
+                        'wishlist_status': wishlist_status,
                         'source': 'erp'
                     })
                 
@@ -3082,6 +3205,23 @@ class AllProductsView(APIView):
                 except:
                     stock_qty = 0
                 
+                # Check cart and wishlist status
+                cart_status = False
+                wishlist_status = False
+                if request.user.is_authenticated:
+                    try:
+                        from .models import CartItem, WishlistItem
+                        cart_status = CartItem.objects.filter(
+                            cart__user=request.user,
+                            item=item
+                        ).exists()
+                        wishlist_status = WishlistItem.objects.filter(
+                            wishlist__user=request.user,
+                            item=item
+                        ).exists()
+                    except:
+                        pass
+
                 products.append({
                     'c_item_code': item.item_code,
                     'itemName': item.item_name,
@@ -3097,6 +3237,8 @@ class AllProductsView(APIView):
                     'type_label': product_info.type_label or '',
                     'category': product_info.category.name if product_info.category else None,
                     'productImage': product_image_url,
+                    'cart_status': cart_status,
+                    'wishlist_status': wishlist_status,
                     'source': 'database'
                 })
             
@@ -3163,34 +3305,235 @@ class SearchProductsView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # [UPDATED] Fetch ERP data with auto-generated token
-            erp_map = {}
             erp_items = fetch_all_items_from_erp()
             erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
-            if erp_map:
-                logger.info(f"[SEARCH] Fetched {len(erp_map)} items from ERP with auto-token")
             
-            # Start with product infos
-            from django.db.models import Q
-            product_infos = ProductInfo.objects.select_related('item', 'category').filter(
-                Q(item__item_name__icontains=query) |  # Search in product name
-                Q(description__icontains=query) |      # Search in description
-                Q(type_label__icontains=query) |       # Search in type (Tablet, Injection, etc)
-                Q(category__name__icontains=query)     # Search in category/brand name
-            ).distinct()
+            products = []
             
-            # Filter by category if provided
-            if category_id:
+            if erp_items:
+                logger.info(f"[SEARCH] Searching directly from {len(erp_items)} ERP items with auto-token")
+                
+                # Check for direct ERP matches
+                query_lower = query.lower()
+                matching_erp_items = []
+                for erp_item in erp_items:
+                    item_code = erp_item.get('c_item_code') or erp_item.get('itemCode')
+                    if not item_code:
+                        continue
+                    item_name = erp_item.get('itemName') or ''
+                    item_short = erp_item.get('itemShortName') or ''
+                    brand_name = erp_item.get('brandName') or ''
+                    category_name = erp_item.get('categoryName') or ''
+                    content_name = erp_item.get('contentName') or ''
+                    
+                    if (query_lower in item_name.lower() or 
+                        query_lower in item_short.lower() or 
+                        query_lower in brand_name.lower() or 
+                        query_lower in category_name.lower() or 
+                        query_lower in content_name.lower()):
+                        matching_erp_items.append(erp_item)
+                
+                # Limit results
+                matching_erp_items = matching_erp_items[:limit]
+                
+                # Fetch cart and wishlist item codes for authenticated user to compute status flags
+                user_cart_codes = set()
+                user_wishlist_codes = set()
+                if request.user.is_authenticated:
+                    try:
+                        from .models import CartItem, WishlistItem
+                        user_cart_codes = set(
+                            CartItem.objects.filter(cart__user=request.user).values_list('item__item_code', flat=True)
+                        )
+                        user_wishlist_codes = set(
+                            WishlistItem.objects.filter(wishlist__user=request.user).values_list('item__item_code', flat=True)
+                        )
+                    except:
+                        pass
+                
+                # Fetch existing ProductInfo and ProductImage details from local DB for matches (if any exist)
+                matching_codes = [item.get('c_item_code') or item.get('itemCode') for item in matching_erp_items]
+                product_info_map = {}
+                images_map = {}
+                if matching_codes:
+                    product_info_map = {
+                        pi.item.item_code: pi 
+                        for pi in ProductInfo.objects.filter(item__item_code__in=matching_codes).select_related('category')
+                    }
+                    
+                    from .models import ProductImage
+                    product_images = ProductImage.objects.filter(product_info__in=product_info_map.values()).order_by('image_order')
+                    for img in product_images:
+                        images_map.setdefault(img.product_info.item.item_code, []).append({
+                            'image': request.build_absolute_uri(img.image.url),
+                            'image_order': img.image_order
+                        })
+                
+                # Format response list directly from matching ERP items
+                for erp_item in matching_erp_items:
+                    item_code = erp_item.get('c_item_code') or erp_item.get('itemCode')
+                    item_name = erp_item.get('itemName') or ''
+                    item_qty_per_box = erp_item.get('itemQtyPerBox') or 1
+                    batch_no = erp_item.get('batchNo') or ''
+                    mrp = float(erp_item.get('mrp') or 0.0)
+                    std_disc = float(erp_item.get('std_disc') or 0.0)
+                    max_disc = float(erp_item.get('max_disc') or 0.0)
+                    stock_qty = erp_item.get('stockBalQty') or 0
+                    expiry_date = erp_item.get('expiryDate')
+                    
+                    # Cart and wishlist status checked by item code (no DB insertion required)
+                    cart_status = item_code in user_cart_codes
+                    wishlist_status = item_code in user_wishlist_codes
+                    
+                    # Merge DB description/images if present
+                    product_info = product_info_map.get(item_code)
+                    subheading = product_info.subheading if product_info else ''
+                    description = product_info.description if product_info else erp_item.get('hsnSacName') or ''
+                    type_label = product_info.type_label if product_info else erp_item.get('categoryName') or ''
+                    brand_id = product_info.category.id if product_info and product_info.category else None
+                    brand_name = product_info.category.name if product_info and product_info.category else erp_item.get('brandName') or ''
+                    
+                    brand_logo = ''
+                    if product_info and product_info.category and product_info.category.icon:
+                        brand_logo = request.build_absolute_uri(product_info.category.icon.url)
+                    
+                    images_list = images_map.get(item_code) or []
+                    
+                    products.append({
+                        'batchNo': batch_no,
+                        'c_item_code': item_code,
+                        'expiryDate': expiry_date,
+                        'itemName': item_name,
+                        'itemQtyPerBox': item_qty_per_box,
+                        'max_disc': max_disc,
+                        'mrp': mrp,
+                        'std_disc': std_disc,
+                        'stockBalQty': stock_qty,
+                        'subheading': subheading,
+                        'description': description,
+                        'type_label': type_label,
+                        'brand_id': brand_id,
+                        'brand_name': brand_name,
+                        'brand_logo': brand_logo,
+                        'images': images_list,
+                        'cart_status': cart_status,
+                        'wishlist_status': wishlist_status
+                    })
+                
+                # Track product views for matched items that exist in our database
                 try:
-                    category_id = int(category_id)
-                    product_infos = product_infos.filter(category_id=category_id)
-                except ValueError:
-                    pass
-            
-            # Limit results
-            product_infos = product_infos[:limit]
-            
-            if not product_infos.exists():
-                logger.info(f"[SEARCH] No products found for query: '{query}'")
+                    user = request.user if request.user.is_authenticated else None
+                    if user and product_info_map:
+                        from .models import ProductView
+                        for product_info in product_info_map.values():
+                            ProductView.objects.update_or_create(
+                                user=user,
+                                item=product_info.item,
+                                defaults={'viewed_at': timezone.now()}
+                            )
+                except Exception as e:
+                    logger.warning(f"[PRODUCT_VIEW_ERROR] Failed to track product views: {str(e)}")
+
+            else:
+                # [FALLBACK] Fetch from database if ERP is not available
+                logger.info(f"[SEARCH] ERP unavailable, falling back to database search")
+                
+                from django.db.models import Q
+                product_infos = ProductInfo.objects.select_related('item', 'category').filter(
+                    Q(item__item_name__icontains=query) |
+                    Q(description__icontains=query) |
+                    Q(type_label__icontains=query) |
+                    Q(category__name__icontains=query)
+                ).distinct()
+                
+                if category_id:
+                    try:
+                        category_id = int(category_id)
+                        product_infos = product_infos.filter(category_id=category_id)
+                    except ValueError:
+                        pass
+                
+                product_infos = product_infos[:limit]
+                
+                for product_info in product_infos:
+                    item = product_info.item
+                    mrp = float(item.mrp)
+                    discount = float(item.std_disc)
+                    
+                    product_images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
+                    images_list = [
+                        {
+                            'image': request.build_absolute_uri(img.image.url),
+                            'image_order': img.image_order
+                        }
+                        for img in product_images
+                    ]
+                    
+                    stock_qty = 0
+                    try:
+                        from .models import Stock
+                        stock = Stock.objects.filter(item=item).first()
+                        if stock:
+                            stock_qty = stock.total_bal_ls_qty
+                    except:
+                        stock_qty = 0
+                    
+                    cart_status = False
+                    wishlist_status = False
+                    if request.user.is_authenticated:
+                        try:
+                            from .models import CartItem, WishlistItem
+                            cart_status = CartItem.objects.filter(
+                                cart__user=request.user,
+                                item=item
+                            ).exists()
+                            wishlist_status = WishlistItem.objects.filter(
+                                wishlist__user=request.user,
+                                item=item
+                            ).exists()
+                        except:
+                            pass
+                    
+                    brand_logo = ''
+                    if product_info.category and product_info.category.icon:
+                        brand_logo = request.build_absolute_uri(product_info.category.icon.url)
+                    
+                    products.append({
+                        'batchNo': item.batch_no or '',
+                        'c_item_code': item.item_code,
+                        'expiryDate': str(item.expiry_date) if item.expiry_date else None,
+                        'itemName': item.item_name,
+                        'itemQtyPerBox': item.item_qty_per_box,
+                        'max_disc': float(item.max_disc),
+                        'mrp': mrp,
+                        'std_disc': discount,
+                        'stockBalQty': stock_qty,
+                        'subheading': product_info.subheading or '',
+                        'description': product_info.description or '',
+                        'type_label': product_info.type_label or '',
+                        'brand_id': product_info.category.id if product_info.category else None,
+                        'brand_name': product_info.category.name if product_info.category else '',
+                        'brand_logo': brand_logo,
+                        'images': images_list,
+                        'cart_status': cart_status,
+                        'wishlist_status': wishlist_status
+                    })
+                
+                # Track product views
+                try:
+                    user = request.user if request.user.is_authenticated else None
+                    if user:
+                        from .models import ProductView
+                        for product_info in product_infos:
+                            ProductView.objects.update_or_create(
+                                user=user,
+                                item=product_info.item,
+                                defaults={'viewed_at': timezone.now()}
+                            )
+                except Exception as e:
+                    logger.warning(f"[PRODUCT_VIEW_ERROR] Failed to track product views: {str(e)}")
+
+            if not products:
                 return Response({
                     'success': True,
                     'message': 'No products found',
@@ -3198,97 +3541,6 @@ class SearchProductsView(APIView):
                     'count': 0,
                     'data': []
                 }, status=status.HTTP_200_OK)
-            
-            # Serialize products
-            products = []
-            for product_info in product_infos:
-                item = product_info.item
-                
-                # Check for ERP enrichment
-                erp_data = erp_map.get(item.item_code)
-                if erp_data:
-                    # Enrich with ERP data
-                    item.item_code = erp_data.get('c_item_code', item.item_code)
-                    item.item_name = erp_data.get('itemName', item.item_name)
-                    item.batch_no = erp_data.get('batchNo', item.batch_no)
-                    item.item_qty_per_box = erp_data.get('itemQtyPerBox', item.item_qty_per_box)
-                    item.mrp = float(erp_data.get('mrp', item.mrp))
-                    item.std_disc = float(erp_data.get('std_disc', item.std_disc))
-                    item.max_disc = float(erp_data.get('max_disc', item.max_disc))
-                    item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
-                    item.erp_stock = erp_data.get('stockBalQty', 0)
-                
-                mrp = float(item.mrp)
-                discount = float(item.std_disc)
-                discounted_price = mrp * (1 - discount / 100)
-                
-                # Get all product images (ordered by image_order)
-                product_images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
-                images_list = [
-                    {
-                        'image': request.build_absolute_uri(img.image.url),
-                        'image_order': img.image_order
-                    }
-                    for img in product_images
-                ]
-                
-                # Get stock quantity (ERP first, then database)
-                stock_qty = 0
-                if hasattr(item, 'erp_stock') and item.erp_stock is not None:
-                    stock_qty = item.erp_stock  # ← From ERP
-                else:
-                    try:
-                        from .models import Stock
-                        stock = Stock.objects.filter(item=item).first()
-                        if stock:
-                            stock_qty = stock.total_bal_ls_qty  # ← From DB
-                    except:
-                        stock_qty = 0
-                
-                # Check if item is in user's cart
-                cart_status = False
-                wishlist_status = False
-                if request.user.is_authenticated:
-                    try:
-                        from .models import CartItem, WishlistItem
-                        cart_status = CartItem.objects.filter(
-                            cart__user=request.user,
-                            product_info=product_info
-                        ).exists()
-                        wishlist_status = WishlistItem.objects.filter(
-                            wishlist__user=request.user,
-                            product_info=product_info
-                        ).exists()
-                    except:
-                        pass
-                
-                # Get brand logo
-                brand_logo = ''
-                if product_info.category and product_info.category.icon:
-                    brand_logo = request.build_absolute_uri(product_info.category.icon.url)
-                
-                products.append({
-                    'batchNo': item.batch_no or '',
-                    'c_item_code': item.item_code,
-                    'expiryDate': str(item.expiry_date) if item.expiry_date else None,
-                    'itemName': item.item_name,
-                    'itemQtyPerBox': item.item_qty_per_box,
-                    'max_disc': float(item.max_disc),
-                    'mrp': float(item.mrp),
-                    'std_disc': float(item.std_disc),
-                    'stockBalQty': stock_qty,
-                    'subheading': product_info.subheading or '',
-                    'description': product_info.description or '',
-                    'type_label': product_info.type_label or '',
-                    'brand_id': product_info.category.id if product_info.category else None,
-                    'brand_name': product_info.category.name if product_info.category else '',
-                    'brand_logo': brand_logo,
-                    'images': images_list,
-                    'cart_status': cart_status,
-                    'wishlist_status': wishlist_status
-                })
-            
-            logger.info(f"[SEARCH] Found {len(products)} products for query: '{query}' | Source: ERP (auto-token)")
             
             # Log search for popular search tracking
             try:
@@ -3306,26 +3558,13 @@ class SearchProductsView(APIView):
             except Exception as e:
                 logger.warning(f"[SEARCH_LOG_ERROR] Failed to log search: {str(e)}")
             
-            # ✅ Track product views for recently viewed feature
-            try:
-                if user_id:  # Only track if user_id provided
-                    for product_info in product_infos:
-                        ProductView.objects.update_or_create(
-                            user_id=user_id,
-                            item=product_info.item,
-                            defaults={'viewed_at': timezone.now()}
-                        )
-                    logger.info(f"[PRODUCT_VIEW] Tracked {len(product_infos)} product views for user {user_id}")
-            except Exception as e:
-                logger.warning(f"[PRODUCT_VIEW_ERROR] Failed to track product views: {str(e)}")
-            
             return Response({
                 'success': True,
                 'message': f'Found {len(products)} products',
                 'query': query,
                 'count': len(products),
                 'data': products,
-                'source': 'erp'
+                'source': 'erp' if erp_items else 'database'
             }, status=status.HTTP_200_OK)
         
         except Exception as e:
@@ -3447,11 +3686,11 @@ class PopularSearchView(APIView):
                             from .models import CartItem, WishlistItem
                             cart_status = CartItem.objects.filter(
                                 cart__user=request.user,
-                                product_info=product_info
+                                item=item
                             ).exists()
                             wishlist_status = WishlistItem.objects.filter(
                                 wishlist__user=request.user,
-                                product_info=product_info
+                                item=item
                             ).exists()
                         except:
                             pass
@@ -3584,23 +3823,19 @@ def fetch_item_from_erp(item_code, store_id=None):
     [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        from .erp_token_service import get_erp_token_for_request, get_erp_token_for_store_config
+        from .erp_token_service import get_erp_token_for_store_config
         from .erp_service import ERPService
         
         if store_id:
             store_info = ERPService.get_config_by_store_id(store_id)
-            if not store_info:
-                store_info = ERPService._get_fallback_config()
-            erp_config = store_info['erp_config']
-            api_key = get_erp_token_for_store_config(erp_config)
-            params = {
-                'apiKey': api_key,
-                'c2Code': erp_config['c2_code'],
-                'storeId': erp_config['store_id']
-            }
         else:
-            api_key = get_erp_token_for_request()
-            params = {'apiKey': api_key}
+            store_info = ERPService._get_fallback_config()
+            
+        if not store_info:
+            store_info = ERPService._get_fallback_config()
+            
+        erp_config = store_info['erp_config']
+        api_key = get_erp_token_for_store_config(erp_config)
             
         if not api_key:
             logger.error("Could not get auto-generated token")
@@ -3609,7 +3844,17 @@ def fetch_item_from_erp(item_code, store_id=None):
         # Fetch all items from ERP
         erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_get_master_data"
         
-        response = requests.get(erp_url, params=params, timeout=10)
+        # 🎯 Official Ecogreen API uses GET with JSON body for master data
+        erp_payload = {
+            'apiKey':        api_key,
+            'prodCode':      erp_config['prod_code'],
+            'c2Code':        erp_config['c2_code'],
+            'storeId':       erp_config['store_id'],
+            'inputDateTime': '2026-01-28 10:10:00',
+            'itemcodes':     [item_code]
+        }
+        
+        response = requests.get(erp_url, json=erp_payload, timeout=10)
         response.raise_for_status()
         
         data = response.json()
@@ -3618,7 +3863,11 @@ def fetch_item_from_erp(item_code, store_id=None):
         
         # Find the specific item
         for item_data in data.get('data', []):
-            if item_data.get('c_item_code') == item_code:
+            item_code_val = item_data.get('c_item_code') or item_data.get('itemCode')
+            if item_code_val == item_code:
+                # Normalize keys for compatibility
+                item_data['c_item_code'] = item_code_val
+                item_data['itemCode'] = item_code_val
                 return item_data
         
         return None
@@ -3637,23 +3886,19 @@ def fetch_all_items_from_erp(store_id=None):
     [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        from .erp_token_service import get_erp_token_for_request, get_erp_token_for_store_config
+        from .erp_token_service import get_erp_token_for_store_config
         from .erp_service import ERPService
         
         if store_id:
             store_info = ERPService.get_config_by_store_id(store_id)
-            if not store_info:
-                store_info = ERPService._get_fallback_config()
-            erp_config = store_info['erp_config']
-            api_key = get_erp_token_for_store_config(erp_config)
-            params = {
-                'apiKey': api_key,
-                'c2Code': erp_config['c2_code'],
-                'storeId': erp_config['store_id']
-            }
         else:
-            api_key = get_erp_token_for_request()
-            params = {'apiKey': api_key}
+            store_info = ERPService._get_fallback_config()
+            
+        if not store_info:
+            store_info = ERPService._get_fallback_config()
+            
+        erp_config = store_info['erp_config']
+        api_key = get_erp_token_for_store_config(erp_config)
             
         if not api_key:
             logger.error("[ERP_ERROR] Could not get auto-generated token")
@@ -3663,7 +3908,17 @@ def fetch_all_items_from_erp(store_id=None):
         
         logger.info(f"[ERP_FETCH_ALL] Fetching all items from ERP: {erp_url}")
         
-        response = requests.get(erp_url, params=params, timeout=15)
+        # 🎯 Official Ecogreen API uses GET with JSON body for master data
+        erp_payload = {
+            'apiKey':        api_key,
+            'prodCode':      erp_config['prod_code'],
+            'c2Code':        erp_config['c2_code'],
+            'storeId':       erp_config['store_id'],
+            'inputDateTime': '2026-01-28 10:10:00',
+            'itemcodes':     []
+        }
+        
+        response = requests.get(erp_url, json=erp_payload, timeout=15)
         response.raise_for_status()
         
         data = response.json()
@@ -3672,6 +3927,14 @@ def fetch_all_items_from_erp(store_id=None):
             return []
         
         items = data.get('data', [])
+        
+        # Normalize keys for compatibility (c_item_code and itemCode)
+        for item in items:
+            item_code_val = item.get('c_item_code') or item.get('itemCode')
+            if item_code_val:
+                item['c_item_code'] = item_code_val
+                item['itemCode'] = item_code_val
+                
         logger.info(f"[ERP_FETCH_ALL] Successfully fetched {len(items)} items from ERP")
         return items
         
@@ -3729,6 +3992,64 @@ def update_itemmaster_cache(item_code, item_data):
         return None
 
 
+def fetch_stock_from_erp(item_code, store_id=None):
+    """
+    Fetch stock balance for a specific item directly from the ERP stock API (ws_c2_services_fetch_stock)
+    Returns: Integer stock quantity (totalBalLsQty) or 0 if not found/error
+    """
+    try:
+        from .erp_token_service import get_erp_token_for_store_config
+        from .erp_service import ERPService
+        
+        if store_id:
+            store_info = ERPService.get_config_by_store_id(store_id)
+        else:
+            store_info = ERPService._get_fallback_config()
+            
+        if not store_info:
+            store_info = ERPService._get_fallback_config()
+            
+        erp_config = store_info['erp_config']
+        api_key = get_erp_token_for_store_config(erp_config)
+            
+        if not api_key:
+            logger.error("Could not get auto-generated token for stock fetch")
+            return 0
+        
+        erp_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+        
+        erp_payload = {
+            'apiKey':        api_key,
+            'prodCode':      erp_config['prod_code'],
+            'c2Code':        erp_config['c2_code'],
+            'storeId':       erp_config['store_id'],
+            'inputDateTime': '2026-05-01 10:10:00',
+            'itemCodes':     []
+        }
+        
+        response = requests.get(erp_url, json=erp_payload, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        stock_items = []
+        if isinstance(data, dict):
+            stock_items = data.get('data', [])
+        elif isinstance(data, list):
+            stock_items = data
+            
+        for stock_item in stock_items:
+            item_code_val = stock_item.get('c_item_code') or stock_item.get('itemCode')
+            if item_code_val == item_code:
+                try:
+                    return int(stock_item.get('totalBalLsQty', 0))
+                except:
+                    return 0
+        return 0
+    except Exception as e:
+        logger.error(f"Error fetching stock from ERP: {str(e)}")
+        return 0
+
+
 def get_item_stock_status(item_code, store_id=None):
     """
     Fetch stock availability status for item from ERP
@@ -3740,10 +4061,69 @@ def get_item_stock_status(item_code, store_id=None):
     """
     try:
         item_data = fetch_item_from_erp(item_code, store_id=store_id)
+        
+        # If not found in ERP master, fallback to local DB cache
+        if not item_data:
+            from .models import ItemMaster
+            item = ItemMaster.objects.filter(item_code=item_code).first()
+            if item:
+                item_data = {
+                    'c_item_code': item.item_code,
+                    'itemCode': item.item_code,
+                    'itemName': item.item_name,
+                    'mrp': float(item.mrp),
+                    'std_disc': float(item.std_disc),
+                    'max_disc': float(item.max_disc),
+                    'expiryDate': str(item.expiry_date) if item.expiry_date else '2099-12-31'
+                }
+                
+        # If still not found, check stock response to get itemName
+        if not item_data:
+            try:
+                from .erp_token_service import get_erp_token_for_store_config
+                from .erp_service import ERPService
+                store_info = ERPService.get_config_by_store_id(store_id) if store_id else ERPService._get_fallback_config()
+                if store_info:
+                    erp_config = store_info['erp_config']
+                    api_key = get_erp_token_for_store_config(erp_config)
+                    if api_key:
+                        erp_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                        erp_payload = {
+                            'apiKey':        api_key,
+                            'prodCode':      erp_config['prod_code'],
+                            'c2Code':        erp_config['c2_code'],
+                            'storeId':       erp_config['store_id'],
+                            'inputDateTime': '2026-05-01 10:10:00',
+                            'itemCodes':     []
+                        }
+                        response = requests.get(erp_url, json=erp_payload, timeout=10)
+                        if response.status_code == 200:
+                            stock_items = response.json()
+                            if isinstance(stock_items, dict):
+                                stock_items = stock_items.get('data', [])
+                            elif not isinstance(stock_items, list):
+                                stock_items = []
+                            for s_item in stock_items:
+                                item_code_val = s_item.get('c_item_code') or s_item.get('itemCode')
+                                if item_code_val == item_code:
+                                    item_data = {
+                                        'c_item_code': item_code,
+                                        'itemCode': item_code,
+                                        'itemName': s_item.get('itemName') or 'Unknown Product',
+                                        'mrp': 0.0,
+                                        'std_disc': 0.0,
+                                        'max_disc': 0.0,
+                                        'expiryDate': '2099-12-31'
+                                    }
+                                    break
+            except Exception as e:
+                logger.error(f"Error checking stock for fallback item data: {str(e)}")
+
         if not item_data:
             return {'available': False, 'status': 'Not found in ERP', 'qty': 0, 'is_expired': False, 'expiry_date': None}
         
-        stock_qty = item_data.get('stockBalQty', 0)
+        # ✅ Fetch real stock from ws_c2_services_fetch_stock
+        stock_qty = fetch_stock_from_erp(item_code, store_id=store_id)
         
         # ✅ FIX #1: CHECK EXPIRY DATE - CRITICAL FOR PHARMACY
         try:
@@ -5837,51 +6217,23 @@ class CategoryListView(ListAPIView):
         context['cart_wishlist_user'] = user
         
         # ============ ERP TOKEN & STOCK ENRICHMENT ============
-        # Priority 1: Check if apiKey provided via query params (manual override)
-        api_key = self.request.query_params.get('apiKey')
-        
-        # Priority 2: Auto-generate token if not provided
-        if not api_key:
-            try:
-                from .erp_token_service import get_erp_token_for_request
-                api_key = get_erp_token_for_request()
-                logger.info(f"[CATEGORIES] Using auto-generated ERP token")
-            except Exception as e:
-                logger.warning(f"[CATEGORIES] Failed to generate ERP token: {str(e)}")
-                api_key = None
-        else:
-            logger.info(f"[CATEGORIES] Using provided apiKey from query params")
-        
         # Fetch ERP master data to enrich with stock quantities
-        if api_key:
-            try:
-                erp_base_url = settings.ERP_BASE_URL
-                erp_server_url = f"{erp_base_url}/ws_c2_services_get_master_data"
+        try:
+            items = fetch_all_items_from_erp()
+            if items:
+                # Create mapping of item_code -> stockBalQty from ERP
+                stock_map = {}
+                for item in items:
+                    if item.get('c_item_code'):
+                        stock_map[item['c_item_code']] = item.get('stockBalQty', 0)
                 
-                logger.info(f"[CATEGORIES] Fetching ERP data from: {erp_server_url}")
-                
-                erp_response = requests.get(erp_server_url, params={'apiKey': api_key}, timeout=15)
-                
-                if erp_response.status_code == 200:
-                    erp_data = erp_response.json()
-                    items = erp_data.get('data', [])
-                    
-                    # Create mapping of item_code -> stockBalQty from ERP
-                    stock_map = {}
-                    for item in items:
-                        if item.get('c_item_code'):
-                            stock_map[item['c_item_code']] = item.get('stockBalQty', 0)
-                    
-                    context['erp_stock_map'] = stock_map
-                    logger.info(f"[CATEGORIES] [SUCCESS] Successfully enriched with {len(stock_map)} ERP items")
-                else:
-                    logger.error(f"[CATEGORIES] ERP Server error: {erp_response.status_code}")
-                    context['erp_stock_map'] = {}
-            except Exception as e:
-                logger.error(f"[CATEGORIES] [FAILED] Failed to fetch ERP data: {str(e)}")
+                context['erp_stock_map'] = stock_map
+                logger.info(f"[CATEGORIES] [SUCCESS] Successfully enriched with {len(stock_map)} ERP items")
+            else:
+                logger.error("[CATEGORIES] ERP Server returned no items or failed")
                 context['erp_stock_map'] = {}
-        else:
-            logger.warning(f"[CATEGORIES] No API key available - using database stock only")
+        except Exception as e:
+            logger.error(f"[CATEGORIES] [FAILED] Failed to fetch ERP data: {str(e)}")
             context['erp_stock_map'] = {}
         
         return context
@@ -5956,11 +6308,11 @@ def related_products(request, product_id):
                     from .models import CartItem, WishlistItem
                     cart_status = CartItem.objects.filter(
                         cart__user=request.user,
-                        product_info=product_info
+                        item=item
                     ).exists()
                     wishlist_status = WishlistItem.objects.filter(
                         wishlist__user=request.user,
-                        product_info=product_info
+                        item=item
                     ).exists()
                 except:
                     pass

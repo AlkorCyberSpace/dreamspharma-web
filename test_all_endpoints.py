@@ -509,7 +509,7 @@ def run_all_tests():
     print(f"Success Rate: {(passed/total)*100:.1f}%\n")
     
     # Create detailed report
-    with open('COMPREHENSIVE_ENDPOINT_TEST_REPORT.txt', 'w') as f:
+    with open('COMPREHENSIVE_ENDPOINT_TEST_REPORT.txt', 'w', encoding='utf-8') as f:
         f.write("="*150 + "\n")
         f.write("DREAMSPHARMA - COMPREHENSIVE ENDPOINT TEST REPORT\n")
         f.write("="*150 + "\n\n")
