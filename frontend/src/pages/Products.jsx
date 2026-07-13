@@ -7,10 +7,17 @@ import { mediaUrl } from "../services/serverUrl";
 
 export default function Products() {
     const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All Brands");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const itemsPerPage = 16;
+    const [totalPages, setTotalPages] = useState(1);
+    const [summaryStats, setSummaryStats] = useState({
+        totalProducts: 0,
+        lowStockCount: 0,
+        totalWarehouses: 1
+    });
     const [productsData, setProductsData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedProduct, setSelectedProduct] = useState(null);
@@ -38,26 +45,61 @@ export default function Products() {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const response = await getProductsAPI();
+            const params = {
+                page: currentPage,
+                page_size: itemsPerPage,
+            };
+            if (debouncedSearch) {
+                params.search = debouncedSearch;
+            }
+            if (categoryFilter && categoryFilter !== "All Brands") {
+                params.brand = categoryFilter;
+            }
+            const response = await getProductsAPI(params);
             if (response.data && response.data.data) {
                 const mappedData = response.data.data.map((item) => ({
-                    id: item.c_item_code,
+                    id: item.itemCode,
                     name: item.itemName,
+                    shortName: item.itemShortName || "-",
+                    erpBrand: item.brandName || "-",
+                    erpCategory: item.categoryName || "-",
+                    erpContent: item.contentName || "-",
+                    erpPack: item.packName || "-",
+                    hsnCode: item.hsnSacCode || "-",
+                    hsnName: item.hsnSacName || "-",
+                    itemAddedDate: item.itemAddedDate || "-",
+                    itemUpdatedDate: item.itemUpdatedDate || "-",
                     category: item.brand_name || "not choose",
+                    // The following fields (mrp, stockBalQty, batchNo, expiryDate) are no longer in the JSON response, falling back to N/A or defaults
                     mrp: item.mrp ? `₹${item.mrp}` : "N/A",
                     stock: item.stockBalQty || 0,
                     lowStock: (item.stockBalQty || 0) < 5,
-                    batch: item.batchNo,
-                    expiry: item.expiryDate,
+                    batch: item.batchNo || "N/A",
+                    expiry: item.expiryDate || "N/A",
                     description: item.description,
                     subheading: item.subheading,
+                    type_label: item.type_label,
                     brand: item.brand_name,
                     brandId: item.brand_id,
                     brandLogo: item.brand_logo,
                     images: item.images,
+                    // New fields from your JSON response:
+                    itemQtyPerBox: item.itemQtyPerBox,
+                    cartStatus: item.cart_status,
+                    wishlistStatus: item.wishlist_status,
                 }));
 
                 setProductsData(mappedData);
+                if (response.data.pagination) {
+                    setTotalPages(response.data.pagination.total_pages || 1);
+                }
+                if (response.data.summary) {
+                    setSummaryStats({
+                        totalProducts: response.data.summary.total_products || 0,
+                        lowStockCount: response.data.summary.low_stock_count || 0,
+                        totalWarehouses: response.data.summary.total_warehouses || 1
+                    });
+                }
             }
         } catch (error) {
             console.error("Error fetching products:", error);
@@ -75,16 +117,34 @@ export default function Products() {
             console.error("Error fetching brands:", error);
         }
     };
+
+    // Debounce search term and reset page to 1
     useEffect(() => {
-        fetchProducts();
+        const handler = setTimeout(() => {
+            setDebouncedSearch(search);
+            setCurrentPage(1);
+        }, 500);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [search]);
+
+    // Fetch brands once on mount
+    useEffect(() => {
         fetchBrands();
     }, []);
+
+    // Re-fetch products when pagination/filters change
+    useEffect(() => {
+        fetchProducts();
+    }, [currentPage, debouncedSearch, categoryFilter]);
     const handleUpdateSubmit = async (e) => {
         e.preventDefault();
         setSavingProduct(true);
         try {
             const formData = new FormData();
-            formData.append("c_item_code", selectedProduct.id);
+            formData.append("itemCode", selectedProduct.id);
             formData.append("subheading", editFormState.subheading);
             formData.append("description", editFormState.description);
             formData.append("type_label", editFormState.type_label);
@@ -97,7 +157,7 @@ export default function Products() {
 
             if (selectedBrandId !== (selectedProduct.brandId || "")) {
                 await assignBrandToProductAPI({
-                    c_item_code: selectedProduct.id,
+                    itemCode: selectedProduct.id,
                     brand_id: selectedBrandId
                 });
             }
@@ -106,9 +166,21 @@ export default function Products() {
                 setIsModalOpen(false);
                 fetchProducts();
             }
-        } catch (err) {
-            console.error("Failed to update product:", err);
-            alert("Failed to update product information.");
+        } catch (error) {
+            console.error("Failed to update product:", error);
+            let errorMessage = "Failed to update product information.";
+            if (error.response?.data) {
+                const data = error.response.data;
+                if (data.errors) {
+                    const firstError = Object.values(data.errors)[0]?.[0];
+                    if (firstError) {
+                        errorMessage = firstError;
+                    }
+                } else if (data.message) {
+                    errorMessage = data.message;
+                }
+            }
+            alert(errorMessage);
         } finally {
             setSavingProduct(false);
         }
@@ -125,22 +197,11 @@ export default function Products() {
             }));
         }
     };
-    const filteredProducts = productsData.filter((product) => {
-        const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) || product.id.toLowerCase().includes(search.toLowerCase());
-        const matchesCategory = categoryFilter === "All Brands" || product.brand === categoryFilter;
-        return matchesSearch && matchesCategory;
-    });
-
-    // Pagination 
-    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-    const paginatedProducts = filteredProducts.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    // With backend pagination/search/filtering, productsData already represents the current page's filtered products
+    const paginatedProducts = productsData;
 
     const handleSearch = (e) => {
         setSearch(e.target.value);
-        setCurrentPage(1);
     };
 
     const handleCategoryChange = (cat) => {
@@ -160,7 +221,7 @@ export default function Products() {
     ) : false;
 
     return (
-        <div className="h-full overflow-hidden flex flex-col ml-2 mt-3">
+        <div className="min-h-full flex flex-col ml-2 mt-3 mb-8">
 
             <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 ">
                 <div>
@@ -232,7 +293,7 @@ export default function Products() {
             <div className="flex flex-col md:flex-row gap-4 lg:gap-6 mb-3">
                 <SummaryCard
                     title="Total Products"
-                    value={productsData.length.toString()}
+                    value={summaryStats.totalProducts.toString()}
                     icon={<Package size={20} />}
                     bgClass="bg-[#f2ecbb]"
                     textClass="text-[#846018]"
@@ -242,7 +303,7 @@ export default function Products() {
                 />
                 <SummaryCard
                     title="Low Stock Items"
-                    value={productsData.filter(p => p.lowStock).length.toString()}
+                    value={summaryStats.lowStockCount.toString()}
                     icon={<AlertTriangle size={20} />}
                     bgClass="bg-[#d8e9ff]"
                     textClass="text-[#1D4ED8]"
@@ -252,7 +313,7 @@ export default function Products() {
                 />
                 <SummaryCard
                     title="Total Warehouses"
-                    value={new Set(productsData.map(p => p.warehouse)).size.toString()}
+                    value={summaryStats.totalWarehouses.toString()}
                     icon={<Archive size={20} />}
                     bgClass="bg-[#e9fedf]"
                     textClass="text-[#207238]"
@@ -263,8 +324,8 @@ export default function Products() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-auto">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col">
+                <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
@@ -272,10 +333,10 @@ export default function Products() {
                                 <th className=" ">PRODUCT ID</th>
                                 <th className="px-4">PRODUCT NAME</th>
                                 <th className="px-2">BRAND NAME</th>
-                                <th className="px-2">BATCH NO</th>
-                                <th className="px-2">EXPIRY</th>
-                                <th className="px-2">MRP</th>
-                                <th className="px-2">STOCK</th>
+                                <th className="px-2">HSN CODE</th>
+                                <th className="px-2">PACK</th>
+                                <th className="px-2">ADDED DATE</th>
+                                <th className="px-2">UPDATED DATE</th>
                                 <th className="px-2 text-center">ACTION</th>
                             </tr>
                         </thead>
@@ -305,18 +366,11 @@ export default function Products() {
                                         <td className="px-2 text-sm text-[#127690] font-bold">{product.id}</td>
                                         <td className="px-3 text-sm text-gray-800 font-medium">{product.name}</td>
                                         <td className="px-2 text-sm text-gray-800">{product.category}</td>
-                                        <td className="px-2 text-sm text-gray-800">{product.batch || "—"}</td>
-                                        <td className="px-2 text-sm text-gray-800">{product.expiry || "—"}</td>
-                                        <td className="px-2 text-sm text-gray-600 font-bold">{product.mrp}</td>
-                                        <td className="px-2 text-sm whitespace-nowrap">
-                                            {product.lowStock ? (
-                                                <span className="text-red-600 font-bold flex items-center gap-1.5">
-                                                    {product.stock}
-                                                    <AlertTriangle size={14} className="text-red-500" />
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-600 font-semibold">{product.stock}</span>
-                                            )}
+                                        <td className="px-2 py-4 text-sm text-gray-800">{product.hsnCode}</td>
+                                        <td className="px-2 py-4 text-sm text-gray-800">{product.pack}</td>
+                                        <td className="px-2 py-4 text-sm text-gray-600 font-bold whitespace-nowrap">{product.itemAddedDate}</td>
+                                        <td className="px-2 py-4 text-sm whitespace-nowrap">
+                                            <span className="text-gray-600 font-semibold">{product.itemUpdatedDate}</span>
                                         </td>
                                         <td className="px-2 text-[13px] text-center">
                                             <button
@@ -433,7 +487,7 @@ export default function Products() {
                         </div>
 
                         {/* Modal Body — 3-column no-scroll layout */}
-                        <div className="max-h-[80vh] overflow-y-auto lg:max-h-none lg:overflow-visible">
+                        <div className="max-h-[80vh] overflow-y-auto lg:max-h-none lg:overflow-visible text-gray-800">
                             <div className="grid grid-cols-1 md:grid-cols-3">
 
                                 {/* COL 1: Images + Brand + Description */}
@@ -442,6 +496,7 @@ export default function Products() {
                                     <div>
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest mb-2">
                                             Product Images
+                                            <span className="block text-[10px] text-gray-600 normal-case tracking-normal mt-0.5 font-medium">Format: JPG, PNG, WEBP (Max 5MB)</span>
                                         </p>
 
                                         <div className="flex flex-wrap lg:flex-nowrap gap-3">
@@ -464,7 +519,7 @@ export default function Products() {
                                                         >
                                                             {hasImage ? (
                                                                 <img
-                                                                    src={hasImage && typeof hasImage === 'string' && hasImage.startsWith('http') ? hasImage : `${mediaUrl}${hasImage}`}
+                                                                    src={hasImage && typeof hasImage === 'string' && (hasImage.startsWith('http') || hasImage.startsWith('blob:')) ? hasImage : `${mediaUrl}${hasImage}`}
                                                                     className="w-full h-full object-cover"
                                                                 />
                                                             ) : (
@@ -476,6 +531,7 @@ export default function Products() {
 
                                                             <input
                                                                 type="file"
+                                                                accept=".jpg,.jpeg,.png,.gif,.webp"
                                                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                                                 onChange={(e) => handleImageChange(e, fileKey)}
                                                             />
@@ -492,7 +548,7 @@ export default function Products() {
                                         <textarea
                                             value={editFormState.description}
                                             onChange={(e) => setEditFormState({ ...editFormState, description: e.target.value })}
-                                            className="w-full flex-1 min-h-[80px] px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#127690] focus:border-[#127690] transition-all placeholder:text-gray-400 resize-none"
+                                            className="w-full flex-1 min-h-[80px] px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#127690] focus:border-[#127690] transition-all placeholder:text-gray-800 resize-none"
                                             placeholder="Add product description..."
                                         />
                                     </div>
@@ -505,13 +561,20 @@ export default function Products() {
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Product Info</p>
                                         <ModalRow label="Product Code" value={selectedProduct.id} />
                                         <ModalRow label="Product Name" value={selectedProduct.name} />
+                                        <ModalRow label="Short Name" value={selectedProduct.shortName} />
+                                        <ModalRow label="ERP Brand" value={selectedProduct.erpBrand} />
+                                        <ModalRow label="ERP Category" value={selectedProduct.erpCategory} />
+                                        <ModalRow label="Content" value={selectedProduct.erpContent} />
+                                        <ModalRow label="Pack" value={selectedProduct.erpPack} />
+                                        <ModalRow label="HSN Code" value={selectedProduct.hsnCode} />
+                                        <ModalRow label="HSN Name" value={selectedProduct.hsnName} />
                                         {/* <div className="flex flex-col sm:flex-row sm:items-start gap-1">
                                             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0 mt-1.5">Category</span>
                                             <input type="text" value={editFormState.type_label} onChange={e => setEditFormState({ ...editFormState, type_label: e.target.value })} className="flex-1 text-sm bg-gray-50 rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Category" />
                                         </div> */}
                                         <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-                                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0 mt-1.5">Subheading</span>
-                                            <input type="text" value={editFormState.subheading} onChange={e => setEditFormState({ ...editFormState, subheading: e.target.value })} className="flex-1 text-sm bg-gray-50 rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Subheading" />
+                                            <span className="text-xs font-semibold uppercase tracking-wide w-40 shrink-0 mt-1.5">Subheading</span>
+                                            <input type="text" value={editFormState.subheading} onChange={e => setEditFormState({ ...editFormState, subheading: e.target.value })} className="flex-1 text-sm bg-gray-50  text-[#020202] rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Subheading" />
                                         </div>
                                     </div>
 
@@ -534,7 +597,7 @@ export default function Products() {
                                                             </div>
                                                         )}
                                                         <div>
-                                                            <p className="text-sm font-semibold text-gray-800">{brands.find(b => b.id === selectedBrandId)?.name || "Unknown Brand"}</p>
+                                                            <p className="text-sm font-semibold">{brands.find(b => b.id === selectedBrandId)?.name || "Unknown Brand"}</p>
                                                             <p className="text-[10px] text-gray-500 font-medium">Brand ID: {selectedBrandId}</p>
                                                         </div>
                                                     </div>
@@ -556,16 +619,16 @@ export default function Products() {
                                             {isBrandDropdownOpen && (
                                                 <>
                                                     <div className="fixed inset-0 z-40" onClick={() => setIsBrandDropdownOpen(false)} />
-                                                    <div className="absolute bottom-full left-0 mb-2 w-full max-h-60 overflow-y-auto bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                    <div className="absolute bottom-full left-0 mb-2 w-51 max-h-60 overflow-y-auto bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
                                                         <div className="px-3 pb-2 border-b border-gray-50 mb-1">
                                                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select a Brand</p>
                                                         </div>
-                                                        <button
+                                                        {/* <button
                                                             onClick={() => { setSelectedBrandId(""); setIsBrandDropdownOpen(false); }}
                                                             className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-500 italic"
                                                         >
                                                             No Brand
-                                                        </button>
+                                                        </button> */}
                                                         {brands.map((brand) => (
                                                             <button
                                                                 key={brand.id}
@@ -573,17 +636,13 @@ export default function Products() {
                                                                     setSelectedBrandId(brand.id);
                                                                     setIsBrandDropdownOpen(false);
                                                                 }}
-                                                                className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-blue-50 ${selectedBrandId === brand.id ? 'bg-blue-50 text-blue-700 font-semibold border-r-4 border-blue-600' : 'text-gray-700'}`}
+                                                                className={`w-full text-left flex items-center px-4 py-2 text-sm transition-colors hover:bg-blue-50 ${selectedBrandId === brand.id ? 'bg-blue-50 text-blue-700 font-semibold border-r-4 border-blue-600' : 'text-gray-700'}`}
                                                             >
-                                                                {brand.logo ? (
+                                                                {/* {brand.logo ? (
                                                                     <img src={brand.logo} alt="" className="w-8 h-8 rounded-lg object-contain border border-gray-100 bg-white p-0.5" />
-                                                                ) : (
-                                                                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                                                        <Archive size={14} className="text-gray-400" />
-                                                                    </div>
-                                                                )}
-                                                                <div className="flex-1">
-                                                                    <p className="text-sm font-medium text-gray-800">{brand.name}</p>
+                                                                ) :null} */}
+                                                                <div className="flex-1 text-left">
+                                                                    <p className="text-sm font-medium">{brand.name}</p>
                                                                     <p className="text-[10px] text-gray-400">ID: {brand.id}</p>
                                                                 </div>
                                                             </button>
@@ -616,7 +675,7 @@ export default function Products() {
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Inventory</p>
                                         <ModalRow label="Stock Level" value={selectedProduct.stock} />
-                                        <ModalRow label="Qty Per Box" value={selectedProduct.qtyPerBox} />
+                                        <ModalRow label="Qty Per Box" value={selectedProduct.itemQtyPerBox} />
                                         <ModalRow label="Warehouse" value={selectedProduct.warehouse} />
                                     </div>
 
@@ -624,20 +683,20 @@ export default function Products() {
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Status</p>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-28 shrink-0">Cart Status</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.cartStatus ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Cart Status</span>
+                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.cartStatus ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.cartStatus ? "In Cart" : "Not In Cart"}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-28 shrink-0">Wishlist</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.wishlistStatus ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-500"}`}>
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Wishlist</span>
+                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.wishlistStatus ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.wishlistStatus ? "Wishlisted" : "Not Wishlisted"}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-28 shrink-0">Low Stock</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"}`}>
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Low Stock</span>
+                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
                                                 {selectedProduct.lowStock ? "Low Stock" : "Sufficient"}
                                             </span>
                                         </div>
@@ -679,10 +738,10 @@ export default function Products() {
 function ModalRow({ label, value }) {
     return (
         <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0">
+            <span className="text-xs font-semibold uppercase tracking-wide w-40 shrink-0">
                 {label}
             </span>
-            <span className="text-sm text-gray-900 break-all">{value ?? "—"}</span>
+            <span className="text-sm font-medium text-gray-900 break-all">{value ?? "—"}</span>
         </div>
     );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Search, Filter, Eye, X, CheckCircle, Clock, XCircle, ChevronDown } from "lucide-react";
 import { getRetailersAPI, approveRetailerAPI, rejectRetailerAPI } from "../services/allAPI";
+import { mediaUrl } from "../services/serverUrl";
 
 /* ── Status badge ── */
 function StatusBadge({ status }) {
@@ -38,6 +39,8 @@ function RetailerModal({
   onReject,
   rejecting,
 }) {
+  const [previewDoc, setPreviewDoc] = useState(null);
+
   if (!retailer) return null;
 
   const owner = retailer.user
@@ -57,6 +60,14 @@ function RetailerModal({
       timeStyle: "short",
     })
     : "—";
+
+  const getMediaLink = (path) => {
+    if (!path) return "";
+    if (path.startsWith("http")) return path;
+    const base = mediaUrl.endsWith("/") ? mediaUrl.slice(0, -1) : mediaUrl;
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${base}${cleanPath}`;
+  };
 
   return (
     <div
@@ -97,21 +108,19 @@ function RetailerModal({
                 Store Photo
               </p>
               {retailer.store_photo ? (
-                <a
-                  href={`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"}${retailer.store_photo}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block group relative"
+                <button
+                  onClick={() => setPreviewDoc(getMediaLink(retailer.store_photo))}
+                  className="block group relative w-full text-left"
                 >
                   <img
-                    src={`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"}${retailer.store_photo}`}
+                    src={getMediaLink(retailer.store_photo)}
                     alt="Store"
                     className="w-full h-44 object-cover rounded-xl border border-gray-100 group-hover:opacity-90 transition-opacity"
                   />
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-xl">
                     <Eye className="text-white" size={24} />
                   </div>
-                </a>
+                </button>
               ) : (
                 <div className="w-full h-44 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
                   No photo available
@@ -134,15 +143,13 @@ function RetailerModal({
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Drug License</p>
                   {retailer.drug_license ? (
-                    <a
-                      href={`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"}${retailer.drug_license}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-teal-600 hover:bg-gray-50 hover:text-teal-700 transition-colors w-full"
+                    <button
+                      onClick={() => setPreviewDoc(getMediaLink(retailer.drug_license))}
+                      className="inline-flex justify-center items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-teal-600 hover:bg-gray-50 hover:text-teal-700 transition-colors w-full"
                     >
                       <Eye size={14} />
                       View Document
-                    </a>
+                    </button>
                   ) : (
                     <div className="w-full py-2 px-3 rounded-lg bg-gray-100 text-[10px] text-gray-400 text-center">No Document</div>
                   )}
@@ -150,15 +157,13 @@ function RetailerModal({
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">ID Proof</p>
                   {retailer.id_proof ? (
-                    <a
-                      href={`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"}${retailer.id_proof}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-teal-600 hover:bg-gray-50 hover:text-teal-700 transition-colors w-full"
+                    <button
+                      onClick={() => setPreviewDoc(getMediaLink(retailer.id_proof))}
+                      className="inline-flex justify-center items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-teal-600 hover:bg-gray-50 hover:text-teal-700 transition-colors w-full"
                     >
                       <Eye size={14} />
                       View Document
-                    </a>
+                    </button>
                   ) : (
                     <div className="w-full py-2 px-3 rounded-lg bg-gray-100 text-[10px] text-gray-400 text-center">No Document</div>
                   )}
@@ -238,6 +243,32 @@ function RetailerModal({
           </button>
         </div>
       </div>
+
+      {/* Document Preview Overlay */}
+      {previewDoc && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 md:p-8"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div className="relative w-full h-full max-w-5xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-end p-2 shrink-0">
+              <button
+                onClick={() => setPreviewDoc(null)}
+                className="p-2 bg-black/40 hover:bg-black/70 rounded-full text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden bg-white/5 rounded-xl flex items-center justify-center">
+              {previewDoc.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={previewDoc} className="w-full h-full rounded-xl bg-white" title="Document Preview" />
+              ) : (
+                <img src={previewDoc} alt="Preview" className="max-w-full max-h-full object-contain rounded-xl" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -403,6 +434,7 @@ export default function RetailerKYCPage() {
                   <th className="px-6">Owner</th>
                   <th className="px-6">Contact</th>
                   <th className="px-6">Email</th>
+                  <th className="px-6">GST Number</th>
                   <th className="px-6">KYC Status</th>
                   <th className="px-6 text-center">Actions</th>
                 </tr>
@@ -410,7 +442,7 @@ export default function RetailerKYCPage() {
               <tbody className="text-md text-gray-700">
                 {filteredRetailers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
+                    <td colSpan={8} className="px-6 py-10 text-center text-gray-400">
                       No retailers found.
                     </td>
                   </tr>
@@ -430,6 +462,7 @@ export default function RetailerKYCPage() {
                         <td className="px-6 text-sm text-gray-900 whitespace-nowrap">{ownerName}</td>
                         <td className="px-6 text-sm text-gray-800 whitespace-nowrap">{retailer.shop_phone || "—"}</td>
                         <td className="px-6 text-sm text-gray-800 whitespace-nowrap">{retailer.shop_email || "—"}</td>
+                        <td className="px-6 text-sm text-gray-800 whitespace-nowrap font-medium">{retailer.gst_number || "—"}</td>
                         <td className="px-6 whitespace-nowrap">
                           <StatusBadge status={retailer.status} />
                         </td>

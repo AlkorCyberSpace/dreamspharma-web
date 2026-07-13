@@ -1126,6 +1126,11 @@ class GetItemMasterView(APIView):
             longitude = request.query_params.get('longitude')
             store_id  = request.query_params.get('storeId')
 
+            # ── Search & Filter params ──────────────────────────────────────
+            search = request.query_params.get('search')
+            brand_name = request.query_params.get('brand')
+            no_pagination = request.query_params.get('no_pagination', 'false').lower() == 'true'
+
             if latitude and longitude:
                 store_info = ERPService.get_nearest_store_config(latitude, longitude)
             elif store_id:
@@ -1164,8 +1169,44 @@ class GetItemMasterView(APIView):
 
                 all_items = erp_response.json().get('data', [])
 
-                # ── Paginate ───────────────────────────────────────────────
+                # ── Filter by search ───────────────────────────────────────
+                if search:
+                    search_lower = search.lower()
+                    all_items = [
+                        item for item in all_items
+                        if search_lower in item.get('itemName', '').lower() or search_lower in item.get('c_item_code', '').lower()
+                    ]
+
+                # ── Filter by brand ────────────────────────────────────────
+                if brand_name and brand_name != 'All Brands':
+                    # Find all item codes matching this brand from Django DB
+                    item_codes = ProductInfo.objects.filter(
+                        category__name=brand_name
+                    ).values_list('item__item_code', flat=True)
+                    
+                    item_codes_set = set(item_codes)
+                    all_items = [
+                        item for item in all_items
+                        if item.get('c_item_code') in item_codes_set
+                    ]
+
+                # ── Calculate Summary Stats before slicing ─────────────────
                 total_items = len(all_items)
+                low_stock_count = sum(1 for item in all_items if float(item.get('stockBalQty', 0) or 0) < 5)
+
+                # ── Bypass pagination if requested ─────────────────────────
+                if no_pagination:
+                    return Response({
+                        'code':    '200',
+                        'type':    'getMasterData',
+                        'data':    all_items,
+                        'message': f'All {len(all_items)} items fetched without pagination',
+                        'c2Code':     erp_config['c2_code'],
+                        'storeId':    erp_config['store_id'],
+                        'prodCode':   erp_config['prod_code'],
+                    }, status=status.HTTP_200_OK)
+
+                # ── Paginate ───────────────────────────────────────────────
                 total_pages = max(1, (total_items + page_size - 1) // page_size)
                 page        = min(page, total_pages)
                 start       = (page - 1) * page_size
@@ -1253,6 +1294,11 @@ class GetItemMasterView(APIView):
                         'total_pages':  total_pages,
                         'has_next':     page < total_pages,
                         'has_previous': page > 1,
+                    },
+                    'summary': {
+                        'total_products': total_items,
+                        'low_stock_count': low_stock_count,
+                        'total_warehouses': 1,
                     },
                     'c2Code':     erp_config['c2_code'],
                     'storeId':    erp_config['store_id'],

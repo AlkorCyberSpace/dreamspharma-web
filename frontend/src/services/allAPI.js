@@ -186,8 +186,8 @@ export const rejectRetailerAPI = (userId, reason) => {
 };
 
 // ERP - Get Master Data (Products)
-export const getProductsAPI = () => {
-  return axiosInstance.get("erp/ws_c2_services_get_master_data");
+export const getProductsAPI = (params) => {
+  return axiosInstance.get("erp/ws_c2_services_get_master_data", { params });
 };
 
 // ERP - Update Product Info (SuperAdmin Only)

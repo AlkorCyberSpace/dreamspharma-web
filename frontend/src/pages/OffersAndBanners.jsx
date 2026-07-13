@@ -153,7 +153,7 @@ function OfferModal({ offer, onClose, onSave }) {
     useEffect(() => {
         const fetchMetadata = async () => {
             try {
-                const [catRes, prodRes] = await Promise.all([getCategoriesAPI(), getProductsAPI()]);
+                const [catRes, prodRes] = await Promise.all([getCategoriesAPI(), getProductsAPI({ no_pagination: true })]);
                 const categoriesData = catRes.data?.data || catRes.data?.results || catRes.data || [];
                 setCategories(Array.isArray(categoriesData) ? categoriesData : []);
 
