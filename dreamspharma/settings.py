@@ -189,7 +189,7 @@ DATABASES = {
         # ✅ PRODUCTION FIX #1: Reuse database connections (prevents connection exhaustion)
         # Without this: Every request creates new DB connection → 100+ users = 100+ connections!
         # With this: Connection pool reuses existing connections → Massive performance boost
-        'CONN_MAX_AGE': 600,  # Keep connections alive for 10 minutes
+        'CONN_MAX_AGE': 0,  # Close connections immediately in development to prevent connection exhaustion
         'OPTIONS': {
             'connect_timeout': 10,
             'keepalives': 1,

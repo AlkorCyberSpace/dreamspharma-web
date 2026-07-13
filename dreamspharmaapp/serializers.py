@@ -420,7 +420,6 @@ class ItemMasterSerializer(serializers.ModelSerializer):
 
 class ProductListSerializer(serializers.Serializer):
     """Serializer for product listing with all required fields"""
-    itemCode = serializers.CharField(source='item.item_code', read_only=True)
     itemName = serializers.CharField(source='item.item_name', read_only=True)
     mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
     description = serializers.CharField(source='item.description', read_only=True, allow_null=True, default="")
@@ -442,12 +441,28 @@ class ProductListSerializer(serializers.Serializer):
     discountPercentage = serializers.FloatField(source='discount_percentage', read_only=True, default=0)
     discountedPrice = serializers.FloatField(source='discounted_price', read_only=True, default=0)
 
+    # Fields from migration 0100 / ERP response
+    brandCode = serializers.CharField(source='item.brand_code', read_only=True, default="-")
+    brandName = serializers.CharField(source='item.brand_name', read_only=True, default="-")
+    categoryCode = serializers.CharField(source='item.category_code', read_only=True, default="-")
+    categoryName = serializers.CharField(source='item.category_name', read_only=True, default="-")
+    contentCode = serializers.CharField(source='item.content_code', read_only=True, default="-")
+    contentName = serializers.CharField(source='item.content_name', read_only=True, default="-")
+    hsnSacName = serializers.CharField(source='item.hsn_sac_name', read_only=True, default="-")
+    itemFullName = serializers.CharField(source='item.item_full_name', read_only=True, default=None)
+    itemShortName = serializers.CharField(source='item.item_short_name', read_only=True, default="-")
+    packCode = serializers.CharField(source='item.pack_code', read_only=True, default="-")
+    packName = serializers.CharField(source='item.pack_name', read_only=True, default="-")
+    hsnSacCode = serializers.CharField(source='item.hsn_code', read_only=True, default="-")
+
     class Meta:
         model = ProductInfo
         fields = [
-            'itemCode', 'itemName', 'mrp', 'description', 'images', 'batchNo', 'c_item_code', 'expiryDate',
+            'itemName', 'mrp', 'description', 'images', 'batchNo', 'c_item_code', 'expiryDate',
             'itemQtyPerBox', 'max_disc', 'std_disc', 'stockBalQty', 'subheading', 'type_label', 'brand_id',
-            'brand_name', 'brand_logo', 'cart_status', 'wishlist_status', 'discountPercentage', 'discountedPrice'
+            'brand_name', 'brand_logo', 'cart_status', 'wishlist_status', 'discountPercentage', 'discountedPrice',
+            'brandCode', 'brandName', 'categoryCode', 'categoryName', 'contentCode', 'contentName',
+            'hsnSacName', 'itemFullName', 'itemShortName', 'packCode', 'packName', 'hsnSacCode'
         ]
 
 

@@ -365,6 +365,20 @@ class ItemMaster(models.Model):
     expiry_date = models.DateField()
     mrp = models.DecimalField(max_digits=10, decimal_places=2, help_text="Maximum Retail Price")
     hsn_code = models.CharField(max_length=20, blank=True, null=True, help_text="HSN code for taxation")
+    
+    # Fields from migration 0100
+    brand_code = models.CharField(max_length=50, blank=True, default='-')
+    brand_name = models.CharField(max_length=100, blank=True, default='-')
+    category_code = models.CharField(max_length=50, blank=True, default='-')
+    category_name = models.CharField(max_length=100, blank=True, default='-')
+    content_code = models.CharField(max_length=50, blank=True, default='-')
+    content_name = models.CharField(max_length=255, blank=True, default='-')
+    hsn_sac_name = models.TextField(blank=True, default='-')
+    item_full_name = models.CharField(max_length=255, blank=True, null=True)
+    item_short_name = models.CharField(max_length=100, blank=True, default='-')
+    pack_code = models.CharField(max_length=50, blank=True, default='-')
+    pack_name = models.CharField(max_length=100, blank=True, default='-')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
