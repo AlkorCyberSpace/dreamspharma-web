@@ -62,5 +62,5 @@ else:
     print(f"   [-] Failed! Status: {response.status_code}")
 
 print("\n===========================================")
-print("  TEST COMPLETED SUCCESSFULLY ✅")
+print("  TEST COMPLETED SUCCESSFULLY [PASS]")
 print("===========================================\n")

@@ -695,6 +695,31 @@ class SalesOrder(models.Model):
         help_text="When wallet was applied (only after payment succeeds)"
     )
     
+    # ==================== ERP ORDER SYNC TRACKING (OUTBOX RETRY PATTERN) ====================
+    is_erp_synced = models.BooleanField(
+        default=False,
+        help_text="Whether this order was successfully accepted by ERP server"
+    )
+    erp_sync_attempts = models.IntegerField(
+        default=0,
+        help_text="Number of retry attempts to push order to ERP"
+    )
+    last_erp_sync_attempt = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Last timestamp when ERP push retry was attempted"
+    )
+    erp_sync_payload = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Saved JSON payload used to re-push order to ERP when offline"
+    )
+    erp_sync_error = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Error message if ERP order push failed"
+    )
+    
     def save(self, *args, **kwargs):
         """Auto-generate order_id if not provided"""
         if not self.order_id:

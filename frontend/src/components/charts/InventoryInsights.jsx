@@ -28,7 +28,7 @@ const InventoryInsights = ({ storeId }) => {
         console.log(`[InventoryInsights] Fetching for store: ${storeId || '001'}`);
         const response = await getInventoryInsightsAPI({ store_id: storeId || '001' });
         console.log('[InventoryInsights] Response:', response);
-        
+
         if (response.status === 200 && response.data?.success) {
           setInsightsData(response.data.data);
           console.log('[InventoryInsights] Data loaded:', response.data.data);
@@ -55,17 +55,16 @@ const InventoryInsights = ({ storeId }) => {
           <h3 className="text-lg font-bold text-gray-800 tracking-tight">Inventory Insights</h3>
           <p className="text-gray-400 text-xs mt-1">Real-time pharmaceutical stock analysis</p>
         </div>
-        
+
         <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${
-                activeTab === tab.id 
-                ? "bg-white text-[#127690] shadow-sm ring-1 ring-black/5" 
-                : "text-gray-400 hover:text-gray-600"
-              }`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${activeTab === tab.id
+                  ? "bg-white text-[#127690] shadow-sm ring-1 ring-black/5"
+                  : "text-gray-400 hover:text-gray-600"
+                }`}
             >
               <tab.icon size={14} className={activeTab === tab.id ? tab.color : ""} />
               <span className="hidden md:inline">{tab.label}</span>

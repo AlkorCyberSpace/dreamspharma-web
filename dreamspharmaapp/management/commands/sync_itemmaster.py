@@ -77,7 +77,7 @@ class Command(BaseCommand):
                         'prodCode': erp_config['prod_code'],
                         'c2Code': erp_config['c2_code'],
                         'storeId': erp_config['store_id'],
-                        'inputDateTime': '2026-01-28 10:10:00',
+                        'inputDateTime': '2021-07-01 10:10:00',
                         'itemcodes': []
                     }
                     
@@ -92,6 +92,15 @@ class Command(BaseCommand):
                     
                     items_data = data.get('data', [])
                     
+                    # ── Pre-warm Redis cache for this store ──────────────────
+                    try:
+                        from dreamspharmaapp.erp_redis_cache import ERPRedisCache
+                        # Pre-warm both default 2021 date and the sync date key
+                        ERPRedisCache.set_master_data(erp_config['store_id'], '2021-07-01 10:10:00', items_data)
+                        self.stdout.write(self.style.SUCCESS(f"Pre-warmed Redis master cache for store {erp_config['store_id']}"))
+                    except Exception as redis_err:
+                        self.stdout.write(self.style.WARNING(f"Failed to pre-warm Redis cache: {redis_err}"))
+
                     # Update each item in cache
                     for item_data in items_data:
                         try:
@@ -99,23 +108,45 @@ class Command(BaseCommand):
                             if not item_code:
                                 continue
                             
+                            # Check existing item to preserve fields not sent in master data
+                            existing_item = ItemMaster.objects.filter(item_code=item_code).first()
+
                             # Parse expiry date
-                            expiry_date_str = item_data.get('expiryDate', '2099-12-31')
-                            try:
-                                expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
-                            except:
-                                expiry_date = datetime(2099, 12, 31).date()
+                            expiry_date_str = item_data.get('expiryDate')
+                            if expiry_date_str:
+                                try:
+                                    expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+                                except:
+                                    expiry_date = existing_item.expiry_date if existing_item else datetime(2099, 12, 31).date()
+                            else:
+                                expiry_date = existing_item.expiry_date if existing_item else datetime(2099, 12, 31).date()
                             
+                            # Parse discount rates
+                            std_disc = float(item_data.get('stdDiscRate') or item_data.get('std_disc') or 0)
+                            max_disc = float(item_data.get('maxDiscPer') or item_data.get('max_disc') or 0)
+                            
+                            # MRP: preserve if not sent in master data
+                            mrp_val = item_data.get('mrpBox') or item_data.get('mrp')
+                            if mrp_val is not None:
+                                mrp = float(mrp_val)
+                            else:
+                                mrp = existing_item.mrp if existing_item else 0.0
+                                
+                            # Batch No: preserve if not sent
+                            batch_no = item_data.get('batchNo') or item_data.get('batch_no')
+                            if batch_no is None:
+                                batch_no = existing_item.batch_no if existing_item else '-'
+
                             # Update or create ItemMaster with all fields
                             item, created = ItemMaster.objects.update_or_create(
                                 item_code=item_code,
                                 defaults={
                                     'item_name': item_data.get('itemName', ''),
                                     'item_qty_per_box': item_data.get('itemQtyPerBox', 1),
-                                    'batch_no': item_data.get('batchNo', ''),
-                                    'std_disc': float(item_data.get('std_disc', 0)),
-                                    'max_disc': float(item_data.get('max_disc', 0)),
-                                    'mrp': float(item_data.get('mrp', 0)),
+                                    'batch_no': batch_no,
+                                    'std_disc': std_disc,
+                                    'max_disc': max_disc,
+                                    'mrp': mrp,
                                     'expiry_date': expiry_date,
                                     'brand_code': item_data.get('brandCode') or '-',
                                     'brand_name': item_data.get('brandName') or '-',

@@ -40,7 +40,7 @@ class DreamspharmaappConfig(AppConfig):
             from apscheduler.events import EVENT_JOB_EXECUTED
             from django_apscheduler.jobstores import DjangoJobStore
             from django_apscheduler.util import close_old_connections
-            from .jobs import sync_itemmaster_job, refresh_erp_token_job
+            from .jobs import sync_itemmaster_job, refresh_erp_token_job, retry_unsynced_orders_job
             
             scheduler = BackgroundScheduler(jobstore=DjangoJobStore())
             
@@ -66,11 +66,22 @@ class DreamspharmaappConfig(AppConfig):
                 max_instances=1
             )
             
+            # Job 3: Retry Unsynced ERP Orders every 5 minutes (Outbox pattern)
+            scheduler.add_job(
+                retry_unsynced_orders_job,
+                trigger=IntervalTrigger(minutes=5),
+                id='retry_unsynced_orders',
+                name='Retry Unsynced ERP Orders',
+                replace_existing=True,
+                max_instances=1
+            )
+            
             scheduler.add_listener(close_old_connections, EVENT_JOB_EXECUTED)
             scheduler.start()
             _scheduler_started = True
             logger.info('[OK] APScheduler started - Jobs scheduled:')
             logger.info(f'  [OK] sync_itemmaster: every 15 minutes')
             logger.info(f'  [OK] refresh_erp_token: every {token_refresh_hours} hours')
+            logger.info(f'  [OK] retry_unsynced_orders: every 5 minutes')
         except Exception as e:
             logger.error(f'Failed to start APScheduler: {str(e)}')
