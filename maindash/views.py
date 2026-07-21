@@ -2592,9 +2592,22 @@ class InventoryInsightsView(APIView):
             if code:
                 batch_list = item.get('batchDetails', [])
                 total_ls_qty = sum(float(b.get('packQty', 0)) for b in batch_list)
+                earliest_exp = None
+                for b in batch_list:
+                    exp_str = b.get('expiryDate')
+                    if exp_str:
+                        try:
+                            from datetime import date
+                            exp_d = date.fromisoformat(exp_str.split('T')[0])
+                            if not earliest_exp or exp_d < earliest_exp:
+                                earliest_exp = exp_d
+                        except Exception:
+                            pass
+
                 erp_stock_dict[code] = {
                     'qty': int(total_ls_qty),
-                    'name': item.get('itemName') or f"Item {code}"
+                    'name': item.get('itemName') or f"Item {code}",
+                    'erp_expiry': earliest_exp
                 }
         
         if not erp_stock_dict:
@@ -2610,7 +2623,7 @@ class InventoryInsightsView(APIView):
                 'message': 'No valid stock items found'
             })
         
-        # 2. Correlate with local ItemMaster for Expiry Dates
+        # 2. Correlate with local ItemMaster for Expiry Dates (Fallback)
         from dreamspharmaapp.models import ItemMaster, SalesOrderItem
         try:
             item_masters = ItemMaster.objects.filter(item_code__in=erp_stock_dict.keys())
@@ -2636,22 +2649,32 @@ class InventoryInsightsView(APIView):
                 try:
                     qty = info['qty']
                     name = info['name'] or f"Item {code}"
-                    exp = expiry_dict.get(code)
+                    exp = info.get('erp_expiry') or expiry_dict.get(code)
                     
                     # Expiring Soon
-                    if exp and today <= exp <= ninety_days_later and qty > 0:
+                    if exp and qty > 0:
                         days_left = (exp - today).days
-                        expiring_soon.append({
-                            'product': name,
-                            'stock': qty,
-                            'expiry': f"{days_left} days",
-                            'sort_val': days_left
-                        })
+                        if days_left < 10000:
+                            expiry_label = f"{days_left} days" if days_left >= 0 else "Expired"
+                            expiring_soon.append({
+                                'product': name,
+                                'stock': qty,
+                                'expiry': expiry_label,
+                                'sort_val': days_left
+                            })
                         
                     # Out of Stock
                     if qty == 0:
-                        expiring_soon_label = f"{(exp - today).days} days" if (exp and exp >= today) else "Expired"
-                        if not exp: expiring_soon_label = "N/A"
+                        expiring_soon_label = "N/A"
+                        if exp:
+                            days_diff = (exp - today).days
+                            if days_diff > 10000:
+                                expiring_soon_label = "N/A"
+                            elif days_diff >= 0:
+                                expiring_soon_label = f"{days_diff} days"
+                            else:
+                                expiring_soon_label = "Expired"
+                                
                         out_of_stock.append({
                             'product': name,
                             'stock': 0,
@@ -2660,9 +2683,8 @@ class InventoryInsightsView(APIView):
                 except Exception as e:
                     logger.warning(f"Error processing item {code}: {e}")
                     continue
-                    
-            expiring_soon = sorted(expiring_soon, key=lambda x: x['sort_val'])[:10]
-            out_of_stock = out_of_stock[:10]
+            expiring_soon = sorted(expiring_soon, key=lambda x: x['sort_val'])
+            out_of_stock = out_of_stock  # Show all out of stock items
             
             # Fast Moving (High sales in last 30 days)
             try:
@@ -2670,7 +2692,7 @@ class InventoryInsightsView(APIView):
                     sales_order__ord_date__gte=thirty_days_ago
                 ).values('item_code', 'item_name').annotate(
                     total_sold=Sum('total_loose_qty')
-                ).order_by('-total_sold')[:10]
+                ).order_by('-total_sold')
                 
                 fast_moving = []
                 sold_codes_30d = set()
@@ -2680,7 +2702,10 @@ class InventoryInsightsView(APIView):
                         sold_codes_30d.add(code)
                         qty = erp_stock_dict.get(code, {}).get('qty', 0)
                         exp = expiry_dict.get(code)
-                        days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
+                        days_left = "N/A"
+                        if exp:
+                            diff = (exp - today).days
+                            days_left = "N/A" if diff > 10000 else (f"{diff} days" if diff >= 0 else "Expired")
                         fast_moving.append({
                             'product': sale['item_name'] or code,
                             'stock': qty,
@@ -2703,7 +2728,10 @@ class InventoryInsightsView(APIView):
                     try:
                         if info['qty'] > 100 and code not in sold_codes_30d:
                             exp = expiry_dict.get(code)
-                            days_left = f"{(exp - today).days} days" if (exp and exp >= today) else "N/A"
+                            days_left = "N/A"
+                            if exp:
+                                diff = (exp - today).days
+                                days_left = "N/A" if diff > 10000 else (f"{diff} days" if diff >= 0 else "Expired")
                             slow_moving_candidates.append({
                                 'product': info['name'] or f"Item {code}",
                                 'stock': info['qty'],
@@ -2714,7 +2742,7 @@ class InventoryInsightsView(APIView):
                         logger.warning(f"Error processing slow moving candidate {code}: {e}")
                         continue
                     
-                slow_moving = sorted(slow_moving_candidates, key=lambda x: x['sort_val'], reverse=True)[:10]
+                slow_moving = sorted(slow_moving_candidates, key=lambda x: x['sort_val'], reverse=True)
                 logger.info(f"Found {len(slow_moving)} slow moving items")
             except Exception as e:
                 logger.error(f"Error calculating slow moving items: {e}")

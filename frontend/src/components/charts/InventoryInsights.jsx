@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Package, AlertTriangle, Zap, Clock, ChevronRight } from "lucide-react";
+import React, { useState, useEffect, useRef } from 'react';
+import { Package, AlertTriangle, Zap, Clock, ChevronRight, ChevronLeft } from "lucide-react";
 import { getInventoryInsightsAPI } from '../../services/allAPI';
 
 const InventoryInsights = ({ storeId }) => {
@@ -12,6 +12,16 @@ const InventoryInsights = ({ storeId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('expiring_soon');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+  const tabsRef = useRef(null);
+
+  const scrollTabs = (direction) => {
+    if (tabsRef.current) {
+      const scrollAmount = 150;
+      tabsRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   const tabs = [
     { id: 'expiring_soon', label: 'Expiring Soon', icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
@@ -48,6 +58,14 @@ const InventoryInsights = ({ storeId }) => {
   const currentTabData = insightsData[activeTab] || [];
   const activeTabInfo = tabs.find(t => t.id === activeTab);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedData = currentTabData.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(currentTabData.length / itemsPerPage);
+
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[400px]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
@@ -56,20 +74,41 @@ const InventoryInsights = ({ storeId }) => {
           <p className="text-gray-400 text-xs mt-1">Real-time pharmaceutical stock analysis</p>
         </div>
 
-        <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 overflow-x-auto no-scrollbar">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${activeTab === tab.id
-                  ? "bg-white text-[#127690] shadow-sm ring-1 ring-black/5"
-                  : "text-gray-400 hover:text-gray-600"
-                }`}
-            >
-              <tab.icon size={14} className={activeTab === tab.id ? tab.color : ""} />
-              <span className="hidden md:inline">{tab.label}</span>
-            </button>
-          ))}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            onClick={() => scrollTabs('left')}
+            className="px-2 py-1.5 text-xs font-bold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all border border-gray-100 flex items-center justify-center"
+            title="Previous"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          
+          <div 
+            ref={tabsRef}
+            className="flex bg-gray-50 p-1 rounded-xl border border-gray-100 overflow-x-auto no-scrollbar scroll-smooth max-w-[200px] sm:max-w-md"
+          >
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${activeTab === tab.id
+                    ? "bg-white text-[#127690] shadow-sm ring-1 ring-black/5"
+                    : "text-gray-400 hover:text-gray-600"
+                  }`}
+              >
+                <tab.icon size={14} className={activeTab === tab.id ? tab.color : ""} />
+                <span className="hidden md:inline">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => scrollTabs('right')}
+            className="px-2 py-1.5 text-xs font-bold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all border border-gray-100 flex items-center justify-center"
+            title="Next"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
       </div>
 
@@ -100,8 +139,8 @@ const InventoryInsights = ({ storeId }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {currentTabData.length > 0 ? (
-                    currentTabData.map((item, index) => (
+                  {paginatedData.length > 0 ? (
+                    paginatedData.map((item, index) => (
                       <tr key={index} className="group hover:bg-gray-50/50 transition-colors">
                         <td className="py-4 pl-2">
                           <div className="flex items-center gap-3">
@@ -146,6 +185,30 @@ const InventoryInsights = ({ storeId }) => {
                 </tbody>
               </table>
             </div>
+            
+            {currentTabData.length > itemsPerPage && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-white sticky bottom-0 z-20">
+                <span className="text-xs font-medium text-gray-500">
+                  Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, currentTabData.length)} of {currentTabData.length}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-all border border-gray-100"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-all border border-gray-100"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
