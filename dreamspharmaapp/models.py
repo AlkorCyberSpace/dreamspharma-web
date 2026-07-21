@@ -57,7 +57,7 @@ class CustomUser(AbstractUser):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(email__isnull=False) | models.Q(phone_number__isnull=False),
+                condition=models.Q(email__isnull=False) | models.Q(phone_number__isnull=False),
                 name='email_or_phone_required'
             )
         ]
@@ -365,6 +365,20 @@ class ItemMaster(models.Model):
     expiry_date = models.DateField()
     mrp = models.DecimalField(max_digits=10, decimal_places=2, help_text="Maximum Retail Price")
     hsn_code = models.CharField(max_length=20, blank=True, null=True, help_text="HSN code for taxation")
+    
+    # Fields from migration 0100
+    brand_code = models.CharField(max_length=50, blank=True, default='-')
+    brand_name = models.CharField(max_length=100, blank=True, default='-')
+    category_code = models.CharField(max_length=50, blank=True, default='-')
+    category_name = models.CharField(max_length=100, blank=True, default='-')
+    content_code = models.CharField(max_length=50, blank=True, default='-')
+    content_name = models.CharField(max_length=255, blank=True, default='-')
+    hsn_sac_name = models.TextField(blank=True, default='-')
+    item_full_name = models.CharField(max_length=255, blank=True, null=True)
+    item_short_name = models.CharField(max_length=100, blank=True, default='-')
+    pack_code = models.CharField(max_length=50, blank=True, default='-')
+    pack_name = models.CharField(max_length=100, blank=True, default='-')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -679,6 +693,31 @@ class SalesOrder(models.Model):
         blank=True,
         null=True,
         help_text="When wallet was applied (only after payment succeeds)"
+    )
+    
+    # ==================== ERP ORDER SYNC TRACKING (OUTBOX RETRY PATTERN) ====================
+    is_erp_synced = models.BooleanField(
+        default=False,
+        help_text="Whether this order was successfully accepted by ERP server"
+    )
+    erp_sync_attempts = models.IntegerField(
+        default=0,
+        help_text="Number of retry attempts to push order to ERP"
+    )
+    last_erp_sync_attempt = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Last timestamp when ERP push retry was attempted"
+    )
+    erp_sync_payload = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Saved JSON payload used to re-push order to ERP when offline"
+    )
+    erp_sync_error = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Error message if ERP order push failed"
     )
     
     def save(self, *args, **kwargs):

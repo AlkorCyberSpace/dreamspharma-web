@@ -33,6 +33,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:60220",
     "http://127.0.0.1:60220",
+    "http://localhost:54648",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -127,8 +128,8 @@ REST_FRAMEWORK = {
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    # Short-lived access token (15 minutes) - mobile app refreshes silently
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    # Access token valid for 24 hours
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),
     
     # Long-lived refresh token (365 days) - user stays logged in year-long
     'REFRESH_TOKEN_LIFETIME': timedelta(days=365),
@@ -188,7 +189,7 @@ DATABASES = {
         # ✅ PRODUCTION FIX #1: Reuse database connections (prevents connection exhaustion)
         # Without this: Every request creates new DB connection → 100+ users = 100+ connections!
         # With this: Connection pool reuses existing connections → Massive performance boost
-        'CONN_MAX_AGE': 600,  # Keep connections alive for 10 minutes
+        'CONN_MAX_AGE': 0,  # Close connections immediately in development to prevent connection exhaustion
         'OPTIONS': {
             'connect_timeout': 10,
             'keepalives': 1,
@@ -198,23 +199,25 @@ DATABASES = {
 }
 
 # ==================== REDIS CACHE CONFIGURATION ====================
-# ✅ PRODUCTION FIX #2: Cache products/stores locally (prevents DB hammering)
-# Without cache: Every product view = 1 DB query. 100 users × 10 views = 1,000 queries/second!
-# With cache: 1 DB query, then 99 cache hits = 1,000x faster
+# ✅ PRODUCTION FIX #2: Persistent, shared cache using Redis
+# - Survives server restarts (unlike LocMemCache)
+# - Shared across all Gunicorn workers (unlike LocMemCache which is per-process)
+# - ERP master data cached for 1 hour → eliminates repeated slow API calls
+# - ERP stock data cached for 5 minutes → near-realtime without hammering ERP
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1')
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'SOCKET_CONNECT_TIMEOUT': 5,
-            'SOCKET_TIMEOUT': 5,
-            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-        },
-        'KEY_PREFIX': 'dreamspharma',
-        'TIMEOUT': 300,  # Default 5-minute TTL
+        'LOCATION': 'unique-snowflake-erp-cache',
+        'TIMEOUT': 300,
     }
 }
+
+# ── ERP cache TTL constants (used by erp_redis_cache.py) ──────────────────────
+ERP_MASTER_DATA_CACHE_TTL = int(os.environ.get('ERP_MASTER_DATA_CACHE_TTL', 3600))   # 1 hour
+ERP_STOCK_CACHE_TTL       = int(os.environ.get('ERP_STOCK_CACHE_TTL', 300))          # 5 minutes
+ERP_TOKEN_CACHE_TTL       = int(os.environ.get('ERP_TOKEN_CACHE_TTL', 86400))        # 24 hours
 # DATABASES = {
 #     'default': dj_database_url.parse("postgresql://postgres:db_dreamspharma@db.wdpwanzaoacvcyvdqeek.supabase.co:5432/postgres")
 # }
@@ -286,14 +289,14 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'sooryakr2004@gmail.co
 # Each store has its own: c2_code, store_id, security_key
 # Views fetch these from database instead of hardcoded values
 
-ERP_BASE_URL = os.environ.get('ERP_BASE_URL', 'http://localhost:44000')  # ERP Server URL
-
+ERP_BASE_URL = os.environ.get('ERP_BASE_URL', 'http://59.96.58.81:45501')  # ERP Server URL
+ 
 # ⚠️ Fallback ERP settings (used when no stores in database)
 # In production, these should be set via environment variables or Store model in database
-ERP_C2_CODE = os.environ.get('ERP_C2_CODE', '03C000')
-ERP_STORE_ID = os.environ.get('ERP_STORE_ID', '001')
+ERP_C2_CODE = os.environ.get('ERP_C2_CODE', '0X1000')
+ERP_STORE_ID = os.environ.get('ERP_STORE_ID', '501')
 ERP_PROD_CODE = os.environ.get('ERP_PROD_CODE', '02')
-ERP_SECURITY_KEY = os.environ.get('ERP_SECURITY_KEY', 'TUVVek1EQXhNalE9')
+ERP_SECURITY_KEY = os.environ.get('ERP_SECURITY_KEY', 'TUZneE5UQXhNalU9')
 
 # Token refresh settings (in hours)
 ERP_TOKEN_REFRESH_HOURS = 23  # Refresh token every 23 hours (before 24-hour expiry)

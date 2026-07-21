@@ -79,6 +79,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='customuser',
-            constraint=models.CheckConstraint(check=models.Q(('email__isnull', False), ('phone_number__isnull', False), _connector='OR'), name='email_or_phone_required'),
+            constraint=models.CheckConstraint(condition=models.Q(('email__isnull', False), ('phone_number__isnull', False), _connector='OR'), name='email_or_phone_required'),
         ),
     ]

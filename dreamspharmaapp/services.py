@@ -93,25 +93,70 @@ def send_push_notification(user, title, body, data=None):
 
 def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
     """
-    Fetch invoice details from ERP server after sales order creation
+    Fetch invoice details from ERP server after sales order creation.
+    Handles outbox retry if initial order creation to ERP had failed due to network/ERP downtime.
     
     Workflow:
-    1. Sales order created -> This function called in background thread
-    2. Wait for ERP to process order and generate invoices (typically 2-5 seconds)
-    3. Poll ERP's get_orderstatus endpoint to retrieve invoices
-    4. Store invoices and line items in local database
-    
-    Args:
-        order_id: Order ID created in sales order
-        c2_code: Customer C2 code
-        store_id: Store identifier
-        max_retries: Maximum retry attempts (default 10, ~60+ seconds total with exponential backoff)
+    1. Check if sales order was accepted by ERP (is_erp_synced). If False, re-push order payload first.
+    2. Wait for ERP to process order and generate invoices.
+    3. Poll ERP's get_orderstatus endpoint to retrieve invoices.
+    4. Store invoices and line items in local database.
     """
     try:
         from .models import SalesOrder, Invoice, InvoiceDetail
         from .erp_token_service import get_cached_erp_token
+        from django.utils import timezone
         
-        # Get token for API authentication
+        # ── Step 0: Fetch SalesOrder and verify ERP sync status ──
+        sales_order = None
+        try:
+            sales_order = SalesOrder.objects.get(order_id=order_id)
+        except SalesOrder.DoesNotExist:
+            logger.error(f"[INVOICE_SYNC] Sales order not found: {order_id}")
+            return False
+
+        # ── Step 1: Outbox Retry — Push order to ERP if not yet synced ──
+        if not sales_order.is_erp_synced and sales_order.erp_sync_payload:
+            logger.info(f"[OUTBOX_RETRY] Order {order_id} is not yet synced to ERP. Attempting to re-push order...")
+            sales_order.erp_sync_attempts += 1
+            sales_order.last_erp_sync_attempt = timezone.now()
+            
+            try:
+                erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_create_sale_order"
+                # Refresh token in stored payload if needed
+                api_key_fresh = get_cached_erp_token()
+                if api_key_fresh:
+                    sales_order.erp_sync_payload['apiKey'] = api_key_fresh
+
+                erp_response = requests.post(erp_url, json=sales_order.erp_sync_payload, timeout=15)
+                
+                if erp_response.status_code in [200, 201]:
+                    erp_data = erp_response.json()
+                    if erp_data.get('code') == '200':
+                        logger.info(f"[OUTBOX_RETRY] [SUCCESS] Order {order_id} re-pushed and accepted by ERP!")
+                        sales_order.is_erp_synced = True
+                        sales_order.erp_sync_error = None
+                        sales_order.save(update_fields=['is_erp_synced', 'erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
+                    else:
+                        err_msg = f"ERP rejected order re-push: {erp_data.get('message')}"
+                        logger.warning(f"[OUTBOX_RETRY] {err_msg}")
+                        sales_order.erp_sync_error = err_msg
+                        sales_order.save(update_fields=['erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
+                        return False
+                else:
+                    err_msg = f"HTTP {erp_response.status_code} during order re-push: {erp_response.text[:200]}"
+                    logger.warning(f"[OUTBOX_RETRY] {err_msg}")
+                    sales_order.erp_sync_error = err_msg
+                    sales_order.save(update_fields=['erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
+                    return False
+            except Exception as push_err:
+                err_msg = f"Failed to reach ERP for order re-push: {str(push_err)}"
+                logger.warning(f"[OUTBOX_RETRY] {err_msg}")
+                sales_order.erp_sync_error = err_msg
+                sales_order.save(update_fields=['erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
+                return False
+
+        # ── Step 2: Fetch Token for Invoice Retrieval ──
         api_key = get_cached_erp_token()
         if not api_key:
             logger.error(f"[INVOICE_SYNC] Failed to get ERP token for order {order_id}")
@@ -322,3 +367,37 @@ def fetch_order_status_from_erp(order_id, c2_code, store_id):
     except Exception as e:
         logger.error(f"[ORDER_STATUS] Error fetching order status: {str(e)}")
         return None
+
+
+def retry_unsynced_erp_orders(max_orders=50):
+    """
+    Finds SalesOrders where is_erp_synced=False and attempts to re-push them to the ERP.
+    Runs periodically in background outbox job.
+    """
+    from .models import SalesOrder
+
+    unsynced_orders = SalesOrder.objects.filter(
+        is_erp_synced=False,
+        erp_sync_attempts__lt=10
+    ).exclude(erp_sync_payload__isnull=True).order_by('created_at')[:max_orders]
+
+    if not unsynced_orders.exists():
+        logger.debug("[OUTBOX_RETRY] No unsynced ERP orders found.")
+        return 0
+
+    logger.info(f"[OUTBOX_RETRY] Found {unsynced_orders.count()} unsynced ERP orders to process.")
+    success_count = 0
+
+    for order in unsynced_orders:
+        try:
+            logger.info(f"[OUTBOX_RETRY] Processing retry for order {order.order_id} (Attempt {order.erp_sync_attempts + 1})")
+            synced = sync_invoice_from_erp(order.order_id, order.c2_code, order.store_id, max_retries=3)
+            order.refresh_from_db()
+            if order.is_erp_synced:
+                success_count += 1
+        except Exception as e:
+            logger.error(f"[OUTBOX_RETRY] Error retrying order {order.order_id}: {str(e)}")
+
+    logger.info(f"[OUTBOX_RETRY] Outbox retry completed | Synced {success_count}/{unsynced_orders.count()} orders")
+    return success_count
+

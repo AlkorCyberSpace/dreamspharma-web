@@ -1,0 +1,227 @@
+{
+  "info": {
+    "_postman_id": "50b87b90-7aff-4be4-bdfa-a01caaa07fc3",
+    "name": "Dream pharma APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "33394737"
+  },
+  "item": [
+    {
+      "name": "http://59.96.58.81:45501/ws_c2_services_generate_token",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{  \r\n\"c2Code\": \"0X1000\",  \r\n\"storeId\": \"501\",  \r\n\"prodCode\": \"02\",  \r\n\"securityKey\": \"TUZneE5UQXhNalU9\"\r\n} ",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://59.96.58.81:45501/ws_c2_services_generate_token",
+          "protocol": "http",
+          "host": [
+            "59",
+            "96",
+            "58",
+            "81"
+          ],
+          "port": "45501",
+          "path": [
+            "ws_c2_services_generate_token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://59.96.58.81:45501/ws_c2_services_get_master_data",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n\"c2Code\": \"0X1000\",\r\n\"storeId\": \"501\",\r\n\"prodCode\": \"02\",\r\n\"inputDateTime\": \"2026-01-28 10: 10: 00\",\r\n\"itemcodes\":[],\r\n\"apiKey\": \"MFgxMDAwNTAxXjIwMjYtMDctMDkgMTQ6Mzk=\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://59.96.58.81:45501/ws_c2_services_get_master_data",
+          "protocol": "http",
+          "host": [
+            "59",
+            "96",
+            "58",
+            "81"
+          ],
+          "port": "45501",
+          "path": [
+            "ws_c2_services_get_master_data"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://59.96.58.81:45501/ws_c2_services_fetch_stock",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"c2Code\": \"0X1000\",\r\n    \"storeId\": \"501\",\r\n    \"prodCode\": \"02\",\r\n    \"inputDateTime\": \"2026-05-01 10:10:00\",\r\n    \"itemCodes\": [\r\n    ],\r\n    \"apiKey\": \"MFgxMDAwNTAxXjIwMjYtMDctMDkgMTQ6Mzk=\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://59.96.58.81:45501/ws_c2_services_fetch_stock",
+          "protocol": "http",
+          "host": [
+            "59",
+            "96",
+            "58",
+            "81"
+          ],
+          "port": "45501",
+          "path": [
+            "ws_c2_services_fetch_stock"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://59.96.58.81:45501/ws_c2_services_create_sale_order",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"c2Code\": \"0X1000\",\r\n    \"storeId\": \"501\",\r\n    \"prodCode\": \"02\",\r\n    \"apiKey\": \"MFgxMDAwNTAxXjIwMjYtMDctMDkgMTQ6Mzk=\",\r\n    \"ipNo\": \"3666339\",\r\n    \"mobileNo\": \"8237791693\",\r\n    \"patientName\": \"Aditya\",\r\n    \"patientAddress\": \"JP Nagar\",\r\n    \"patientEmail\": \"9866567767@mail.in\",\r\n    \"counterSale\": \"1\",\r\n    \"ordDate\": \"2024-07-24\",\r\n    \"ordTime\": \"11:52:35\",\r\n    \"userId\": \"Rajath\",\r\n    \"actCode\": \"GC01\",\r\n    \"actName\": \"Lawrence Nadar\",\r\n    \"drCode\": \"GD01\",\r\n    \"drName\": \"\",\r\n    \"drAddress\": \"\",\r\n    \"drRegNo\": \"\",\r\n    \"drOfficeCode\": \"-\",\r\n    \"dmanCode\": \"-\",\r\n    \"orderTotal\": \"254.18\",\r\n    \"orderDiscPer\": \"0.00\",\r\n    \"refNo\": 987,\r\n    \"orderId\": 171,\r\n    \"remark\": null,\r\n    \"urgentFlag\": 0,\r\n    \"ordConversionFlag\": 0,\r\n    \"dcConversionFlag\": 0,\r\n    \"ordRefNo\": 0,\r\n    \"sysName\": \"PL-EG-RIL\",\r\n    \"sysIp\": \"172.16.18.11\",\r\n    \"sysUser\": \"Gajanan\",\r\n    \"materialInfo\": [\r\n        {\r\n            \"itemSeq\": 1,\r\n            \"itemcode\": \"648538\",\r\n            \"totalLooseQty\": 30,\r\n            \"totalLooseSchQty\": 0,\r\n            \"serviceQty\": 0,\r\n            \"saleRate\": \"6.806\",\r\n            \"discPer\": \"0.00\",\r\n            \"schDiscPer\": \"0.00\"\r\n        },\r\n        {\r\n            \"itemSeq\": 2,\r\n            \"itemcode\": \"463406\",\r\n            \"totalLooseQty\": 10,\r\n            \"totalLooseSchQty\": 5,\r\n            \"serviceQty\": 0,\r\n            \"saleRate\": \"16.806\",\r\n            \"discPer\": \"1.00\",\r\n            \"schDiscPer\": \"0.00\"\r\n        }\r\n    ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://59.96.58.81:45501/ws_c2_services_create_sale_order",
+          "protocol": "http",
+          "host": [
+            "59",
+            "96",
+            "58",
+            "81"
+          ],
+          "port": "45501",
+          "path": [
+            "ws_c2_services_create_sale_order"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://59.96.58.81:45501/ws_c2_services_gl_cust_creation",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \r\n\"c2Code\": \"0X1000\",\r\n\"StoreID\": \"501\",\r\n\"apiKey\": \"MFgxMDAwNTAxXjIwMjYtMDctMDkgMTQ6Mzk=\",\r\n\"Code\":\"300\",\r\n\"ipName\":\"sainu\", \r\n\"Mail\":\"sainu@gmail.com\",\r\n\"Gender\":\"M\",\r\n\"Dlno\":\"20B MHMZ2120187\",\r\n\"City\":\"mumbai\",\r\n\"ipState\":\"Madhya Pradesh\",\r\n\"Address1\":\"sss\",\r\n\"Address2\":\"rrr\",\r\n\"Pincode\":400050,\r\n\"Mobile\":\"9833576358\",\r\n\"Gstno\":\"uvdchdvch1341\"\r\n} ",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://59.96.58.81:45501/ws_c2_services_gl_cust_creation",
+          "protocol": "http",
+          "host": [
+            "59",
+            "96",
+            "58",
+            "81"
+          ],
+          "port": "45501",
+          "path": [
+            "ws_c2_services_gl_cust_creation"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "http://59.96.58.81:45501/ws_c2_services_sale_order_status?order_no=171&apikey=MFgxMDAwNTAxXjIwMjYtMDctMDkgMTQ6Mzk=",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://59.96.58.81:45501/ws_c2_services_sale_order_status?order_no=171&apikey=MFgxMDAwNTAxXjIwMjYtMDctMDkgMTQ6Mzk=",
+          "protocol": "http",
+          "host": [
+            "59",
+            "96",
+            "58",
+            "81"
+          ],
+          "port": "45501",
+          "path": [
+            "ws_c2_services_sale_order_status"
+          ],
+          "query": [
+            {
+              "key": "order_no",
+              "value": "171"
+            },
+            {
+              "key": "apikey",
+              "value": "MFgxMDAwNTAxXjIwMjYtMDctMDkgMTQ6Mzk="
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
