@@ -66,7 +66,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* Menu */}
-        <ul className="space-y-1">
+        <ul className="space-y-0.5">
           {menuItems.map((item, index) => {
             const Icon = item.icon;
             return (

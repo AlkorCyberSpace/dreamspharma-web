@@ -110,7 +110,10 @@ export default function Categories() {
 
         } catch (error) {
             console.error("Error submitting category:", error);
-            showToast("Failed to save category.", "error");
+            const errors = error.response?.data?.errors;
+            const firstError = errors ? Object.values(errors)[0]?.[0] : null;
+            const errorMsg = firstError || error.response?.data?.message || "Failed to save category.";
+            showToast(errorMsg, "error");
         }
     };
 
@@ -203,7 +206,7 @@ export default function Categories() {
                     blobColor1="bg-[#83ACE5]"
                     blobColor2="bg-[#1447EA]"
                 />
-               
+
             </div>
 
             {/* Table */}
@@ -239,8 +242,8 @@ export default function Categories() {
                                         <td className="px-6 py-2">
                                             {cat.icon ? (
                                                 <img
-                                                  src={cat.icon}
-                                                  alt={cat.name} className="w-10 h-10 object-contain rounded-md border border-gray-200 bg-white p-1" />
+                                                    src={cat.icon}
+                                                    alt={cat.name} className="w-10 h-10 object-contain rounded-md border border-gray-200 bg-white p-1" />
                                             ) : (
                                                 <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center border border-gray-200">
                                                     <Archive size={16} className="text-gray-400" />
@@ -279,9 +282,9 @@ export default function Categories() {
                                 disabled={currentPage === 1}
                                 className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                             >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-90"><path d="m6 9 6 6 6-6" /></svg>
                             </button>
-                            
+
                             {[...Array(totalPages)].map((_, i) => {
                                 const pageNum = i + 1;
                                 if (
@@ -294,11 +297,10 @@ export default function Categories() {
                                         <button
                                             key={pageNum}
                                             onClick={() => setCurrentPage(pageNum)}
-                                            className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
-                                                currentPage === pageNum
+                                            className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
                                                     ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
                                                     : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
-                                            }`}
+                                                }`}
                                         >
                                             {pageNum}
                                         </button>
@@ -317,7 +319,7 @@ export default function Categories() {
                                 disabled={currentPage === totalPages}
                                 className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                             >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="-rotate-90"><path d="m6 9 6 6 6-6"/></svg>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="-rotate-90"><path d="m6 9 6 6 6-6" /></svg>
                             </button>
                         </div>
                     </div>
@@ -378,11 +380,12 @@ export default function Categories() {
                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Upload size={16} className="text-white" />
                                             </div>
-                                            <input type="file" accept="image/*" onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                            <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp" onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                                         </div>
                                         <div className="flex-1 text-xs text-gray-500">
-                                            <p>Upload a square icon for the category.</p>
                                             <p className="mt-1">Format: JPG, PNG</p>
+
+                                            <p>Upload a square icon for the category.</p>
                                         </div>
                                     </div>
                                 </div>

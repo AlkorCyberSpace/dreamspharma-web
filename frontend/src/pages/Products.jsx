@@ -1,16 +1,23 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Search, Package, AlertTriangle, Archive, Eye, X, Edit, Upload } from "lucide-react";
 import SummaryCard from "../components/SummaryCard";
-import { getProductsAPI, updateProductInfoAPI, getCategoriesAPI, assignBrandToProductAPI } from "../services/allAPI";
+import { getProductsAPI, updateProductInfoAPI, getCategoriesAPI, assignBrandToProductAPI, fetchStockAPI, searchProductsAPI } from "../services/allAPI";
 import { mediaUrl } from "../services/serverUrl";
 
 
 export default function Products() {
     const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All Brands");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const itemsPerPage = 16;
+    const [totalPages, setTotalPages] = useState(1);
+    const [summaryStats, setSummaryStats] = useState({
+        totalProducts: 0,
+        lowStockCount: 0,
+        totalWarehouses: 1
+    });
     const [productsData, setProductsData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedProduct, setSelectedProduct] = useState(null);
@@ -35,29 +42,103 @@ export default function Products() {
     const [selectedBrandId, setSelectedBrandId] = useState("");
     const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
 
+    const [stockData, setStockData] = useState({});
+    const [stockLoading, setStockLoading] = useState(false);
+
+    const fetchStock = async (c_item_code) => {
+        if (!c_item_code || c_item_code.length === 0) return;
+        setStockLoading(true);
+        try {
+            const response = await fetchStockAPI({ item_codes: c_item_code.join(",") });
+            // Extract stock array depending on whether it's wrapped in stockDetails, data, or is a direct array
+            const stockList = response.data?.stockDetails || (Array.isArray(response.data) ? response.data : (response.data?.data || []));
+
+            if (stockList && stockList.length > 0) {
+                const stockMap = {};
+                stockList.forEach((stockItem) => {
+                    const code = stockItem.c_item_code || stockItem.itemCode;
+                    stockMap[code] = stockItem;
+                });
+                setStockData(stockMap);
+            }
+        } catch (error) {
+            console.error("Error fetching stock:", error);
+        } finally {
+            setStockLoading(false);
+        }
+    };
+
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const response = await getProductsAPI();
+            let response;
+            if (debouncedSearch) {
+                const searchParams = {
+                    search: debouncedSearch,
+                    limit: itemsPerPage,
+                };
+                response = await searchProductsAPI(searchParams);
+            } else {
+                const params = {
+                    page: currentPage,
+                    page_size: itemsPerPage,
+                };
+                if (categoryFilter && categoryFilter !== "All Brands") {
+                    params.brand = categoryFilter;
+                }
+                response = await getProductsAPI(params);
+            }
             if (response.data && response.data.data) {
-                const mappedData = response.data.data.map((item) => ({
-                    id: item.c_item_code,
-                    name: item.itemName,
-                    category: item.brand_name || "not choose",
-                    mrp: item.mrp ? `₹${item.mrp}` : "N/A",
-                    stock: item.stockBalQty || 0,
-                    lowStock: (item.stockBalQty || 0) < 5,
-                    batch: item.batchNo,
-                    expiry: item.expiryDate,
-                    description: item.description,
-                    subheading: item.subheading,
-                    brand: item.brand_name,
-                    brandId: item.brand_id,
-                    brandLogo: item.brand_logo,
-                    images: item.images,
-                }));
+                const mappedData = response.data.data.map((item) => {
+                    return {
+                        id: item.c_item_code,
+                        name: item.itemName,
+                        shortName: item.itemShortName || "-",
+                        erpBrand: item.brandName || item.brand_name || "-",
+                        erpCategory: item.categoryName || item.type_label || "-",
+                        erpContent: item.contentName || "-",
+                        erpPack: item.packName || "-",
+                        hsnCode: item.hsnSacCode || "-",
+                        hsnName: item.hsnSacName || "-",
+                        itemAddedDate: item.itemAddedDate || "-",
+                        itemUpdatedDate: item.itemUpdatedDate ? item.itemUpdatedDate.split(' ')[0] : "-",
+                        category: item.brand_name || "not choose",
+                        mrp: item.mrp ? `₹${item.mrp}` : "N/A",
+                        stock: item.stockBalQty || 0,
+                        lowStock: (item.stockBalQty || 0) < 5,
+                        batch: item.batchNo || "N/A",
+                        expiry: item.expiryDate || "N/A",
+                        description: item.description,
+                        subheading: item.subheading,
+                        type_label: item.type_label,
+                        brand: item.brand_name,
+                        brandId: item.brand_id,
+                        brandLogo: item.brand_logo,
+                        images: item.images,
+                        itemQtyPerBox: item.itemQtyPerBox,
+                        cartStatus: item.cart_status,
+                        wishlistStatus: item.wishlist_status,
+                    };
+                });
 
                 setProductsData(mappedData);
+
+                // Fetch stock for all product item codes
+                const c_item_code = mappedData.map((p) => p.id).filter(Boolean);
+                fetchStock(c_item_code);
+
+                if (response.data.pagination) {
+                    setTotalPages(response.data.pagination.total_pages || 1);
+                } else {
+                    setTotalPages(1);
+                }
+                if (response.data.summary) {
+                    setSummaryStats({
+                        totalProducts: response.data.summary.total_products || 0,
+                        lowStockCount: response.data.summary.low_stock_count || 0,
+                        totalWarehouses: response.data.summary.total_warehouses || 1
+                    });
+                }
             }
         } catch (error) {
             console.error("Error fetching products:", error);
@@ -75,10 +156,28 @@ export default function Products() {
             console.error("Error fetching brands:", error);
         }
     };
+
+    // Debounce search term and reset page to 1
     useEffect(() => {
-        fetchProducts();
+        const handler = setTimeout(() => {
+            setDebouncedSearch(search);
+            setCurrentPage(1);
+        }, 500);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [search]);
+
+    // Fetch brands once on mount
+    useEffect(() => {
         fetchBrands();
     }, []);
+
+    // Re-fetch products when pagination/filters change
+    useEffect(() => {
+        fetchProducts();
+    }, [currentPage, debouncedSearch, categoryFilter]);
     const handleUpdateSubmit = async (e) => {
         e.preventDefault();
         setSavingProduct(true);
@@ -106,9 +205,21 @@ export default function Products() {
                 setIsModalOpen(false);
                 fetchProducts();
             }
-        } catch (err) {
-            console.error("Failed to update product:", err);
-            alert("Failed to update product information.");
+        } catch (error) {
+            console.error("Failed to update product:", error);
+            let errorMessage = "Failed to update product information.";
+            if (error.response?.data) {
+                const data = error.response.data;
+                if (data.errors) {
+                    const firstError = Object.values(data.errors)[0]?.[0];
+                    if (firstError) {
+                        errorMessage = firstError;
+                    }
+                } else if (data.message) {
+                    errorMessage = data.message;
+                }
+            }
+            alert(errorMessage);
         } finally {
             setSavingProduct(false);
         }
@@ -125,22 +236,45 @@ export default function Products() {
             }));
         }
     };
-    const filteredProducts = productsData.filter((product) => {
-        const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) || product.id.toLowerCase().includes(search.toLowerCase());
-        const matchesCategory = categoryFilter === "All Brands" || product.brand === categoryFilter;
-        return matchesSearch && matchesCategory;
-    });
+    // Merge stock data into products
+    const paginatedProducts = productsData.map((product) => {
+        const stock = stockData[product.id];
+        if (stock) {
+            let totalStock = 0;
+            let mrp = product.mrp;
 
-    // Pagination 
-    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-    const paginatedProducts = filteredProducts.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+            if (stock.batchDetails && stock.batchDetails.length > 0) {
+                totalStock = stock.batchDetails.reduce((acc, curr) => acc + (curr.totalBalLsQty || 0), 0);
+
+                // If main product mrp is N/A, fallback to the latest batch mrp
+                if (mrp === "N/A" && stock.batchDetails[0].mrp) {
+                    mrp = `₹${stock.batchDetails[0].mrp}`;
+                }
+            } else {
+                totalStock = stock.totalBalLsQty || 0;
+            }
+
+            return {
+                ...product,
+                stock: totalStock,
+                lowStock: totalStock < 5,
+                mrp: mrp,
+                qtyBox: stock.qtyBox || 0,
+                contCode: stock.contCode || "-",
+                contName: stock.contName || "-",
+                batchDetails: stock.batchDetails || [],
+                // Fallbacks
+                packQty: stock.packQty || 0,
+                looseQty: stock.looseQty || 0,
+                totalBalLsQty: stock.totalBalLsQty || 0,
+                stockLastModified: stock.lastModifiedDateTime || "-",
+            };
+        }
+        return product;
+    });
 
     const handleSearch = (e) => {
         setSearch(e.target.value);
-        setCurrentPage(1);
     };
 
     const handleCategoryChange = (cat) => {
@@ -160,7 +294,7 @@ export default function Products() {
     ) : false;
 
     return (
-        <div className="h-full overflow-hidden flex flex-col ml-2 mt-3">
+        <div className="min-h-full flex flex-col ml-2 mt-3 mb-8">
 
             <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 ">
                 <div>
@@ -232,7 +366,7 @@ export default function Products() {
             <div className="flex flex-col md:flex-row gap-4 lg:gap-6 mb-3">
                 <SummaryCard
                     title="Total Products"
-                    value={productsData.length.toString()}
+                    value={summaryStats.totalProducts.toString()}
                     icon={<Package size={20} />}
                     bgClass="bg-[#f2ecbb]"
                     textClass="text-[#846018]"
@@ -242,7 +376,7 @@ export default function Products() {
                 />
                 <SummaryCard
                     title="Low Stock Items"
-                    value={productsData.filter(p => p.lowStock).length.toString()}
+                    value={summaryStats.lowStockCount.toString()}
                     icon={<AlertTriangle size={20} />}
                     bgClass="bg-[#d8e9ff]"
                     textClass="text-[#1D4ED8]"
@@ -252,7 +386,7 @@ export default function Products() {
                 />
                 <SummaryCard
                     title="Total Warehouses"
-                    value={new Set(productsData.map(p => p.warehouse)).size.toString()}
+                    value={summaryStats.totalWarehouses.toString()}
                     icon={<Archive size={20} />}
                     bgClass="bg-[#e9fedf]"
                     textClass="text-[#207238]"
@@ -263,26 +397,27 @@ export default function Products() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-auto">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col">
+                <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
-                                <th className="px-2 py-4 text-center">SI NO</th>
-                                <th className=" ">PRODUCT ID</th>
-                                <th className="px-4">PRODUCT NAME</th>
-                                <th className="px-2">BRAND NAME</th>
-                                <th className="px-2">BATCH NO</th>
-                                <th className="px-2">EXPIRY</th>
-                                <th className="px-2">MRP</th>
-                                <th className="px-2">STOCK</th>
-                                <th className="px-2 text-center">ACTION</th>
+                                <th className="px-2 py-4 text-center whitespace-nowrap">SI NO</th>
+                                <th className="whitespace-nowrap">PRODUCT ID</th>
+                                <th className="px-4 min-w-[200px]">PRODUCT NAME</th>
+                                <th className="px-2 whitespace-nowrap">BRAND NAME</th>
+                                <th className="px-2 whitespace-nowrap">HSN CODE</th>
+                                <th className="px-2 whitespace-nowrap">PACK</th>
+                                <th className="px-2 whitespace-nowrap">ADDED DATE</th>
+                                <th className="px-2 whitespace-nowrap">UPDATED DATE</th>
+                                <th className="px-2 text-center whitespace-nowrap">STATUS</th>
+                                <th className="px-2 text-center whitespace-nowrap">ACTION</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-gray-400">
+                                    <td colSpan={10} className="px-6 py-10 text-center text-gray-400">
                                         <div className="flex items-center justify-center gap-2">
                                             <div className="w-5 h-5 border-2 border-[#505050] border-t-transparent rounded-full animate-spin" />
                                             Loading products...
@@ -291,7 +426,7 @@ export default function Products() {
                                 </tr>
                             ) : paginatedProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-gray-400">
+                                    <td colSpan={10} className="px-6 py-10 text-center text-gray-400">
                                         No products found.
                                     </td>
                                 </tr>
@@ -305,18 +440,16 @@ export default function Products() {
                                         <td className="px-2 text-sm text-[#127690] font-bold">{product.id}</td>
                                         <td className="px-3 text-sm text-gray-800 font-medium">{product.name}</td>
                                         <td className="px-2 text-sm text-gray-800">{product.category}</td>
-                                        <td className="px-2 text-sm text-gray-800">{product.batch || "—"}</td>
-                                        <td className="px-2 text-sm text-gray-800">{product.expiry || "—"}</td>
-                                        <td className="px-2 text-sm text-gray-600 font-bold">{product.mrp}</td>
-                                        <td className="px-2 text-sm whitespace-nowrap">
-                                            {product.lowStock ? (
-                                                <span className="text-red-600 font-bold flex items-center gap-1.5">
-                                                    {product.stock}
-                                                    <AlertTriangle size={14} className="text-red-500" />
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-600 font-semibold">{product.stock}</span>
-                                            )}
+                                        <td className="px-2 py-4 text-sm text-gray-800">{product.hsnCode}</td>
+                                        <td className="px-2 py-4 text-sm text-gray-800">{product.pack}</td>
+                                        <td className="px-2 py-4 text-sm text-gray-600 font-bold whitespace-nowrap">{product.itemAddedDate}</td>
+                                        <td className="px-2 py-4 text-sm whitespace-nowrap">
+                                            <span className="text-gray-600 font-semibold">{product.itemUpdatedDate}</span>
+                                        </td>
+                                        <td className="px-2 py-4 text-center whitespace-nowrap">
+                                            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap inline-block ${product.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
+                                                {product.lowStock ? "Low Stock" : "Sufficient"}
+                                            </span>
                                         </td>
                                         <td className="px-2 text-[13px] text-center">
                                             <button
@@ -433,7 +566,7 @@ export default function Products() {
                         </div>
 
                         {/* Modal Body — 3-column no-scroll layout */}
-                        <div className="max-h-[80vh] overflow-y-auto lg:max-h-none lg:overflow-visible">
+                        <div className="max-h-[80vh] overflow-y-auto lg:max-h-none lg:overflow-visible text-gray-800">
                             <div className="grid grid-cols-1 md:grid-cols-3">
 
                                 {/* COL 1: Images + Brand + Description */}
@@ -442,6 +575,7 @@ export default function Products() {
                                     <div>
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest mb-2">
                                             Product Images
+                                            <span className="block text-[10px] text-gray-600 normal-case tracking-normal mt-0.5 font-medium">Format: JPG, PNG, WEBP (Max 5MB)</span>
                                         </p>
 
                                         <div className="flex flex-wrap lg:flex-nowrap gap-3">
@@ -464,7 +598,7 @@ export default function Products() {
                                                         >
                                                             {hasImage ? (
                                                                 <img
-                                                                    src={hasImage && typeof hasImage === 'string' && hasImage.startsWith('http') ? hasImage : `${mediaUrl}${hasImage}`}
+                                                                    src={hasImage && typeof hasImage === 'string' && (hasImage.startsWith('http') || hasImage.startsWith('blob:')) ? hasImage : `${mediaUrl}${hasImage}`}
                                                                     className="w-full h-full object-cover"
                                                                 />
                                                             ) : (
@@ -476,6 +610,7 @@ export default function Products() {
 
                                                             <input
                                                                 type="file"
+                                                                accept=".jpg,.jpeg,.png,.gif,.webp"
                                                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                                                 onChange={(e) => handleImageChange(e, fileKey)}
                                                             />
@@ -492,7 +627,7 @@ export default function Products() {
                                         <textarea
                                             value={editFormState.description}
                                             onChange={(e) => setEditFormState({ ...editFormState, description: e.target.value })}
-                                            className="w-full flex-1 min-h-[80px] px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#127690] focus:border-[#127690] transition-all placeholder:text-gray-400 resize-none"
+                                            className="w-full flex-1 min-h-[80px] px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#127690] focus:border-[#127690] transition-all placeholder:text-gray-800 resize-none"
                                             placeholder="Add product description..."
                                         />
                                     </div>
@@ -505,13 +640,20 @@ export default function Products() {
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Product Info</p>
                                         <ModalRow label="Product Code" value={selectedProduct.id} />
                                         <ModalRow label="Product Name" value={selectedProduct.name} />
+                                        <ModalRow label="Short Name" value={selectedProduct.shortName} />
+                                        <ModalRow label="ERP Brand" value={selectedProduct.erpBrand} />
+                                        <ModalRow label="ERP Category" value={selectedProduct.erpCategory} />
+                                        <ModalRow label="Content" value={selectedProduct.erpContent} />
+                                        <ModalRow label="Pack" value={selectedProduct.erpPack} />
+                                        <ModalRow label="HSN Code" value={selectedProduct.hsnCode} />
+                                        <ModalRow label="HSN Name" value={selectedProduct.hsnName} />
                                         {/* <div className="flex flex-col sm:flex-row sm:items-start gap-1">
                                             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0 mt-1.5">Category</span>
                                             <input type="text" value={editFormState.type_label} onChange={e => setEditFormState({ ...editFormState, type_label: e.target.value })} className="flex-1 text-sm bg-gray-50 rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Category" />
                                         </div> */}
                                         <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-                                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0 mt-1.5">Subheading</span>
-                                            <input type="text" value={editFormState.subheading} onChange={e => setEditFormState({ ...editFormState, subheading: e.target.value })} className="flex-1 text-sm bg-gray-50 rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Subheading" />
+                                            <span className="text-xs font-semibold uppercase tracking-wide w-40 shrink-0 mt-1.5">Subheading</span>
+                                            <input type="text" value={editFormState.subheading} onChange={e => setEditFormState({ ...editFormState, subheading: e.target.value })} className="flex-1 text-sm bg-gray-50  text-[#020202] rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Subheading" />
                                         </div>
                                     </div>
 
@@ -534,7 +676,7 @@ export default function Products() {
                                                             </div>
                                                         )}
                                                         <div>
-                                                            <p className="text-sm font-semibold text-gray-800">{brands.find(b => b.id === selectedBrandId)?.name || "Unknown Brand"}</p>
+                                                            <p className="text-sm font-semibold">{brands.find(b => b.id === selectedBrandId)?.name || "Unknown Brand"}</p>
                                                             <p className="text-[10px] text-gray-500 font-medium">Brand ID: {selectedBrandId}</p>
                                                         </div>
                                                     </div>
@@ -556,16 +698,16 @@ export default function Products() {
                                             {isBrandDropdownOpen && (
                                                 <>
                                                     <div className="fixed inset-0 z-40" onClick={() => setIsBrandDropdownOpen(false)} />
-                                                    <div className="absolute bottom-full left-0 mb-2 w-full max-h-60 overflow-y-auto bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                    <div className="absolute bottom-full left-0 mb-2 w-51 max-h-60 overflow-y-auto bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
                                                         <div className="px-3 pb-2 border-b border-gray-50 mb-1">
                                                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select a Brand</p>
                                                         </div>
-                                                        <button
+                                                        {/* <button
                                                             onClick={() => { setSelectedBrandId(""); setIsBrandDropdownOpen(false); }}
                                                             className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-500 italic"
                                                         >
                                                             No Brand
-                                                        </button>
+                                                        </button> */}
                                                         {brands.map((brand) => (
                                                             <button
                                                                 key={brand.id}
@@ -573,17 +715,13 @@ export default function Products() {
                                                                     setSelectedBrandId(brand.id);
                                                                     setIsBrandDropdownOpen(false);
                                                                 }}
-                                                                className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-blue-50 ${selectedBrandId === brand.id ? 'bg-blue-50 text-blue-700 font-semibold border-r-4 border-blue-600' : 'text-gray-700'}`}
+                                                                className={`w-full text-left flex items-center px-4 py-2 text-sm transition-colors hover:bg-blue-50 ${selectedBrandId === brand.id ? 'bg-blue-50 text-blue-700 font-semibold border-r-4 border-blue-600' : 'text-gray-700'}`}
                                                             >
-                                                                {brand.logo ? (
+                                                                {/* {brand.logo ? (
                                                                     <img src={brand.logo} alt="" className="w-8 h-8 rounded-lg object-contain border border-gray-100 bg-white p-0.5" />
-                                                                ) : (
-                                                                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                                                        <Archive size={14} className="text-gray-400" />
-                                                                    </div>
-                                                                )}
-                                                                <div className="flex-1">
-                                                                    <p className="text-sm font-medium text-gray-800">{brand.name}</p>
+                                                                ) :null} */}
+                                                                <div className="flex-1 text-left">
+                                                                    <p className="text-sm font-medium">{brand.name}</p>
                                                                     <p className="text-[10px] text-gray-400">ID: {brand.id}</p>
                                                                 </div>
                                                             </button>
@@ -595,11 +733,31 @@ export default function Products() {
                                     </div>
 
                                     {/* Batch & Expiry */}
-                                    <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Batch & Expiry</p>
-                                        <ModalRow label="Batch Number" value={selectedProduct.batch} />
-                                        <ModalRow label="Expiry Date" value={selectedProduct.expiry} />
-                                    </div>
+                                    {selectedProduct.batchDetails && selectedProduct.batchDetails.length > 0 ? (
+                                        <div className="bg-gray-50 rounded-xl p-3 space-y-3 max-h-[300px] overflow-y-auto">
+                                            <p className="text-xs font-bold text-[#127690] uppercase tracking-widest sticky top-0 bg-gray-50 z-10 pb-1">Batch Details</p>
+                                            {selectedProduct.batchDetails.map((batch, idx) => (
+                                                <div key={idx} className="border border-gray-200 rounded-lg p-2 space-y-2 bg-white">
+                                                    <div className="flex justify-between items-center border-b border-gray-100 pb-1 mb-1">
+                                                        <span className="text-xs font-bold text-gray-800">Batch: {batch.batchNo}</span>
+                                                        <span className="text-[10px] text-gray-500 font-semibold">Exp: {batch.expiryDate ? batch.expiryDate.split(' ')[0] : 'N/A'}</span>
+                                                    </div>
+                                                    <ModalRow label="MRP" value={batch.mrp} />
+                                                    <ModalRow label="MRP Box" value={batch.mrpBox} />
+                                                    <ModalRow label="Total Bal Qty" value={batch.totalBalLsQty} />
+                                                    <ModalRow label="Pack Qty" value={batch.packQty} />
+                                                    <ModalRow label="Loose Qty" value={batch.looseQty} />
+                                                    <ModalRow label="Last Modified" value={batch.lastModifiedDateTime ? batch.lastModifiedDateTime.split(' ')[0] : '-'} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+                                            <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Batch & Expiry</p>
+                                            <ModalRow label="Batch Number" value={selectedProduct.batch} />
+                                            <ModalRow label="Expiry Date" value={selectedProduct.expiry} />
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* COL 3: Pricing + Inventory + Status */}
@@ -612,32 +770,40 @@ export default function Products() {
                                         <ModalRow label="Standard Discount" value={selectedProduct.std_disc != null ? `${selectedProduct.std_disc}%` : null} />
                                     </div>
 
-                                    {/* Inventory */}
+                                    {/* Stock Details */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Inventory</p>
-                                        <ModalRow label="Stock Level" value={selectedProduct.stock} />
-                                        <ModalRow label="Qty Per Box" value={selectedProduct.qtyPerBox} />
-                                        <ModalRow label="Warehouse" value={selectedProduct.warehouse} />
+                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Item Stock Info</p>
+                                        <ModalRow label="Qty Per Box" value={selectedProduct.qtyBox} />
+                                        <ModalRow label="Content Code" value={selectedProduct.contCode} />
+                                        <ModalRow label="Content Name" value={selectedProduct.contName} />
+                                        {(!selectedProduct.batchDetails || selectedProduct.batchDetails.length === 0) && (
+                                            <>
+                                                <ModalRow label="Total Balance Qty" value={selectedProduct.totalBalLsQty} />
+                                                <ModalRow label="Pack Qty" value={selectedProduct.packQty} />
+                                                <ModalRow label="Loose Qty" value={selectedProduct.looseQty} />
+                                                <ModalRow label="Last Modified" value={selectedProduct.stockLastModified} />
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* Status */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Status</p>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-28 shrink-0">Cart Status</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.cartStatus ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
+                                        {/* <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Cart Status</span>
+                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.cartStatus ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.cartStatus ? "In Cart" : "Not In Cart"}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-28 shrink-0">Wishlist</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.wishlistStatus ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-500"}`}>
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Wishlist</span>
+                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.wishlistStatus ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.wishlistStatus ? "Wishlisted" : "Not Wishlisted"}
                                             </span>
-                                        </div>
+                                        </div> */}
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-28 shrink-0">Low Stock</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"}`}>
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0"> Stock</span>
+                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
                                                 {selectedProduct.lowStock ? "Low Stock" : "Sufficient"}
                                             </span>
                                         </div>
@@ -679,10 +845,10 @@ export default function Products() {
 function ModalRow({ label, value }) {
     return (
         <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0">
+            <span className="text-xs font-semibold uppercase tracking-wide w-40 shrink-0">
                 {label}
             </span>
-            <span className="text-sm text-gray-900 break-all">{value ?? "—"}</span>
+            <span className="text-sm font-medium text-gray-900 break-all">{value ?? "—"}</span>
         </div>
     );
 }

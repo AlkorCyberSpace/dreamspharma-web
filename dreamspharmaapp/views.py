@@ -1127,6 +1127,11 @@ class GetItemMasterView(APIView):
             store_id  = request.query_params.get('storeId')
             input_date_time = request.query_params.get('inputDateTime', '2021-07-01 10:10:00')
 
+            # ── Search & Filter params ──────────────────────────────────────
+            search = request.query_params.get('search')
+            brand_name = request.query_params.get('brand')
+            no_pagination = request.query_params.get('no_pagination', 'false').lower() == 'true'
+
             if latitude and longitude:
                 store_info = ERPService.get_nearest_store_config(latitude, longitude)
             elif store_id:
@@ -1183,6 +1188,21 @@ class GetItemMasterView(APIView):
 
                 # ── 2. Paginate in-memory ──────────────────────────────────
                 total_items = len(all_items)
+                low_stock_count = sum(1 for item in all_items if float(item.get('stockBalQty', 0) or 0) < 5)
+
+                # ── Bypass pagination if requested ─────────────────────────
+                if no_pagination:
+                    return Response({
+                        'code':    '200',
+                        'type':    'getMasterData',
+                        'data':    all_items,
+                        'message': f'All {len(all_items)} items fetched without pagination',
+                        'c2Code':     erp_config['c2_code'],
+                        'storeId':    erp_config['store_id'],
+                        'prodCode':   erp_config['prod_code'],
+                    }, status=status.HTTP_200_OK)
+
+                # ── Paginate ───────────────────────────────────────────────
                 total_pages = max(1, (total_items + page_size - 1) // page_size)
                 page        = min(page, total_pages)
                 start       = (page - 1) * page_size
@@ -1375,6 +1395,7 @@ class GetItemMasterView(APIView):
                         'has_next':     page < total_pages,
                         'has_previous': page > 1,
                     },
+
                     'cache_source': 'redis' if not force_refresh else 'erp_fresh',
                     'c2Code':     erp_config['c2_code'],
                     'storeId':    erp_config['store_id'],

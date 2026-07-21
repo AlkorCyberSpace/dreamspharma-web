@@ -180,7 +180,7 @@ CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000  # Prevent memory leaks in workers
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'pharmanew',        
+        'NAME': 'pharma',        
         'USER': 'postgres',      
         'PASSWORD': 'Soorya@123',
         'HOST': 'localhost',     
