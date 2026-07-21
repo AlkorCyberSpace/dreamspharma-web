@@ -128,8 +128,8 @@ REST_FRAMEWORK = {
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    # Short-lived access token (15 minutes) - mobile app refreshes silently
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    # Access token valid for 24 hours
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),
     
     # Long-lived refresh token (365 days) - user stays logged in year-long
     'REFRESH_TOKEN_LIFETIME': timedelta(days=365),
@@ -199,23 +199,25 @@ DATABASES = {
 }
 
 # ==================== REDIS CACHE CONFIGURATION ====================
-# ✅ PRODUCTION FIX #2: Cache products/stores locally (prevents DB hammering)
-# Without cache: Every product view = 1 DB query. 100 users × 10 views = 1,000 queries/second!
-# With cache: 1 DB query, then 99 cache hits = 1,000x faster
+# ✅ PRODUCTION FIX #2: Persistent, shared cache using Redis
+# - Survives server restarts (unlike LocMemCache)
+# - Shared across all Gunicorn workers (unlike LocMemCache which is per-process)
+# - ERP master data cached for 1 hour → eliminates repeated slow API calls
+# - ERP stock data cached for 5 minutes → near-realtime without hammering ERP
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1')
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/1'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'SOCKET_CONNECT_TIMEOUT': 5,
-            'SOCKET_TIMEOUT': 5,
-            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-        },
-        'KEY_PREFIX': 'dreamspharma',
-        'TIMEOUT': 300,  # Default 5-minute TTL
+        'LOCATION': 'unique-snowflake-erp-cache',
+        'TIMEOUT': 300,
     }
 }
+
+# ── ERP cache TTL constants (used by erp_redis_cache.py) ──────────────────────
+ERP_MASTER_DATA_CACHE_TTL = int(os.environ.get('ERP_MASTER_DATA_CACHE_TTL', 3600))   # 1 hour
+ERP_STOCK_CACHE_TTL       = int(os.environ.get('ERP_STOCK_CACHE_TTL', 300))          # 5 minutes
+ERP_TOKEN_CACHE_TTL       = int(os.environ.get('ERP_TOKEN_CACHE_TTL', 86400))        # 24 hours
 # DATABASES = {
 #     'default': dj_database_url.parse("postgresql://postgres:db_dreamspharma@db.wdpwanzaoacvcyvdqeek.supabase.co:5432/postgres")
 # }

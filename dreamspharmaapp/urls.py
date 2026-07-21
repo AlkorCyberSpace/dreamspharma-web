@@ -76,7 +76,10 @@ urlpatterns = [
     path('erp/ws_c2_services_gl_cust_creation', views.CreateGLCustomerView.as_view(), name='create-gl-customer'),
     # Order Status
     path('erp/ws_c2_services_get_orderstatus', views.GetOrderStatusView.as_view(), name='get-order-status'),
-    
+    # ERP Redis Cache Management (SuperAdmin only)
+    path('erp/cache/invalidate/', views.ERPCacheInvalidateView.as_view(), name='erp-cache-invalidate'),
+    path('erp/cache/info/', views.ERPCacheInfoView.as_view(), name='erp-cache-info'),
+
     # ==================== CART ENDPOINTS ====================
     path('cart/', views.CartView.as_view(), name='cart'),
     path('cart/add/', views.AddToCartView.as_view(), name='add-to-cart'),

@@ -44,7 +44,22 @@ def refresh_erp_token_job():
         else:
             logger.error(f'[{timezone.now()}] [FAILED] Token refresh job failed')
     except Exception as e:
-        logger.error(f'[{timezone.now()}] [FAILED] Error in refresh_erp_token job: {str(e)}')
+        logger.error(f'[{timezone.now()}] [FAILED] Error in refresh_erp_token_job: {str(e)}')
     finally:
         close_old_connections()
 
+
+def retry_unsynced_orders_job():
+    """
+    📦 Outbox pattern job: Re-attempts pushing unsynced SalesOrders to ERP
+    Runs every 5 minutes
+    """
+    try:
+        logger.info(f'[{timezone.now()}] [OUTBOX_JOB] Starting retry_unsynced_orders job...')
+        from .services import retry_unsynced_erp_orders
+        count = retry_unsynced_erp_orders()
+        logger.info(f'[{timezone.now()}] [OUTBOX_JOB] retry_unsynced_orders job completed (synced {count} orders)')
+    except Exception as e:
+        logger.error(f'[{timezone.now()}] [OUTBOX_JOB] Error in retry_unsynced_orders job: {str(e)}')
+    finally:
+        close_old_connections()

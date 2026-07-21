@@ -2520,21 +2520,45 @@ class InventoryInsightsView(APIView):
             try:
                 api_key = get_erp_token_for_store_config(erp_config)
                 erp_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
-                erp_params = {
+                
+                # Build ERP request payload (using store-specific config)
+                erp_payload = {
                     'apiKey': api_key,
                     'storeId': erp_config['store_id'],
-                    'c2Code': erp_config['c2_code']
+                    'c2Code': erp_config['c2_code'],
+                    'prodCode': erp_config['prod_code'],
+                    'inputDateTime': '2021-07-01 10:10:00',
+                    'itemCodes': []
                 }
                 
                 logger.info(f"Fetching stock from ERP: {erp_server_url}")
-                erp_response = requests.get(erp_server_url, params=erp_params, timeout=10)
+                erp_response = requests.get(erp_server_url, json=erp_payload, timeout=30, stream=True)
                 if erp_response.status_code == 200:
-                    resp_json = erp_response.json()
-                    if isinstance(resp_json, dict):
-                        stock_data = resp_json.get('data', [])
-                    elif isinstance(resp_json, list):
-                        stock_data = resp_json
-                    logger.info(f"Fetched {len(stock_data)} items from ERP")
+                    raw_chunks = []
+                    for chunk in erp_response.iter_content(chunk_size=65536):
+                        if chunk:
+                            raw_chunks.append(chunk)
+                    raw_bytes = b''.join(raw_chunks)
+                    logger.info(f"Received {len(raw_bytes)} bytes from ERP for store {store_id}")
+                    
+                    raw_text = raw_bytes.decode('utf-8', errors='replace').strip()
+                    if raw_text.startswith('\ufeff'):
+                        raw_text = raw_text[1:]
+                    
+                    import re, json as _json
+                    # Fix bare decimals in ERP JSON like "mrp":.861 -> "mrp":0.861
+                    raw_text = re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
+                    
+                    try:
+                        resp_json = _json.loads(raw_text)
+                        if isinstance(resp_json, dict):
+                            stock_data = resp_json.get('stockDetails', []) or resp_json.get('data', [])
+                        elif isinstance(resp_json, list):
+                            stock_data = resp_json
+                        logger.info(f"Successfully fetched and parsed {len(stock_data)} items from ERP for store {store_id}")
+                    except Exception as parse_err:
+                        snippet = raw_text[:500]
+                        logger.error(f"Failed to parse ERP stock JSON ({len(raw_bytes)} bytes): {parse_err}. Snippet: {snippet}")
                 else:
                     logger.warning(f"ERP API returned status {erp_response.status_code}")
             except requests.exceptions.Timeout:
@@ -2562,13 +2586,16 @@ class InventoryInsightsView(APIView):
                 'message': 'No stock data available from ERP'
             })
             
-        erp_stock_dict = {
-            item['itemCode']: {
-                'qty': item.get('totalBalLsQty', 0),
-                'name': item.get('itemName', '')
-            }
-            for item in stock_data if 'itemCode' in item
-        }
+        erp_stock_dict = {}
+        for item in stock_data:
+            code = item.get('c_item_code') or item.get('itemCode')
+            if code:
+                batch_list = item.get('batchDetails', [])
+                total_ls_qty = sum(float(b.get('packQty', 0)) for b in batch_list)
+                erp_stock_dict[code] = {
+                    'qty': int(total_ls_qty),
+                    'name': item.get('itemName') or f"Item {code}"
+                }
         
         if not erp_stock_dict:
             logger.warning(f"No valid stock items found in ERP response for store {store_id}")
