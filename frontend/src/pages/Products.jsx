@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Search, Package, AlertTriangle, Archive, Eye, X, Edit, Upload } from "lucide-react";
 import SummaryCard from "../components/SummaryCard";
-import { getProductsAPI, updateProductInfoAPI, getCategoriesAPI, assignBrandToProductAPI } from "../services/allAPI";
+import { getProductsAPI, updateProductInfoAPI, getCategoriesAPI, assignBrandToProductAPI, fetchStockAPI, searchProductsAPI } from "../services/allAPI";
 import { mediaUrl } from "../services/serverUrl";
 
 
@@ -42,56 +42,95 @@ export default function Products() {
     const [selectedBrandId, setSelectedBrandId] = useState("");
     const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
 
+    const [stockData, setStockData] = useState({});
+    const [stockLoading, setStockLoading] = useState(false);
+
+    const fetchStock = async (c_item_code) => {
+        if (!c_item_code || c_item_code.length === 0) return;
+        setStockLoading(true);
+        try {
+            const response = await fetchStockAPI({ item_codes: c_item_code.join(",") });
+            // Extract stock array depending on whether it's wrapped in stockDetails, data, or is a direct array
+            const stockList = response.data?.stockDetails || (Array.isArray(response.data) ? response.data : (response.data?.data || []));
+
+            if (stockList && stockList.length > 0) {
+                const stockMap = {};
+                stockList.forEach((stockItem) => {
+                    const code = stockItem.c_item_code || stockItem.itemCode;
+                    stockMap[code] = stockItem;
+                });
+                setStockData(stockMap);
+            }
+        } catch (error) {
+            console.error("Error fetching stock:", error);
+        } finally {
+            setStockLoading(false);
+        }
+    };
+
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const params = {
-                page: currentPage,
-                page_size: itemsPerPage,
-            };
+            let response;
             if (debouncedSearch) {
-                params.search = debouncedSearch;
+                const searchParams = {
+                    search: debouncedSearch,
+                    limit: itemsPerPage,
+                };
+                response = await searchProductsAPI(searchParams);
+            } else {
+                const params = {
+                    page: currentPage,
+                    page_size: itemsPerPage,
+                };
+                if (categoryFilter && categoryFilter !== "All Brands") {
+                    params.brand = categoryFilter;
+                }
+                response = await getProductsAPI(params);
             }
-            if (categoryFilter && categoryFilter !== "All Brands") {
-                params.brand = categoryFilter;
-            }
-            const response = await getProductsAPI(params);
             if (response.data && response.data.data) {
-                const mappedData = response.data.data.map((item) => ({
-                    id: item.itemCode,
-                    name: item.itemName,
-                    shortName: item.itemShortName || "-",
-                    erpBrand: item.brandName || "-",
-                    erpCategory: item.categoryName || "-",
-                    erpContent: item.contentName || "-",
-                    erpPack: item.packName || "-",
-                    hsnCode: item.hsnSacCode || "-",
-                    hsnName: item.hsnSacName || "-",
-                    itemAddedDate: item.itemAddedDate || "-",
-                    itemUpdatedDate: item.itemUpdatedDate || "-",
-                    category: item.brand_name || "not choose",
-                    // The following fields (mrp, stockBalQty, batchNo, expiryDate) are no longer in the JSON response, falling back to N/A or defaults
-                    mrp: item.mrp ? `₹${item.mrp}` : "N/A",
-                    stock: item.stockBalQty || 0,
-                    lowStock: (item.stockBalQty || 0) < 5,
-                    batch: item.batchNo || "N/A",
-                    expiry: item.expiryDate || "N/A",
-                    description: item.description,
-                    subheading: item.subheading,
-                    type_label: item.type_label,
-                    brand: item.brand_name,
-                    brandId: item.brand_id,
-                    brandLogo: item.brand_logo,
-                    images: item.images,
-                    // New fields from your JSON response:
-                    itemQtyPerBox: item.itemQtyPerBox,
-                    cartStatus: item.cart_status,
-                    wishlistStatus: item.wishlist_status,
-                }));
+                const mappedData = response.data.data.map((item) => {
+                    return {
+                        id: item.c_item_code,
+                        name: item.itemName,
+                        shortName: item.itemShortName || "-",
+                        erpBrand: item.brandName || item.brand_name || "-",
+                        erpCategory: item.categoryName || item.type_label || "-",
+                        erpContent: item.contentName || "-",
+                        erpPack: item.packName || "-",
+                        hsnCode: item.hsnSacCode || "-",
+                        hsnName: item.hsnSacName || "-",
+                        itemAddedDate: item.itemAddedDate || "-",
+                        itemUpdatedDate: item.itemUpdatedDate ? item.itemUpdatedDate.split(' ')[0] : "-",
+                        category: item.brand_name || "not choose",
+                        mrp: item.mrp ? `₹${item.mrp}` : "N/A",
+                        stock: item.stockBalQty || 0,
+                        lowStock: (item.stockBalQty || 0) < 5,
+                        batch: item.batchNo || "N/A",
+                        expiry: item.expiryDate || "N/A",
+                        description: item.description,
+                        subheading: item.subheading,
+                        type_label: item.type_label,
+                        brand: item.brand_name,
+                        brandId: item.brand_id,
+                        brandLogo: item.brand_logo,
+                        images: item.images,
+                        itemQtyPerBox: item.itemQtyPerBox,
+                        cartStatus: item.cart_status,
+                        wishlistStatus: item.wishlist_status,
+                    };
+                });
 
                 setProductsData(mappedData);
+
+                // Fetch stock for all product item codes
+                const c_item_code = mappedData.map((p) => p.id).filter(Boolean);
+                fetchStock(c_item_code);
+
                 if (response.data.pagination) {
                     setTotalPages(response.data.pagination.total_pages || 1);
+                } else {
+                    setTotalPages(1);
                 }
                 if (response.data.summary) {
                     setSummaryStats({
@@ -144,7 +183,7 @@ export default function Products() {
         setSavingProduct(true);
         try {
             const formData = new FormData();
-            formData.append("itemCode", selectedProduct.id);
+            formData.append("c_item_code", selectedProduct.id);
             formData.append("subheading", editFormState.subheading);
             formData.append("description", editFormState.description);
             formData.append("type_label", editFormState.type_label);
@@ -157,7 +196,7 @@ export default function Products() {
 
             if (selectedBrandId !== (selectedProduct.brandId || "")) {
                 await assignBrandToProductAPI({
-                    itemCode: selectedProduct.id,
+                    c_item_code: selectedProduct.id,
                     brand_id: selectedBrandId
                 });
             }
@@ -197,8 +236,42 @@ export default function Products() {
             }));
         }
     };
-    // With backend pagination/search/filtering, productsData already represents the current page's filtered products
-    const paginatedProducts = productsData;
+    // Merge stock data into products
+    const paginatedProducts = productsData.map((product) => {
+        const stock = stockData[product.id];
+        if (stock) {
+            let totalStock = 0;
+            let mrp = product.mrp;
+
+            if (stock.batchDetails && stock.batchDetails.length > 0) {
+                totalStock = stock.batchDetails.reduce((acc, curr) => acc + (curr.totalBalLsQty || 0), 0);
+
+                // If main product mrp is N/A, fallback to the latest batch mrp
+                if (mrp === "N/A" && stock.batchDetails[0].mrp) {
+                    mrp = `₹${stock.batchDetails[0].mrp}`;
+                }
+            } else {
+                totalStock = stock.totalBalLsQty || 0;
+            }
+
+            return {
+                ...product,
+                stock: totalStock,
+                lowStock: totalStock < 5,
+                mrp: mrp,
+                qtyBox: stock.qtyBox || 0,
+                contCode: stock.contCode || "-",
+                contName: stock.contName || "-",
+                batchDetails: stock.batchDetails || [],
+                // Fallbacks
+                packQty: stock.packQty || 0,
+                looseQty: stock.looseQty || 0,
+                totalBalLsQty: stock.totalBalLsQty || 0,
+                stockLastModified: stock.lastModifiedDateTime || "-",
+            };
+        }
+        return product;
+    });
 
     const handleSearch = (e) => {
         setSearch(e.target.value);
@@ -329,21 +402,22 @@ export default function Products() {
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
-                                <th className="px-2 py-4 text-center">SI NO</th>
-                                <th className=" ">PRODUCT ID</th>
-                                <th className="px-4">PRODUCT NAME</th>
-                                <th className="px-2">BRAND NAME</th>
-                                <th className="px-2">HSN CODE</th>
-                                <th className="px-2">PACK</th>
-                                <th className="px-2">ADDED DATE</th>
-                                <th className="px-2">UPDATED DATE</th>
-                                <th className="px-2 text-center">ACTION</th>
+                                <th className="px-2 py-4 text-center whitespace-nowrap">SI NO</th>
+                                <th className="whitespace-nowrap">PRODUCT ID</th>
+                                <th className="px-4 min-w-[200px]">PRODUCT NAME</th>
+                                <th className="px-2 whitespace-nowrap">BRAND NAME</th>
+                                <th className="px-2 whitespace-nowrap">HSN CODE</th>
+                                <th className="px-2 whitespace-nowrap">PACK</th>
+                                <th className="px-2 whitespace-nowrap">ADDED DATE</th>
+                                <th className="px-2 whitespace-nowrap">UPDATED DATE</th>
+                                <th className="px-2 text-center whitespace-nowrap">STATUS</th>
+                                <th className="px-2 text-center whitespace-nowrap">ACTION</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-gray-400">
+                                    <td colSpan={10} className="px-6 py-10 text-center text-gray-400">
                                         <div className="flex items-center justify-center gap-2">
                                             <div className="w-5 h-5 border-2 border-[#505050] border-t-transparent rounded-full animate-spin" />
                                             Loading products...
@@ -352,7 +426,7 @@ export default function Products() {
                                 </tr>
                             ) : paginatedProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-gray-400">
+                                    <td colSpan={10} className="px-6 py-10 text-center text-gray-400">
                                         No products found.
                                     </td>
                                 </tr>
@@ -371,6 +445,11 @@ export default function Products() {
                                         <td className="px-2 py-4 text-sm text-gray-600 font-bold whitespace-nowrap">{product.itemAddedDate}</td>
                                         <td className="px-2 py-4 text-sm whitespace-nowrap">
                                             <span className="text-gray-600 font-semibold">{product.itemUpdatedDate}</span>
+                                        </td>
+                                        <td className="px-2 py-4 text-center whitespace-nowrap">
+                                            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap inline-block ${product.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
+                                                {product.lowStock ? "Low Stock" : "Sufficient"}
+                                            </span>
                                         </td>
                                         <td className="px-2 text-[13px] text-center">
                                             <button
@@ -654,11 +733,31 @@ export default function Products() {
                                     </div>
 
                                     {/* Batch & Expiry */}
-                                    <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Batch & Expiry</p>
-                                        <ModalRow label="Batch Number" value={selectedProduct.batch} />
-                                        <ModalRow label="Expiry Date" value={selectedProduct.expiry} />
-                                    </div>
+                                    {selectedProduct.batchDetails && selectedProduct.batchDetails.length > 0 ? (
+                                        <div className="bg-gray-50 rounded-xl p-3 space-y-3 max-h-[300px] overflow-y-auto">
+                                            <p className="text-xs font-bold text-[#127690] uppercase tracking-widest sticky top-0 bg-gray-50 z-10 pb-1">Batch Details</p>
+                                            {selectedProduct.batchDetails.map((batch, idx) => (
+                                                <div key={idx} className="border border-gray-200 rounded-lg p-2 space-y-2 bg-white">
+                                                    <div className="flex justify-between items-center border-b border-gray-100 pb-1 mb-1">
+                                                        <span className="text-xs font-bold text-gray-800">Batch: {batch.batchNo}</span>
+                                                        <span className="text-[10px] text-gray-500 font-semibold">Exp: {batch.expiryDate ? batch.expiryDate.split(' ')[0] : 'N/A'}</span>
+                                                    </div>
+                                                    <ModalRow label="MRP" value={batch.mrp} />
+                                                    <ModalRow label="MRP Box" value={batch.mrpBox} />
+                                                    <ModalRow label="Total Bal Qty" value={batch.totalBalLsQty} />
+                                                    <ModalRow label="Pack Qty" value={batch.packQty} />
+                                                    <ModalRow label="Loose Qty" value={batch.looseQty} />
+                                                    <ModalRow label="Last Modified" value={batch.lastModifiedDateTime ? batch.lastModifiedDateTime.split(' ')[0] : '-'} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+                                            <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Batch & Expiry</p>
+                                            <ModalRow label="Batch Number" value={selectedProduct.batch} />
+                                            <ModalRow label="Expiry Date" value={selectedProduct.expiry} />
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* COL 3: Pricing + Inventory + Status */}
@@ -671,18 +770,26 @@ export default function Products() {
                                         <ModalRow label="Standard Discount" value={selectedProduct.std_disc != null ? `${selectedProduct.std_disc}%` : null} />
                                     </div>
 
-                                    {/* Inventory */}
+                                    {/* Stock Details */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Inventory</p>
-                                        <ModalRow label="Stock Level" value={selectedProduct.stock} />
-                                        <ModalRow label="Qty Per Box" value={selectedProduct.itemQtyPerBox} />
-                                        <ModalRow label="Warehouse" value={selectedProduct.warehouse} />
+                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Item Stock Info</p>
+                                        <ModalRow label="Qty Per Box" value={selectedProduct.qtyBox} />
+                                        <ModalRow label="Content Code" value={selectedProduct.contCode} />
+                                        <ModalRow label="Content Name" value={selectedProduct.contName} />
+                                        {(!selectedProduct.batchDetails || selectedProduct.batchDetails.length === 0) && (
+                                            <>
+                                                <ModalRow label="Total Balance Qty" value={selectedProduct.totalBalLsQty} />
+                                                <ModalRow label="Pack Qty" value={selectedProduct.packQty} />
+                                                <ModalRow label="Loose Qty" value={selectedProduct.looseQty} />
+                                                <ModalRow label="Last Modified" value={selectedProduct.stockLastModified} />
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* Status */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
                                         <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Status</p>
-                                        <div className="flex items-center gap-2">
+                                        {/* <div className="flex items-center gap-2">
                                             <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Cart Status</span>
                                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.cartStatus ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.cartStatus ? "In Cart" : "Not In Cart"}
@@ -693,9 +800,9 @@ export default function Products() {
                                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.wishlistStatus ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.wishlistStatus ? "Wishlisted" : "Not Wishlisted"}
                                             </span>
-                                        </div>
+                                        </div> */}
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Low Stock</span>
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0"> Stock</span>
                                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
                                                 {selectedProduct.lowStock ? "Low Stock" : "Sufficient"}
                                             </span>

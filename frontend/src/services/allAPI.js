@@ -386,3 +386,12 @@ export const getStoreAnalyticsAPI = (params) => {
   return axiosInstance.get("admin/analytics/stores/", { params });
 };
 
+// ERP - Fetch Stock
+export const fetchStockAPI = (params) => {
+  return axiosInstance.get("erp/ws_c2_services_fetch_stock", { params });
+};
+
+// Search Products
+export const searchProductsAPI = (params) => {
+  return axiosInstance.get("search/", { params });
+};
