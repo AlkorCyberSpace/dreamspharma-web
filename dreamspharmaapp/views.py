@@ -1254,33 +1254,34 @@ class GetItemMasterView(APIView):
                         except Exception as e:
                             logger.error(f"Error fetching stock data from ERP: {e}")
 
-                # ── 4. Bulk pre-fetch database records to prevent N+1 queries (4 queries total) ──
-                db_items_map = {}
+                # ── 4. Bulk pre-fetch DB records (admin-only fields) ──────────
+                # ItemMaster is NOT queried here — ERP is the source for catalog fields.
+                # We only fetch ProductInfo (images, description, brand assignment)
+                # and Cart/Wishlist status flags.
                 product_info_map = {}
                 images_by_product_map = {}
                 user_cart_item_codes = set()
                 user_wishlist_item_codes = set()
 
                 if page_item_codes:
-                    # Query 1: Fetch all matching ItemMaster records in bulk
-                    item_masters = ItemMaster.objects.filter(item_code__in=page_item_codes)
-                    for item_master in item_masters:
-                        db_items_map[item_master.item_code] = item_master
-
-                    # Query 2: Fetch all related ProductInfo records in bulk (using select_related to get category in same query)
-                    product_infos = ProductInfo.objects.filter(item__in=item_masters).select_related('category')
+                    # Query 1: ProductInfo + assigned brand (admin-managed fields)
+                    product_infos = ProductInfo.objects.filter(
+                        item__item_code__in=page_item_codes
+                    ).select_related('category')
                     for info in product_infos:
                         product_info_map[info.item.item_code] = info
 
-                    # Query 3: Fetch all ProductImages for these products in bulk
-                    product_images = ProductImage.objects.filter(product_info__in=product_infos).order_by('image_order')
+                    # Query 2: Product images in bulk
+                    product_images = ProductImage.objects.filter(
+                        product_info__in=product_infos
+                    ).order_by('image_order')
                     for img in product_images:
                         prod_info_id = img.product_info_id
                         if prod_info_id not in images_by_product_map:
                             images_by_product_map[prod_info_id] = []
                         images_by_product_map[prod_info_id].append(img)
 
-                    # Query 4: Fetch user's cart and wishlist items in bulk
+                    # Query 3 & 4: Cart and wishlist status flags
                     user = request.user if request.user.is_authenticated else None
                     if user:
                         try:
@@ -1303,38 +1304,54 @@ class GetItemMasterView(APIView):
                         except Wishlist.DoesNotExist:
                             pass
 
-                # ── 5. Enrich paged items from pre-fetched bulk maps ───────
+                # ── 5. Enrich paged items ─────────────────────────────────
                 for idx, item in enumerate(paged_items):
                     item_code = item.get('c_item_code') or item.get('itemCode')
-                    
-                    # Reconstruct dict to place c_item_code as the first key
+
+                    # Reconstruct dict to normalise c_item_code as the first key
                     new_item = {'c_item_code': item_code}
                     for k, v in item.items():
                         if k not in ('c_item_code', 'itemCode'):
                             new_item[k] = v
-                    
-                    # Merge stock balance quantity from Redis-cached stock map
+
+                    # Merge stock balance from Redis-cached stock map
                     new_item['stockBalQty'] = stock_map.get(item_code, 0)
-                    
+
                     paged_items[idx] = new_item
                     item = new_item
 
-                    # Read from bulk maps instead of making database queries
-                    item_master = db_items_map.get(item_code)
-                    product_info = product_info_map.get(item_code) if item_master else None
+                    # ── SOURCE 1: ERP (ws_c2_services_get_master_data) ─────
+                    # These fields come DIRECTLY from the ERP response.
+                    # No DB involved — ERP is the single source of truth.
+                    item['contentCode']  = item.get('contentCode')  or '-'
+                    item['contentName']  = item.get('contentName')  or '-'
+                    item['packCode']     = item.get('packCode')      or '-'
+                    item['packName']     = item.get('packName')      or '-'
+                    item['hsnSacCode']   = item.get('hsnSacCode')    or '-'
+                    item['hsnSacName']   = item.get('hsnSacName')    or '-'
+                    item['brandCode']    = item.get('brandCode')     or '-'
+                    item['brandName']    = item.get('brandName')     or '-'
+                    item['categoryCode'] = item.get('categoryCode')  or '-'
+                    item['categoryName'] = item.get('categoryName')  or '-'
+                    item['itemFullName'] = item.get('itemFullName')  or item.get('itemName') or '-'
+                    item['itemShortName']= item.get('itemShortName') or '-'
+                    item['itemAddedDate']   = item.get('itemAddedDate')   or '-'
+                    item['itemUpdatedDate'] = item.get('itemUpdatedDate') or '-'
 
-                    if item_master and product_info:
-                        item['subheading'] = product_info.subheading or ''
+                    # ── SOURCE 2: DB (ProductInfo) ──────────────────────────
+                    # Only admin-managed fields: images, description,
+                    # subheading, and the brand assignment made in dashboard.
+                    product_info = product_info_map.get(item_code)
+                    if product_info:
+                        item['subheading']  = product_info.subheading  or ''
                         item['description'] = product_info.description or ''
-                        item['type_label']  = product_info.type_label or ''
-                        item['brand_id']    = product_info.category.id if product_info.category else None
+                        item['type_label']  = product_info.type_label  or ''
+                        item['brand_id']    = product_info.category.id   if product_info.category else None
                         item['brand_name']  = product_info.category.name if product_info.category else ''
                         item['brand_logo']  = (
                             request.build_absolute_uri(product_info.category.icon.url)
                             if product_info.category and product_info.category.icon else ''
                         )
-                        
-                        # Get images from pre-fetched list
                         images = images_by_product_map.get(product_info.id, [])
                         item['images'] = [
                             {
@@ -1343,20 +1360,6 @@ class GetItemMasterView(APIView):
                             }
                             for img in images
                         ]
-                        
-                        item['brandCode']    = item.get('brandCode')    or item_master.brand_code
-                        item['brandName']    = item.get('brandName')    or item_master.brand_name
-                        item['categoryCode'] = item.get('categoryCode') or item_master.category_code
-                        item['categoryName'] = item.get('categoryName') or item_master.category_name
-                        item['contentCode']  = item.get('contentCode')  or item_master.content_code
-                        item['contentName']  = item.get('contentName')  or item_master.content_name
-                        item['hsnSacName']   = item.get('hsnSacName')   or item_master.hsn_sac_name
-                        item['itemFullName'] = item.get('itemFullName') or item_master.item_full_name
-                        item['itemShortName']= item.get('itemShortName') or item_master.item_short_name
-                        item['packCode']     = item.get('packCode')     or item_master.pack_code
-                        item['packName']     = item.get('packName')     or item_master.pack_name
-                        item['hsnSacCode']   = item.get('hsnSacCode')   or item_master.hsn_code
-
                     else:
                         item['subheading'] = ''
                         item['description'] = ''
@@ -1365,18 +1368,6 @@ class GetItemMasterView(APIView):
                         item['brand_name']  = ''
                         item['brand_logo']  = ''
                         item['images']      = []
-                        item['brandCode']    = item.get('brandCode')    or '-'
-                        item['brandName']    = item.get('brandName')    or '-'
-                        item['categoryCode'] = item.get('categoryCode') or '-'
-                        item['categoryName'] = item.get('categoryName') or '-'
-                        item['contentCode']  = item.get('contentCode')  or '-'
-                        item['contentName']  = item.get('contentName')  or '-'
-                        item['hsnSacName']   = item.get('hsnSacName')   or '-'
-                        item['itemFullName'] = item.get('itemFullName')
-                        item['itemShortName']= item.get('itemShortName') or '-'
-                        item['packCode']     = item.get('packCode')     or '-'
-                        item['packName']     = item.get('packName')     or '-'
-                        item['hsnSacCode']   = item.get('hsnSacCode')   or '-'
 
                     # Check statuses using pre-fetched sets
                     item['cart_status']     = item_code in user_cart_item_codes
@@ -3524,11 +3515,55 @@ class SearchProductsView(APIView):
                     'message': 'Search query must be at least 2 characters'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # [UPDATED] Fetch ERP data with auto-generated token
-            erp_items = fetch_all_items_from_erp()
-            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
-            
+            # ── Get ERP items from Redis cache (FAST) ────────────────────
+            # Uses the SAME Redis cache as GetItemMasterView (1-hour TTL).
+            # ERP is only called on cold cache — search is instant on cache hit.
+            from .erp_redis_cache import ERPRedisCache
+            from .erp_service import ERPService
+            from .erp_token_service import get_erp_token_for_store_config
+
+            store_info  = ERPService._get_fallback_config()
+            erp_config  = store_info['erp_config']
+            erp_store_id = erp_config['store_id']
+            input_date_time = '2021-07-01 10:10:00'
+
+            erp_items = ERPRedisCache.get_master_data(erp_store_id, input_date_time)
+
+            if erp_items is None:
+                # Cache miss — fetch from ERP and warm the cache
+                logger.info(f'[SEARCH] Redis cache miss — fetching from ERP for store {erp_store_id}')
+                api_key = get_erp_token_for_store_config(erp_config)
+                if api_key:
+                    erp_url = f"{erp_config['base_url']}/ws_c2_services_get_master_data"
+                    erp_payload = {
+                        'apiKey':        api_key,
+                        'prodCode':      erp_config['prod_code'],
+                        'c2Code':        erp_config['c2_code'],
+                        'storeId':       erp_store_id,
+                        'inputDateTime': input_date_time,
+                        'itemcodes':     []
+                    }
+                    try:
+                        resp = requests.get(erp_url, json=erp_payload, timeout=30)
+                        erp_items = resp.json().get('data', []) or []
+                        # Normalise item code key
+                        for itm in erp_items:
+                            code = itm.get('c_item_code') or itm.get('itemCode')
+                            if code:
+                                itm['c_item_code'] = code
+                                itm['itemCode']    = code
+                        ERPRedisCache.set_master_data(erp_store_id, input_date_time, erp_items)
+                        logger.info(f'[SEARCH] Cached {len(erp_items)} ERP items in Redis')
+                    except Exception as e:
+                        logger.error(f'[SEARCH] ERP fetch failed: {e}')
+                        erp_items = []
+                else:
+                    erp_items = []
+            else:
+                logger.info(f'[SEARCH] Redis cache HIT — {len(erp_items)} items (no ERP call)')
+
             products = []
+
             
             if erp_items:
                 logger.info(f"[SEARCH] Searching directly from {len(erp_items)} ERP items with auto-token")
@@ -3637,7 +3672,22 @@ class SearchProductsView(APIView):
                         'brand_logo': brand_logo,
                         'images': images_list,
                         'cart_status': cart_status,
-                        'wishlist_status': wishlist_status
+                        'wishlist_status': wishlist_status,
+                        # ERP fields for product details modal
+                        'itemShortName': erp_item.get('itemShortName') or '-',
+                        'itemFullName': erp_item.get('itemFullName') or item_name,
+                        'itemAddedDate': erp_item.get('itemAddedDate') or '-',
+                        'itemUpdatedDate': erp_item.get('itemUpdatedDate') or '-',
+                        'brandCode': erp_item.get('brandCode') or '-',
+                        'brandName': erp_item.get('brandName') or brand_name or '-',
+                        'categoryCode': erp_item.get('categoryCode') or '-',
+                        'categoryName': erp_item.get('categoryName') or '-',
+                        'contentCode': erp_item.get('contentCode') or '-',
+                        'contentName': erp_item.get('contentName') or '-',
+                        'packCode': erp_item.get('packCode') or '-',
+                        'packName': erp_item.get('packName') or '-',
+                        'hsnSacCode': erp_item.get('hsnSacCode') or '-',
+                        'hsnSacName': erp_item.get('hsnSacName') or '-',
                     })
                 
                 # Track product views for matched items that exist in our database
