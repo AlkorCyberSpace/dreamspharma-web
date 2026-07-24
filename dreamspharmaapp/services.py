@@ -102,22 +102,30 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
     3. Poll ERP's get_orderstatus endpoint to retrieve invoices.
     4. Store invoices and line items in local database.
     """
+    import sys
+    if sys.is_finalizing():
+        return False
     try:
         from .models import SalesOrder, Invoice, InvoiceDetail
         from .erp_token_service import get_cached_erp_token
         from django.utils import timezone
+        import time
         
         # ── Step 0: Fetch SalesOrder and verify ERP sync status ──
         sales_order = None
         try:
             sales_order = SalesOrder.objects.get(order_id=order_id)
         except SalesOrder.DoesNotExist:
-            logger.error(f"[INVOICE_SYNC] Sales order not found: {order_id}")
+            if not sys.is_finalizing():
+                logger.error(f"[INVOICE_SYNC] Sales order not found: {order_id}")
             return False
 
         # ── Step 1: Outbox Retry — Push order to ERP if not yet synced ──
         if not sales_order.is_erp_synced and sales_order.erp_sync_payload:
-            logger.info(f"[OUTBOX_RETRY] Order {order_id} is not yet synced to ERP. Attempting to re-push order...")
+            if sys.is_finalizing():
+                return False
+            if not sys.is_finalizing():
+                logger.info(f"[OUTBOX_RETRY] Order {order_id} is not yet synced to ERP. Attempting to re-push order...")
             sales_order.erp_sync_attempts += 1
             sales_order.last_erp_sync_attempt = timezone.now()
             
@@ -130,36 +138,48 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
 
                 erp_response = requests.post(erp_url, json=sales_order.erp_sync_payload, timeout=15)
                 
+                if sys.is_finalizing():
+                    return False
+                
                 if erp_response.status_code in [200, 201]:
                     erp_data = erp_response.json()
                     if erp_data.get('code') == '200':
-                        logger.info(f"[OUTBOX_RETRY] [SUCCESS] Order {order_id} re-pushed and accepted by ERP!")
+                        if not sys.is_finalizing():
+                            logger.info(f"[OUTBOX_RETRY] [SUCCESS] Order {order_id} re-pushed and accepted by ERP!")
                         sales_order.is_erp_synced = True
                         sales_order.erp_sync_error = None
                         sales_order.save(update_fields=['is_erp_synced', 'erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
                     else:
                         err_msg = f"ERP rejected order re-push: {erp_data.get('message')}"
-                        logger.warning(f"[OUTBOX_RETRY] {err_msg}")
+                        if not sys.is_finalizing():
+                            logger.warning(f"[OUTBOX_RETRY] {err_msg}")
                         sales_order.erp_sync_error = err_msg
                         sales_order.save(update_fields=['erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
                         return False
                 else:
                     err_msg = f"HTTP {erp_response.status_code} during order re-push: {erp_response.text[:200]}"
-                    logger.warning(f"[OUTBOX_RETRY] {err_msg}")
+                    if not sys.is_finalizing():
+                        logger.warning(f"[OUTBOX_RETRY] {err_msg}")
                     sales_order.erp_sync_error = err_msg
                     sales_order.save(update_fields=['erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
                     return False
             except Exception as push_err:
+                if sys.is_finalizing():
+                    return False
                 err_msg = f"Failed to reach ERP for order re-push: {str(push_err)}"
-                logger.warning(f"[OUTBOX_RETRY] {err_msg}")
+                if not sys.is_finalizing():
+                    logger.warning(f"[OUTBOX_RETRY] {err_msg}")
                 sales_order.erp_sync_error = err_msg
                 sales_order.save(update_fields=['erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
                 return False
 
         # ── Step 2: Fetch Token for Invoice Retrieval ──
+        if sys.is_finalizing():
+            return False
         api_key = get_cached_erp_token()
         if not api_key:
-            logger.error(f"[INVOICE_SYNC] Failed to get ERP token for order {order_id}")
+            if not sys.is_finalizing():
+                logger.error(f"[INVOICE_SYNC] Failed to get ERP token for order {order_id}")
             return False
         
         erp_base_url = settings.ERP_BASE_URL
@@ -169,75 +189,99 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
         invoices_data = None
         
         while retry_count < max_retries:
+            if sys.is_finalizing():
+                return False
             try:
                 # Build request
-                url = f"{erp_base_url}/ws_c2_services_get_orderstatus"
+                url = f"{erp_base_url}/ws_c2_services_sale_order_status"
                 payload = {
-                    "c2Code": c2_code,
-                    "storeId": store_id,
-                    "prodCode": settings.ERP_PROD_CODE,
-                    "apiKey": api_key,
-                    "orderId": order_id
+                    "order_no": order_id,
+                    "apikey": api_key
                 }
                 
-                logger.info(f"[INVOICE_SYNC] Attempting to fetch invoices | Order: {order_id} | Attempt: {retry_count + 1}/{max_retries}")
-                logger.debug(f"[INVOICE_SYNC] Request details | URL: {url} | Payload: {payload}")
+                if not sys.is_finalizing():
+                    logger.info(f"[INVOICE_SYNC] Attempting to fetch invoices | Order: {order_id} | Attempt: {retry_count + 1}/{max_retries}")
+                    logger.debug(f"[INVOICE_SYNC] Request details | URL: {url} | Payload: {payload}")
                 
                 response = requests.get(url, params=payload, timeout=10)
                 
+                if sys.is_finalizing():
+                    return False
+                
                 if response.status_code == 200:
                     data = response.json()
-                    logger.debug(f"[INVOICE_SYNC] ERP Response: {data}")
+                    if not sys.is_finalizing():
+                        logger.debug(f"[INVOICE_SYNC] ERP Response: {data}")
                     
                     if data.get('code') == '200':
                         invoices_data = data.get('invoices', [])
                         
                         if invoices_data:
-                            logger.info(f"[INVOICE_SYNC] [SUCCESS] Found {len(invoices_data)} invoice(s) for order {order_id}")
+                            if not sys.is_finalizing():
+                                logger.info(f"[INVOICE_SYNC] [SUCCESS] Found {len(invoices_data)} invoice(s) for order {order_id}")
                             break
                         else:
-                            logger.info(f"[INVOICE_SYNC] No invoices found yet | Order: {order_id} | Will retry...")
+                            if not sys.is_finalizing():
+                                logger.info(f"[INVOICE_SYNC] No invoices found yet | Order: {order_id} | Will retry...")
                     else:
-                        logger.warning(f"[INVOICE_SYNC] ERP returned non-200 code: {data.get('code')} | Message: {data.get('message')}")
+                        if not sys.is_finalizing():
+                            logger.warning(f"[INVOICE_SYNC] ERP returned non-200 code: {data.get('code')} | Message: {data.get('message')}")
                         # Don't break - retry on non-200 code as ERP might still be processing
                 else:
-                    logger.warning(f"[INVOICE_SYNC] HTTP {response.status_code} | Response: {response.text[:200]}")
+                    if not sys.is_finalizing():
+                        logger.warning(f"[INVOICE_SYNC] HTTP {response.status_code} | Response: {response.text[:200]}")
             
             except requests.exceptions.Timeout:
-                logger.warning(f"[INVOICE_SYNC] Connection timeout | Attempt {retry_count + 1}/{max_retries}")
+                if not sys.is_finalizing():
+                    logger.warning(f"[INVOICE_SYNC] Connection timeout | Attempt {retry_count + 1}/{max_retries}")
             except requests.exceptions.ConnectionError:
-                logger.warning(f"[INVOICE_SYNC] Connection error | Attempt {retry_count + 1}/{max_retries}")
+                if not sys.is_finalizing():
+                    logger.warning(f"[INVOICE_SYNC] Connection error | Attempt {retry_count + 1}/{max_retries}")
             except Exception as e:
-                logger.error(f"[INVOICE_SYNC] Unexpected error: {str(e)} | Attempt {retry_count + 1}/{max_retries}")
+                if not sys.is_finalizing():
+                    logger.error(f"[INVOICE_SYNC] Unexpected error: {str(e)} | Attempt {retry_count + 1}/{max_retries}")
             
             retry_count += 1
             if retry_count < max_retries and not invoices_data:
+                if sys.is_finalizing():
+                    return False
                 # Wait before retry (exponential backoff: 2s, 4s, 8s, 15s, 15s, ...)
                 wait_time = min(2 ** (retry_count + 1), 15)  # Cap at 15 seconds
-                logger.info(f"[INVOICE_SYNC] Retrying in {wait_time}s... (Attempt {retry_count}/{max_retries})")
-                time.sleep(wait_time)
+                if not sys.is_finalizing():
+                    logger.info(f"[INVOICE_SYNC] Retrying in {wait_time}s... (Attempt {retry_count}/{max_retries})")
+                for _ in range(int(wait_time * 10)):
+                    if sys.is_finalizing():
+                        return False
+                    time.sleep(0.1)
         
         # Store invoices if found
         if not invoices_data:
-            logger.warning(f"[INVOICE_SYNC] No invoices found after {max_retries} attempts for order {order_id}. Will attempt manual sync later.")
+            if not sys.is_finalizing():
+                logger.warning(f"[INVOICE_SYNC] No invoices found after {max_retries} attempts for order {order_id}. Will attempt manual sync later.")
             return False
         
         # Get the sales order
+        if sys.is_finalizing():
+            return False
         try:
             sales_order = SalesOrder.objects.get(order_id=order_id)
         except SalesOrder.DoesNotExist:
-            logger.error(f"[INVOICE_SYNC] Sales order not found: {order_id}")
+            if not sys.is_finalizing():
+                logger.error(f"[INVOICE_SYNC] Sales order not found: {order_id}")
             return False
         
         # Store each invoice and its line items
         stored_count = 0
         for invoice_data in invoices_data:
+            if sys.is_finalizing():
+                return False
             try:
                 doc_no = invoice_data.get('docNo')
                 
                 # Check if invoice already exists
                 if Invoice.objects.filter(doc_no=doc_no).exists():
-                    logger.info(f"[INVOICE_SYNC] Invoice already stored: {doc_no}")
+                    if not sys.is_finalizing():
+                        logger.info(f"[INVOICE_SYNC] Invoice already stored: {doc_no}")
                     stored_count += 1
                     continue
                 
@@ -255,6 +299,8 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                 # Store invoice line items
                 details = invoice_data.get('detail', [])
                 for line_item in details:
+                    if sys.is_finalizing():
+                        return False
                     try:
                         InvoiceDetail.objects.create(
                             invoice=invoice,
@@ -280,25 +326,31 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                             cess_amt=line_item.get('cessAmt', 0)
                         )
                     except Exception as e:
-                        logger.error(f"[INVOICE_SYNC] Failed to store line item: {str(e)}")
+                        if not sys.is_finalizing():
+                            logger.error(f"[INVOICE_SYNC] Failed to store line item: {str(e)}")
                 
-                logger.info(f"[INVOICE_SYNC] [OK] Invoice stored | DocNo: {doc_no} | Items: {len(details)}")
+                if not sys.is_finalizing():
+                    logger.info(f"[INVOICE_SYNC] [OK] Invoice stored | DocNo: {doc_no} | Items: {len(details)}")
                 stored_count += 1
                 
             except Exception as e:
-                logger.error(f"[INVOICE_SYNC] Failed to store invoice: {str(e)}")
+                if not sys.is_finalizing():
+                    logger.error(f"[INVOICE_SYNC] Failed to store invoice: {str(e)}")
         
         if stored_count > 0:
-            logger.info(f"[INVOICE_SYNC] [OK] COMPLETE | Stored {stored_count} invoice(s) for order {order_id}")
+            if not sys.is_finalizing():
+                logger.info(f"[INVOICE_SYNC] [OK] COMPLETE | Stored {stored_count} invoice(s) for order {order_id}")
             return True
         else:
-            logger.warning(f"[INVOICE_SYNC] Failed to store any invoices for order {order_id}")
+            if not sys.is_finalizing():
+                logger.warning(f"[INVOICE_SYNC] Failed to store any invoices for order {order_id}")
             return False
     
     except Exception as e:
-        logger.error(f"[INVOICE_SYNC] [FAIL] FAILED | Order: {order_id} | Error: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
+        if not sys.is_finalizing():
+            logger.error(f"[INVOICE_SYNC] [FAIL] FAILED | Order: {order_id} | Error: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
         return False
 
 
@@ -338,14 +390,11 @@ def fetch_order_status_from_erp(order_id, c2_code, store_id):
         
         erp_base_url = settings.ERP_BASE_URL
         
-        # Call get_orderstatus endpoint
-        url = f"{erp_base_url}/ws_c2_services_get_orderstatus"
+        # Call status endpoint
+        url = f"{erp_base_url}/ws_c2_services_sale_order_status"
         payload = {
-            "c2Code": c2_code,
-            "storeId": store_id,
-            "prodCode": settings.ERP_PROD_CODE,
-            "apiKey": api_key,
-            "orderId": order_id
+            "order_no": order_id,
+            "apikey": api_key
         }
         
         logger.info(f"[ORDER_STATUS] Fetching order status from ERP | Order: {order_id}")

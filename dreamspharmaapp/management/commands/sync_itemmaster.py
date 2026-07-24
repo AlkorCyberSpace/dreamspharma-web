@@ -24,7 +24,12 @@ class Command(BaseCommand):
     help = 'Sync ItemMaster cache from ERP every 15-30 minutes for all warehouses'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS(f'[{datetime.now()}] Starting ItemMaster sync from ERP...'))
+        import sys
+        if sys.is_finalizing():
+            return
+            
+        if not sys.is_finalizing():
+            self.stdout.write(self.style.SUCCESS(f'[{datetime.now()}] Starting ItemMaster sync from ERP...'))
         
         try:
             # 🎯 Get all active warehouses/stores from the DB
@@ -58,16 +63,20 @@ class Command(BaseCommand):
             processed_item_codes = set()
             
             for config in configs:
+                if sys.is_finalizing():
+                    return
                 store_name = config['name']
                 erp_config = config['erp_config']
-                self.stdout.write(f"[{datetime.now()}] Syncing master data for warehouse/store: {store_name} ({erp_config['store_id']})...")
+                if not sys.is_finalizing():
+                    self.stdout.write(f"[{datetime.now()}] Syncing master data for warehouse/store: {store_name} ({erp_config['store_id']})...")
                 
                 try:
                     # Get ERP token for this store/warehouse configuration
                     api_key = get_erp_token_for_store_config(erp_config)
                     if not api_key:
-                        self.stdout.write(self.style.ERROR(f'Failed to get ERP token for {store_name}. Skipping.'))
-                        logger.error(f'[SYNC_ITEMMASTER] Failed to get ERP token for store {store_name}')
+                        if not sys.is_finalizing():
+                            self.stdout.write(self.style.ERROR(f'Failed to get ERP token for {store_name}. Skipping.'))
+                            logger.error(f'[SYNC_ITEMMASTER] Failed to get ERP token for store {store_name}')
                         continue
                     
                     # Fetch all items from ERP for this store
@@ -81,13 +90,18 @@ class Command(BaseCommand):
                         'itemcodes': []
                     }
                     
-                    self.stdout.write(f'Fetching items from ERP url: {erp_url}')
+                    if not sys.is_finalizing():
+                        self.stdout.write(f'Fetching items from ERP url: {erp_url}')
                     response = requests.get(erp_url, json=payload, timeout=30)
                     response.raise_for_status()
                     
+                    if sys.is_finalizing():
+                        return
+                        
                     data = response.json()
                     if data.get('code') != '200' or not data.get('data'):
-                        self.stdout.write(self.style.ERROR(f'No data returned from ERP for store {store_name}'))
+                        if not sys.is_finalizing():
+                            self.stdout.write(self.style.ERROR(f'No data returned from ERP for store {store_name}'))
                         continue
                     
                     items_data = data.get('data', [])
@@ -97,12 +111,16 @@ class Command(BaseCommand):
                         from dreamspharmaapp.erp_redis_cache import ERPRedisCache
                         # Pre-warm both default 2021 date and the sync date key
                         ERPRedisCache.set_master_data(erp_config['store_id'], '2021-07-01 10:10:00', items_data)
-                        self.stdout.write(self.style.SUCCESS(f"Pre-warmed Redis master cache for store {erp_config['store_id']}"))
+                        if not sys.is_finalizing():
+                            self.stdout.write(self.style.SUCCESS(f"Pre-warmed Redis master cache for store {erp_config['store_id']}"))
                     except Exception as redis_err:
-                        self.stdout.write(self.style.WARNING(f"Failed to pre-warm Redis cache: {redis_err}"))
+                        if not sys.is_finalizing():
+                            self.stdout.write(self.style.WARNING(f"Failed to pre-warm Redis cache: {redis_err}"))
 
                     # Update each item in cache
                     for item_data in items_data:
+                        if sys.is_finalizing():
+                            return
                         try:
                             item_code = item_data.get('c_item_code') or item_data.get('itemCode')
                             if not item_code:
@@ -172,22 +190,27 @@ class Command(BaseCommand):
                                     
                         except Exception as e:
                             error_count += 1
-                            logger.error(f"Error syncing item {item_code} for store {store_name}: {str(e)}")
+                            if not sys.is_finalizing():
+                                logger.error(f"Error syncing item {item_code} for store {store_name}: {str(e)}")
                             continue
                             
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"Error processing store {store_name}: {str(e)}"))
-                    logger.error(f"Error syncing warehouse/store {store_name}: {str(e)}")
+                    if not sys.is_finalizing():
+                        self.stdout.write(self.style.ERROR(f"Error processing store {store_name}: {str(e)}"))
+                        logger.error(f"Error syncing warehouse/store {store_name}: {str(e)}")
                     continue
             
             # Log results
             result_msg = f'Created: {created_count}, Updated: {updated_count}, Errors: {error_count}'
-            self.stdout.write(self.style.SUCCESS(f'ItemMaster sync completed! {result_msg}'))
-            logger.info(f'ItemMaster sync result: {result_msg}')
+            if not sys.is_finalizing():
+                self.stdout.write(self.style.SUCCESS(f'ItemMaster sync completed! {result_msg}'))
+                logger.info(f'ItemMaster sync result: {result_msg}')
             
         except requests.exceptions.RequestException as e:
-            self.stdout.write(self.style.ERROR(f'ERP connection failed: {str(e)}'))
-            logger.error(f'ERP connection error during sync: {str(e)}')
+            if not sys.is_finalizing():
+                self.stdout.write(self.style.ERROR(f'ERP connection failed: {str(e)}'))
+                logger.error(f'ERP connection error during sync: {str(e)}')
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Sync failed: {str(e)}'))
-            logger.error(f'ItemMaster sync error: {str(e)}')
+            if not sys.is_finalizing():
+                self.stdout.write(self.style.ERROR(f'Sync failed: {str(e)}'))
+                logger.error(f'ItemMaster sync error: {str(e)}')

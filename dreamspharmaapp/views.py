@@ -1190,23 +1190,14 @@ class GetItemMasterView(APIView):
                 total_items = len(all_items)
                 low_stock_count = sum(1 for item in all_items if float(item.get('stockBalQty', 0) or 0) < 5)
 
-                # ── Bypass pagination if requested ─────────────────────────
                 if no_pagination:
-                    return Response({
-                        'code':    '200',
-                        'type':    'getMasterData',
-                        'data':    all_items,
-                        'message': f'All {len(all_items)} items fetched without pagination',
-                        'c2Code':     erp_config['c2_code'],
-                        'storeId':    erp_config['store_id'],
-                        'prodCode':   erp_config['prod_code'],
-                    }, status=status.HTTP_200_OK)
-
-                # ── Paginate ───────────────────────────────────────────────
-                total_pages = max(1, (total_items + page_size - 1) // page_size)
-                page        = min(page, total_pages)
-                start       = (page - 1) * page_size
-                paged_items = all_items[start: start + page_size]
+                    paged_items = all_items
+                    total_pages = 1
+                else:
+                    total_pages = max(1, (total_items + page_size - 1) // page_size)
+                    page        = min(page, total_pages)
+                    start       = (page - 1) * page_size
+                    paged_items = all_items[start: start + page_size]
 
                 # ── 3. Stock Map — Redis cache-first (5-min TTL) ───────────
                 page_item_codes = [
@@ -1215,44 +1206,73 @@ class GetItemMasterView(APIView):
                 ]
                 page_item_codes = [c for c in page_item_codes if c]
 
-                stock_map = None
-                if page_item_codes and not force_refresh:
-                    stock_map = ERPRedisCache.get_stock_map(erp_store_id, page_item_codes)
+                # If no_pagination is True, fetch all stock items at once
+                item_codes_to_fetch = [] if no_pagination else page_item_codes
 
-                if stock_map is None:
-                    stock_map = {}
-                    if page_item_codes:
+                # Always fetch real-time stock from ERP — no Redis cache for stock
+                stock_map = {}
+                try:
+                    stock_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                    stock_payload = {
+                        'apiKey':        api_key,
+                        'prodCode':      erp_config['prod_code'],
+                        'c2Code':        erp_config['c2_code'],
+                        'storeId':       erp_store_id,
+                        'inputDateTime': input_date_time,
+                        'itemCodes':     item_codes_to_fetch
+                    }
+                    headers = {
+                        'User-Agent': 'PostmanRuntime/7.43.0',
+                        'Accept': '*/*',
+                        'Accept-Encoding': 'gzip, deflate',
+                        'Connection': 'keep-alive'
+                    }
+                    stock_response = requests.post(stock_server_url, json=stock_payload, headers=headers, timeout=30, stream=True)
+                    stock_items = []
+                    if stock_response.status_code == 200:
+                        raw_chunks = []
+                        for chunk in stock_response.iter_content(chunk_size=65536):
+                            if chunk:
+                                raw_chunks.append(chunk)
+                        raw_bytes = b''.join(raw_chunks)
+                        raw_text = raw_bytes.decode('utf-8', errors='replace').strip()
+                        if raw_text.startswith('\ufeff'):
+                            raw_text = raw_text[1:]
+                        import re
+                        raw_text = re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
                         try:
-                            stock_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
-                            stock_payload = {
-                                'apiKey':        api_key,
-                                'prodCode':      erp_config['prod_code'],
-                                'c2Code':        erp_config['c2_code'],
-                                'storeId':       erp_store_id,
-                                'inputDateTime': input_date_time,
-                                'itemCodes':     page_item_codes
-                            }
-                            stock_response = requests.post(stock_server_url, json=stock_payload, timeout=15)
-                            stock_items = []
-                            if stock_response.status_code == 200:
-                                stock_data = stock_response.json()
-                                if isinstance(stock_data, dict):
-                                    stock_items = stock_data.get('stockDetails', []) or stock_data.get('data', [])
-                                elif isinstance(stock_data, list):
-                                    stock_items = stock_data
+                            stock_data = json.loads(raw_text)
+                            if isinstance(stock_data, dict):
+                                stock_items = stock_data.get('stockDetails', []) or stock_data.get('data', [])
+                            elif isinstance(stock_data, list):
+                                stock_items = stock_data
+                        except Exception as parse_err:
+                            logger.error(f"Error parsing stock response: {parse_err}")
 
-                            for s in stock_items:
-                                s_code = s.get('c_item_code') or s.get('itemCode')
-                                if s_code:
-                                    batch_list = s.get('batchDetails', [])
-                                    total_pack_qty = sum(int(float(b.get('packQty') or 0)) for b in batch_list)
-                                    stock_map[s_code] = total_pack_qty
+                    for s in stock_items:
+                        s_code = s.get('c_item_code') or s.get('itemCode')
+                        if s_code:
+                            s_code = str(s_code).strip()
+                            s_code_val = s.get('itemCode') or s.get('c_item_code')
+                            s.pop('c_item_code', None)
+                            if s_code_val:
+                                s['itemCode'] = str(s_code_val).strip()
 
-                            # Store stock map in Redis (5-min TTL)
-                            ERPRedisCache.set_stock_map(erp_store_id, page_item_codes, stock_map)
+                            if s_code not in stock_map:
+                                stock_map[s_code] = dict(s)
+                                stock_map[s_code]['batchDetails'] = list(s.get('batchDetails', []) or [])
+                            else:
+                                stock_map[s_code]['batchDetails'].extend(s.get('batchDetails', []) or [])
+                                for key in ('qtyBox', 'contCode', 'contName'):
+                                    if key not in stock_map[s_code] or stock_map[s_code][key] is None:
+                                        stock_map[s_code][key] = s.get(key)
 
-                        except Exception as e:
-                            logger.error(f"Error fetching stock data from ERP: {e}")
+                    # Write to global stock cache (60s TTL) so search can reuse without ERP call
+                    if stock_map:
+                        ERPRedisCache.set_global_stock_map(erp_store_id, stock_map)
+
+                except Exception as e:
+                    logger.error(f"Error fetching stock data from ERP: {e}")
 
                 # ── 4. Bulk pre-fetch DB records (admin-only fields) ──────────
                 # ItemMaster is NOT queried here — ERP is the source for catalog fields.
@@ -1308,14 +1328,36 @@ class GetItemMasterView(APIView):
                 for idx, item in enumerate(paged_items):
                     item_code = item.get('c_item_code') or item.get('itemCode')
 
-                    # Reconstruct dict to normalise c_item_code as the first key
-                    new_item = {'c_item_code': item_code}
+                    # Reconstruct dict to normalise c_item_code and itemCode keys
+                    new_item = {
+                        'c_item_code': item_code,
+                        'itemCode': item_code
+                    }
                     for k, v in item.items():
                         if k not in ('c_item_code', 'itemCode'):
                             new_item[k] = v
 
-                    # Merge stock balance from Redis-cached stock map
-                    new_item['stockBalQty'] = stock_map.get(item_code, 0)
+                    # Merge stock balance and details from Redis-cached stock map
+                    stock_entry = stock_map.get(str(item_code).strip()) if stock_map else None
+                    if isinstance(stock_entry, dict):
+                        # Merge stock_entry fields directly into new_item, avoiding overwrite of c_item_code/itemCode
+                        for k, v in stock_entry.items():
+                            if k not in ('c_item_code', 'itemCode'):
+                                new_item[k] = v
+                        
+                        # Calculate stockBalQty
+                        batch_list = stock_entry.get('batchDetails', [])
+                        if batch_list:
+                            total_pack_qty = sum(int(float(b.get('packQty') or 0)) for b in batch_list)
+                            new_item['stockBalQty'] = total_pack_qty
+                        else:
+                            new_item['stockBalQty'] = int(float(stock_entry.get('totalBalLsQty') or stock_entry.get('packQty') or 0))
+                    elif isinstance(stock_entry, (int, float)):
+                        new_item['stockBalQty'] = stock_entry
+                        new_item['batchDetails'] = []
+                    else:
+                        new_item['stockBalQty'] = 0
+                        new_item['batchDetails'] = []
 
                     paged_items[idx] = new_item
                     item = new_item
@@ -1372,6 +1414,43 @@ class GetItemMasterView(APIView):
                     # Check statuses using pre-fetched sets
                     item['cart_status']     = item_code in user_cart_item_codes
                     item['wishlist_status'] = item_code in user_wishlist_item_codes
+
+                    # Reconstruct to return exactly the fields requested by the user
+                    formatted_item = {
+                        'c_item_code':     item_code,
+                        'itemCode':        item_code,
+                        'itemName':        item.get('itemName') or '',
+                        'itemFullName':    item.get('itemFullName') or item.get('itemName') or '',
+                        'maxDiscPer':      item.get('maxDiscPer', 0),
+                        'stdDiscRate':     item.get('stdDiscRate', 0),
+                        'itemQtyPerBox':   int(item.get('itemQtyPerBox') or item.get('qtyBox') or 1),
+                        'stockBalQty':     item.get('stockBalQty', 0),
+                        'batchDetails':    item.get('batchDetails', []),
+                        'subheading':      item.get('subheading', ''),
+                        'description':     item.get('description', ''),
+                        'type_label':      item.get('type_label', ''),
+                        'brand_id':        item.get('brand_id'),
+                        'brand_name':      item.get('brand_name', ''),
+                        'brand_logo':      item.get('brand_logo', ''),
+                        'images':          item.get('images', []),
+                        'cart_status':     item.get('cart_status', False),
+                        'wishlist_status': item.get('wishlist_status', False),
+                    }
+                    paged_items[idx] = formatted_item
+
+                if no_pagination:
+                    return Response({
+                        'code':    '200',
+                        'type':    'getMasterData',
+                        'data':    paged_items,
+                        'message': f'All {len(paged_items)} items fetched without pagination',
+                        'cache_source': 'redis' if not force_refresh else 'erp_fresh',
+                        'c2Code':     erp_config['c2_code'],
+                        'storeId':    erp_config['store_id'],
+                        'prodCode':   erp_config['prod_code'],
+                        'storeName':  store_info.get('store_name'),
+                        'distanceKm': store_info.get('distance_km'),
+                    }, status=status.HTTP_200_OK)
 
                 return Response({
                     'code':    '200',
@@ -2998,8 +3077,94 @@ class WishlistView(APIView):
         wishlist_items = wishlist.items.all()
         
         # Fetch real-time item master data from ERP to enrich items
-        erp_items = fetch_all_items_from_erp(store_id=store_id)
+        item_codes = [wi.item.item_code for wi in wishlist_items if wi.item and wi.item.item_code]
+        erp_items = fetch_items_by_codes_from_erp(item_codes, store_id=store_id)
         erp_item_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+
+        # ── Fetch live batchDetails directly from ws_c2_services_fetch_stock ──
+        # We cannot rely on the Redis global stock map — it is only populated when
+        # the product-listing API is called, so it may be empty for fresh users.
+        stock_map = {}  # item_code -> {'batchDetails': [...], ...}
+        if item_codes:
+            try:
+                from .erp_service import ERPService
+                from .erp_token_service import get_erp_token_for_store_config
+                if store_id:
+                    store_info = ERPService.get_config_by_store_id(store_id)
+                else:
+                    store_info = ERPService._get_fallback_config()
+
+                logger.info(f"[WISHLIST_BATCH_DEBUG] store_info found: {bool(store_info)} | item_codes: {item_codes}")
+
+                if store_info:
+                    erp_config = store_info['erp_config']
+                    api_key = get_erp_token_for_store_config(erp_config)
+                    logger.info(f"[WISHLIST_BATCH_DEBUG] api_key obtained: {bool(api_key)} | base_url: {erp_config.get('base_url')}")
+                    if api_key:
+                        stock_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                        stock_payload = {
+                            'apiKey':        api_key,
+                            'prodCode':      erp_config['prod_code'],
+                            'c2Code':        erp_config['c2_code'],
+                            'storeId':       erp_config['store_id'],
+                            'inputDateTime': '2021-07-01 10:10:00',
+                            'itemCodes':     item_codes,
+                        }
+                        headers = {
+                            'User-Agent': 'PostmanRuntime/7.43.0',
+                            'Accept': '*/*',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'keep-alive',
+                        }
+                        logger.info(f"[WISHLIST_BATCH_DEBUG] Calling {stock_url} with itemCodes={item_codes}")
+                        stock_resp = requests.post(stock_url, json=stock_payload, headers=headers, timeout=60, stream=True)
+                        logger.info(f"[WISHLIST_BATCH_DEBUG] ERP stock response status: {stock_resp.status_code}")
+                        if stock_resp.status_code == 200:
+                            # Stream the response in chunks (ERP returns large payloads)
+                            raw_chunks = []
+                            for chunk in stock_resp.iter_content(chunk_size=65536):
+                                if chunk:
+                                    raw_chunks.append(chunk)
+                            raw_bytes = b''.join(raw_chunks)
+                            raw_text = raw_bytes.decode('utf-8', errors='replace').strip()
+                            if raw_text.startswith('\ufeff'):
+                                raw_text = raw_text[1:]
+                            logger.info(f"[WISHLIST_BATCH_DEBUG] Raw response length: {len(raw_text)} | first 300 chars: {raw_text[:300]}")
+                            # Fix malformed decimals like .000 -> 0.000 (ERP bug)
+                            import re as _re
+                            raw_text = _re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
+                            try:
+                                stock_data = json.loads(raw_text)
+                            except Exception as parse_err:
+                                logger.warning(f"[WISHLIST_BATCH_DEBUG] Stock JSON parse error after fix: {parse_err}")
+                                stock_data = {}
+                            stock_items_list = []
+                            if isinstance(stock_data, dict):
+                                stock_items_list = stock_data.get('stockDetails', []) or stock_data.get('data', [])
+                                logger.info(f"[WISHLIST_BATCH_DEBUG] stock_data keys: {list(stock_data.keys())} | stockDetails count: {len(stock_items_list)}")
+                            elif isinstance(stock_data, list):
+                                stock_items_list = stock_data
+                                logger.info(f"[WISHLIST_BATCH_DEBUG] stock_data is list, len={len(stock_items_list)}")
+                            # Only process matching item codes
+                            item_codes_set = set(str(c) for c in item_codes)
+                            for s in stock_items_list:
+                                s_code = str(s.get('c_item_code') or s.get('itemCode') or '').strip()
+                                if s_code not in item_codes_set:
+                                    continue  # skip unrelated items
+                                batch_details = s.get('batchDetails', [])
+                                logger.info(f"[WISHLIST_BATCH_DEBUG] MATCHED code={s_code} | batchDetails count={len(batch_details) if batch_details else 0}")
+                                if s_code not in stock_map:
+                                    stock_map[s_code] = {'batchDetails': list(batch_details or [])}
+                                else:
+                                    stock_map[s_code]['batchDetails'].extend(batch_details or [])
+                            logger.info(f"[WISHLIST_BATCH_DEBUG] Final stock_map keys: {list(stock_map.keys())}")
+                        else:
+                            logger.warning(f"[WISHLIST_BATCH_DEBUG] fetch_stock returned HTTP {stock_resp.status_code} | body: {stock_resp.text[:300]}")
+                    else:
+                        logger.warning("[WISHLIST_BATCH_DEBUG] Could not generate ERP token for stock fetch")
+            except Exception as e:
+                import traceback
+                logger.warning(f"[WISHLIST_BATCH_DEBUG] Live stock fetch failed: {e}\n{traceback.format_exc()}")
         
         for wishlist_item in wishlist_items:
             item = wishlist_item.item
@@ -3033,6 +3198,10 @@ class WishlistView(APIView):
                         item.erp_stock = 0
                 except:
                     item.erp_stock = 0
+
+            # Attach live batchDetails fetched above
+            stock_entry = stock_map.get(str(item.item_code))
+            item.erp_batch_details = stock_entry.get('batchDetails', []) if stock_entry else []
         
         # Use WishlistItemSerializer instead of manual serialization
         from .serializers import WishlistItemSerializer
@@ -3315,19 +3484,51 @@ class AllProductsView(APIView):
             limit = int(request.query_params.get('limit', 1000))
             
             # [UPDATED] Always use auto-generated token - try ERP first
-            logger.info(f"[PRODUCTS] Fetching from ERP with auto-generated token")
-            erp_items = fetch_all_items_from_erp()
+            # [UPDATED] Always use auto-generated token - try Redis index lookup first (sub-50ms)
+            from .erp_redis_cache import ERPRedisCache
+            from .erp_service import ERPService
             
-            if erp_items:
-                # Filter by search if provided
+            store_info = ERPService._get_fallback_config()
+            erp_config = store_info['erp_config']
+            erp_store_id = erp_config['store_id']
+            input_date_time = '2021-07-01 10:10:00'
+            
+            search_index = ERPRedisCache.get_search_index(erp_store_id, input_date_time)
+            master_dict = ERPRedisCache.get_master_dict(erp_store_id, input_date_time)
+            
+            erp_items = []
+            if search_index and master_dict:
                 if search:
+                    search_lower = search.lower()
+                    matching_codes = []
+                    # priority 1: starts with
+                    for entry in search_index:
+                        if entry['n'].startswith(search_lower):
+                            matching_codes.append(entry['c'])
+                            if len(matching_codes) >= limit:
+                                break
+                    # priority 2: contains
+                    if len(matching_codes) < limit:
+                        seen = set(matching_codes)
+                        for entry in search_index:
+                            if len(matching_codes) >= limit:
+                                break
+                            if entry['c'] not in seen and search_lower in entry['n']:
+                                matching_codes.append(entry['c'])
+                                seen.add(entry['c'])
+                    erp_items = [master_dict[c] for c in matching_codes if c in master_dict]
+                else:
+                    # No search: just take first 'limit' items
+                    erp_items = [master_dict[entry['c']] for entry in search_index[:limit] if entry['c'] in master_dict]
+            else:
+                # Fallback to fetch_all_items_from_erp
+                erp_items = fetch_all_items_from_erp()
+                if search and erp_items:
                     search_lower = search.lower()
                     erp_items = [
                         item for item in erp_items
                         if search_lower in item.get('itemName', '').lower()
                     ]
-                
-                # Limit results
                 erp_items = erp_items[:limit]
                 
                 # Format response
@@ -3482,38 +3683,42 @@ class SearchProductsView(APIView):
     Query Parameters:
         - q or search: Search keyword (required)
         - category: Filter by category ID (optional)
-        - limit: Max results to return (default: 20)
+        - page: Current page (default: 1)
+        - page_size: Results per page (default: 20)
         - apiKey: Optional ERP API key for live data enrichment
     
     Data Sources:
         - Without apiKey: Database only (stockBalQty from Stock table)
         - With apiKey: ERP live data (pricing, stock, expiry)
     
-    Example: /api/search/88/?q=paracetamol&limit=10&apiKey=YOUR_KEY
+    Example: /api/search/88/?q=paracetamol&page_size=10&apiKey=YOUR_KEY
     """
     permission_classes = [AllowAny]
     
     def get(self, request):
         try:
-            # Get search query from params
-            query = request.query_params.get('q') or request.query_params.get('search')
+            # Get search query from params — empty query returns all products
+            query = (request.query_params.get('q') or request.query_params.get('search') or '').strip()
             category_id = request.query_params.get('category')
-            limit = int(request.query_params.get('limit', 20))
-            
-            if not query:
-                return Response({
-                    'success': False,
-                    'message': 'Search query parameter "q" or "search" is required',
-                    'example': '/api/search/?q=paracetamol'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Clean and validate query
-            query = query.strip()
-            if len(query) < 2:
-                return Response({
-                    'success': False,
-                    'message': 'Search query must be at least 2 characters'
-                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # ── Pagination params ──────────────────────────────────────────
+            try:
+                page = max(1, int(request.query_params.get('page', 1)))
+            except (ValueError, TypeError):
+                page = 1
+
+            try:
+                page_size = int(request.query_params.get('page_size') or 10)
+                page_size = min(2000, max(1, page_size))
+            except (ValueError, TypeError):
+                page_size = 10
+
+            no_pagination = request.query_params.get('no_pagination', 'false').lower() == 'true'
+            search_capacity = 2000
+
+            # Always fetch live stock for matched search results (targeted call, fast)
+            # No minimum length — empty query = show all (up to capacity)
+
             
             # ── Get ERP items from Redis cache (FAST) ────────────────────
             # Uses the SAME Redis cache as GetItemMasterView (1-hour TTL).
@@ -3522,286 +3727,490 @@ class SearchProductsView(APIView):
             from .erp_service import ERPService
             from .erp_token_service import get_erp_token_for_store_config
 
-            store_info  = ERPService._get_fallback_config()
+            # ── Store config ───────────────────────────────────────────────
+            store_id = request.query_params.get('storeId')
+            if store_id:
+                store_info = ERPService.get_config_by_store_id(store_id)
+            else:
+                store_info = ERPService._get_fallback_config()
+
             erp_config  = store_info['erp_config']
             erp_store_id = erp_config['store_id']
             input_date_time = '2021-07-01 10:10:00'
 
-            erp_items = ERPRedisCache.get_master_data(erp_store_id, input_date_time)
+            # ── Get ERP items from Redis cache (FAST) ────────────────────
+            # Uses the Redis search index built by background scheduler
+            search_index = ERPRedisCache.get_search_index(erp_store_id, input_date_time)
+            master_dict  = ERPRedisCache.get_master_dict(erp_store_id, input_date_time)
 
-            if erp_items is None:
-                # Cache miss — fetch from ERP and warm the cache
-                logger.info(f'[SEARCH] Redis cache miss — fetching from ERP for store {erp_store_id}')
-                api_key = get_erp_token_for_store_config(erp_config)
-                if api_key:
-                    erp_url = f"{erp_config['base_url']}/ws_c2_services_get_master_data"
-                    erp_payload = {
-                        'apiKey':        api_key,
-                        'prodCode':      erp_config['prod_code'],
-                        'c2Code':        erp_config['c2_code'],
-                        'storeId':       erp_store_id,
-                        'inputDateTime': input_date_time,
-                        'itemcodes':     []
-                    }
-                    try:
-                        resp = requests.get(erp_url, json=erp_payload, timeout=30)
-                        erp_items = resp.json().get('data', []) or []
-                        # Normalise item code key
-                        for itm in erp_items:
-                            code = itm.get('c_item_code') or itm.get('itemCode')
-                            if code:
-                                itm['c_item_code'] = code
-                                itm['itemCode']    = code
-                        ERPRedisCache.set_master_data(erp_store_id, input_date_time, erp_items)
-                        logger.info(f'[SEARCH] Cached {len(erp_items)} ERP items in Redis')
-                    except Exception as e:
-                        logger.error(f'[SEARCH] ERP fetch failed: {e}')
-                        erp_items = []
-                else:
-                    erp_items = []
-            else:
-                logger.info(f'[SEARCH] Redis cache HIT — {len(erp_items)} items (no ERP call)')
-
+            matching_erp_items = []
             products = []
 
-            
-            if erp_items:
-                logger.info(f"[SEARCH] Searching directly from {len(erp_items)} ERP items with auto-token")
-                
-                # Check for direct ERP matches
+            if search_index and master_dict:
+                # ── Warm Cache Path: Fast scan on Redis index (sub-50ms) ───
+                logger.info(f'[SEARCH] Index HIT — scanning {len(search_index)} compact entries')
                 query_lower = query.lower()
-                matching_erp_items = []
-                for erp_item in erp_items:
-                    item_code = erp_item.get('c_item_code') or erp_item.get('itemCode')
-                    if not item_code:
-                        continue
-                    item_name = erp_item.get('itemName') or ''
-                    item_short = erp_item.get('itemShortName') or ''
-                    brand_name = erp_item.get('brandName') or ''
-                    category_name = erp_item.get('categoryName') or ''
-                    content_name = erp_item.get('contentName') or ''
+                matching_codes = []
+                if not query_lower:
+                    matching_codes = [entry['c'] for entry in search_index[:search_capacity]]
+                else:
+                    import re
+                    query_words = [w.strip() for w in re.split(r'[\s\-\'\,\.\/\`]+', query_lower) if w.strip() and len(w.strip()) > 1]
                     
-                    if (query_lower in item_name.lower() or 
-                        query_lower in item_short.lower() or 
-                        query_lower in brand_name.lower() or 
-                        query_lower in category_name.lower() or 
-                        query_lower in content_name.lower()):
-                        matching_erp_items.append(erp_item)
-                
-                # Limit results
-                matching_erp_items = matching_erp_items[:limit]
-                
-                # Fetch cart and wishlist item codes for authenticated user to compute status flags
-                user_cart_codes = set()
-                user_wishlist_codes = set()
-                if request.user.is_authenticated:
-                    try:
-                        from .models import CartItem, WishlistItem
-                        user_cart_codes = set(
-                            CartItem.objects.filter(cart__user=request.user).values_list('item__item_code', flat=True)
-                        )
-                        user_wishlist_codes = set(
-                            WishlistItem.objects.filter(wishlist__user=request.user).values_list('item__item_code', flat=True)
-                        )
-                    except:
-                        pass
-                
-                # Fetch existing ProductInfo and ProductImage details from local DB for matches (if any exist)
-                matching_codes = [item.get('c_item_code') or item.get('itemCode') for item in matching_erp_items]
-                product_info_map = {}
-                images_map = {}
-                if matching_codes:
-                    product_info_map = {
-                        pi.item.item_code: pi 
-                        for pi in ProductInfo.objects.filter(item__item_code__in=matching_codes).select_related('category')
-                    }
-                    
-                    from .models import ProductImage
-                    product_images = ProductImage.objects.filter(product_info__in=product_info_map.values()).order_by('image_order')
-                    for img in product_images:
-                        images_map.setdefault(img.product_info.item.item_code, []).append({
-                            'image': request.build_absolute_uri(img.image.url),
-                            'image_order': img.image_order
-                        })
-                
-                # Format response list directly from matching ERP items
-                for erp_item in matching_erp_items:
-                    item_code = erp_item.get('c_item_code') or erp_item.get('itemCode')
-                    item_name = erp_item.get('itemName') or ''
-                    item_qty_per_box = erp_item.get('itemQtyPerBox') or 1
-                    batch_no = erp_item.get('batchNo') or ''
-                    mrp = float(erp_item.get('mrp') or 0.0)
-                    std_disc = float(erp_item.get('std_disc') or 0.0)
-                    max_disc = float(erp_item.get('max_disc') or 0.0)
-                    stock_qty = erp_item.get('stockBalQty') or 0
-                    expiry_date = erp_item.get('expiryDate')
-                    
-                    # Cart and wishlist status checked by item code (no DB insertion required)
-                    cart_status = item_code in user_cart_codes
-                    wishlist_status = item_code in user_wishlist_codes
-                    
-                    # Merge DB description/images if present
-                    product_info = product_info_map.get(item_code)
-                    subheading = product_info.subheading if product_info else ''
-                    description = product_info.description if product_info else erp_item.get('hsnSacName') or ''
-                    type_label = product_info.type_label if product_info else erp_item.get('categoryName') or ''
-                    brand_id = product_info.category.id if product_info and product_info.category else None
-                    brand_name = product_info.category.name if product_info and product_info.category else erp_item.get('brandName') or ''
-                    
-                    brand_logo = ''
-                    if product_info and product_info.category and product_info.category.icon:
-                        brand_logo = request.build_absolute_uri(product_info.category.icon.url)
-                    
-                    images_list = images_map.get(item_code) or []
-                    
-                    products.append({
-                        'batchNo': batch_no,
-                        'c_item_code': item_code,
-                        'expiryDate': expiry_date,
-                        'itemName': item_name,
-                        'itemQtyPerBox': item_qty_per_box,
-                        'max_disc': max_disc,
-                        'mrp': mrp,
-                        'std_disc': std_disc,
-                        'stockBalQty': stock_qty,
-                        'subheading': subheading,
-                        'description': description,
-                        'type_label': type_label,
-                        'brand_id': brand_id,
-                        'brand_name': brand_name,
-                        'brand_logo': brand_logo,
-                        'images': images_list,
-                        'cart_status': cart_status,
-                        'wishlist_status': wishlist_status,
-                        # ERP fields for product details modal
-                        'itemShortName': erp_item.get('itemShortName') or '-',
-                        'itemFullName': erp_item.get('itemFullName') or item_name,
-                        'itemAddedDate': erp_item.get('itemAddedDate') or '-',
-                        'itemUpdatedDate': erp_item.get('itemUpdatedDate') or '-',
-                        'brandCode': erp_item.get('brandCode') or '-',
-                        'brandName': erp_item.get('brandName') or brand_name or '-',
-                        'categoryCode': erp_item.get('categoryCode') or '-',
-                        'categoryName': erp_item.get('categoryName') or '-',
-                        'contentCode': erp_item.get('contentCode') or '-',
-                        'contentName': erp_item.get('contentName') or '-',
-                        'packCode': erp_item.get('packCode') or '-',
-                        'packName': erp_item.get('packName') or '-',
-                        'hsnSacCode': erp_item.get('hsnSacCode') or '-',
-                        'hsnSacName': erp_item.get('hsnSacName') or '-',
-                    })
-                
-                # Track product views for matched items that exist in our database
-                try:
-                    user = request.user if request.user.is_authenticated else None
-                    if user and product_info_map:
-                        from .models import ProductView
-                        for product_info in product_info_map.values():
-                            ProductView.objects.update_or_create(
-                                user=user,
-                                item=product_info.item,
-                                defaults={'viewed_at': timezone.now()}
-                            )
-                except Exception as e:
-                    logger.warning(f"[PRODUCT_VIEW_ERROR] Failed to track product views: {str(e)}")
+                    if not query_words:
+                        matching_codes = [entry['c'] for entry in search_index[:search_capacity]]
+                    else:
+                        scored_entries = []
+                        first_word = query_words[0]
+                        for entry in search_index:
+                            n = entry.get('n', '')
+                            b = entry.get('b', '')
+                            co = entry.get('co', '')
+                            s = entry.get('s', '')
+                            ca = entry.get('ca', '')
+                            
+                            match_count = 0
+                            for word in query_words:
+                                if word in n or word in b or word in co or word in s or word in ca:
+                                    match_count += 1
+                            
+                            if match_count > 0:
+                                first_word_matched = (first_word in n or first_word in b or first_word in co)
+                                startswith_boost = n.startswith(query_lower) or b.startswith(query_lower)
+                                scored_entries.append({
+                                    'code': entry['c'],
+                                    'matches': match_count,
+                                    'first_matched': first_word_matched,
+                                    'startswith_boost': startswith_boost,
+                                    'name_len': len(n)
+                                })
+                        
+                        scored_entries.sort(key=lambda x: (-x['matches'], -x['first_matched'], -x['startswith_boost'], x['name_len']))
+                        matching_codes = [x['code'] for x in scored_entries[:search_capacity]]
 
-            else:
-                # [FALLBACK] Fetch from database if ERP is not available
-                logger.info(f"[SEARCH] ERP unavailable, falling back to database search")
-                
+                # O(1) lookup of full item data for matched codes
+                matching_erp_items = [master_dict[c] for c in matching_codes if c in master_dict]
+
+            # Fallback to local database search if cache is missing OR returns zero matches
+            if not matching_erp_items:
+                # ── Cold Cache Miss / Fallback Path: Search local ItemMaster database directly (instant!) ──
+                logger.info(f'[SEARCH] Cache miss or zero results — querying local ItemMaster DB for query: "{query}"')
                 from django.db.models import Q
-                product_infos = ProductInfo.objects.select_related('item', 'category').filter(
-                    Q(item__item_name__icontains=query) |
-                    Q(description__icontains=query) |
-                    Q(type_label__icontains=query) |
-                    Q(category__name__icontains=query)
-                ).distinct()
                 
-                if category_id:
-                    try:
-                        category_id = int(category_id)
-                        product_infos = product_infos.filter(category_id=category_id)
-                    except ValueError:
-                        pass
-                
-                product_infos = product_infos[:limit]
-                
-                for product_info in product_infos:
-                    item = product_info.item
-                    mrp = float(item.mrp)
-                    discount = float(item.std_disc)
-                    
-                    product_images = ProductImage.objects.filter(product_info=product_info).order_by('image_order')
-                    images_list = [
-                        {
-                            'image': request.build_absolute_uri(img.image.url),
-                            'image_order': img.image_order
-                        }
-                        for img in product_images
-                    ]
-                    
-                    stock_qty = 0
-                    try:
-                        from .models import Stock
-                        stock = Stock.objects.filter(item=item).first()
-                        if stock:
-                            stock_qty = stock.total_bal_ls_qty
-                    except:
-                        stock_qty = 0
-                    
-                    cart_status = False
-                    wishlist_status = False
-                    if request.user.is_authenticated:
-                        try:
-                            from .models import CartItem, WishlistItem
-                            cart_status = CartItem.objects.filter(
-                                cart__user=request.user,
-                                item=item
-                            ).exists()
-                            wishlist_status = WishlistItem.objects.filter(
-                                wishlist__user=request.user,
-                                item=item
-                            ).exists()
-                        except:
-                            pass
-                    
-                    brand_logo = ''
-                    if product_info.category and product_info.category.icon:
-                        brand_logo = request.build_absolute_uri(product_info.category.icon.url)
-                    
-                    products.append({
-                        'batchNo': item.batch_no or '',
-                        'c_item_code': item.item_code,
-                        'expiryDate': str(item.expiry_date) if item.expiry_date else None,
-                        'itemName': item.item_name,
-                        'itemQtyPerBox': item.item_qty_per_box,
-                        'max_disc': float(item.max_disc),
-                        'mrp': mrp,
-                        'std_disc': discount,
-                        'stockBalQty': stock_qty,
-                        'subheading': product_info.subheading or '',
-                        'description': product_info.description or '',
-                        'type_label': product_info.type_label or '',
-                        'brand_id': product_info.category.id if product_info.category else None,
-                        'brand_name': product_info.category.name if product_info.category else '',
-                        'brand_logo': brand_logo,
-                        'images': images_list,
-                        'cart_status': cart_status,
-                        'wishlist_status': wishlist_status
+                query_lower = query.lower()
+                db_matches = []
+                if not query_lower:
+                    db_matches = list(ItemMaster.objects.all()[:search_capacity])
+                else:
+                    import re
+                    query_words = [w.strip() for w in re.split(r'[\s\-\'\,\.\/\`]+', query_lower) if w.strip() and len(w.strip()) > 1]
+                    if not query_words:
+                        db_matches = list(ItemMaster.objects.all()[:search_capacity])
+                    else:
+                        first_word = query_words[0]
+                        token_q = (
+                            Q(item_name__icontains=first_word) |
+                            Q(brand_name__icontains=first_word) |
+                            Q(content_name__icontains=first_word)
+                        )
+                        
+                        candidates = ItemMaster.objects.filter(token_q)[:search_capacity]
+                        scored_candidates = []
+                        for itm in candidates:
+                            match_count = 0
+                            itm_name_lower = (itm.item_name or '').lower()
+                            brand_lower = (itm.brand_name or '').lower()
+                            content_lower = (itm.content_name or '').lower()
+                            category_lower = (itm.category_name or '').lower()
+                            
+                            for word in query_words:
+                                if word in itm_name_lower or word in brand_lower or word in content_lower or word in category_lower:
+                                    match_count += 1
+                                    
+                            if match_count > 0:
+                                first_word_matched = first_word in itm_name_lower or first_word in brand_lower
+                                startswith_boost = itm_name_lower.startswith(query_lower) or brand_lower.startswith(query_lower)
+                                scored_candidates.append({
+                                    'itm': itm,
+                                    'matches': match_count,
+                                    'first_matched': first_word_matched,
+                                    'startswith_boost': startswith_boost,
+                                    'name_len': len(itm_name_lower)
+                                })
+                        
+                        scored_candidates.sort(key=lambda x: (-x['matches'], -x['first_matched'], -x['startswith_boost'], x['name_len']))
+                        db_matches = [x['itm'] for x in scored_candidates]
+
+                # Format local ItemMaster objects to the dictionary structure expected by views
+                for itm in db_matches:
+                    matching_erp_items.append({
+                        'c_item_code':     itm.item_code,
+                        'itemCode':        itm.item_code,
+                        'itemName':        itm.item_name,
+                        'itemShortName':   itm.item_short_name or '-',
+                        'itemFullName':    itm.item_full_name or itm.item_name,
+                        'brandCode':       itm.brand_code or '-',
+                        'brandName':       itm.brand_name or '-',
+                        'categoryCode':    itm.category_code or '-',
+                        'categoryName':    itm.category_name or '-',
+                        'maxDiscPer':      float(itm.max_disc or 0.0),
+                        'stdDiscRate':     float(itm.std_disc or 0.0),
+                        'contentCode':     itm.content_code or '-',
+                        'contentName':     itm.content_name or '-',
+                        'packCode':        itm.pack_code or '-',
+                        'packName':        itm.pack_name or '-',
+                        'itemQtyPerBox':   itm.item_qty_per_box or 1,
+                        'itemAddedDate':   '-',
+                        'itemUpdatedDate': '-',
+                        'hsnSacCode':      itm.hsn_code or '-',
+                        'hsnSacName':      itm.hsn_sac_name or '-',
                     })
                 
-                # Track product views
-                try:
-                    user = request.user if request.user.is_authenticated else None
-                    if user:
-                        from .models import ProductView
-                        for product_info in product_infos:
-                            ProductView.objects.update_or_create(
-                                user=user,
-                                item=product_info.item,
-                                defaults={'viewed_at': timezone.now()}
+                # If product not in Redis and not in local DB, fetch fresh from live ERP API
+                if not matching_erp_items:
+                    logger.info(f'[SEARCH] DB miss — invoking live ERP API fallback for query: "{query}"')
+                    try:
+                        from .erp_token_service import get_erp_token_for_store_config
+                        from .erp_service import ERPService
+                        
+                        api_key = get_erp_token_for_store_config(erp_config)
+                        if api_key:
+                            erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_get_master_data"
+                            erp_payload = {
+                                'apiKey':        api_key,
+                                'prodCode':      erp_config['prod_code'],
+                                'c2Code':        erp_config['c2_code'],
+                                'storeId':       erp_store_id,
+                                'inputDateTime': '2021-07-01 10:10:00',
+                                'itemcodes':     []
+                            }
+                            
+                            response = requests.get(erp_url, json=erp_payload, timeout=15)
+                            if response.status_code == 200:
+                                res_data = response.json()
+                                if res_data.get('code') == '200' and res_data.get('data'):
+                                    fresh_items = res_data.get('data', [])
+                                    # Run token-based matching on fresh ERP items
+                                    import re
+                                    query_words = [w.strip() for w in re.split(r'[\s\-\'\,\.\/\`]+', query_lower) if w.strip() and len(w.strip()) > 1]
+                                    if query_words:
+                                        scored_fresh = []
+                                        for itm in fresh_items:
+                                            itm_name_lower = (itm.get('itemName') or '').lower()
+                                            brand_lower = (itm.get('brandName') or '').lower()
+                                            content_lower = (itm.get('contentName') or '').lower()
+                                            category_lower = (itm.get('categoryName') or '').lower()
+                                            
+                                            match_count = 0
+                                            for word in query_words:
+                                                if word in itm_name_lower or word in brand_lower or word in content_lower or word in category_lower:
+                                                    match_count += 1
+                                            
+                                            if match_count > 0:
+                                                first_word = query_words[0]
+                                                first_word_matched = first_word in itm_name_lower or first_word in brand_lower
+                                                startswith_boost = itm_name_lower.startswith(query_lower) or brand_lower.startswith(query_lower)
+                                                scored_fresh.append({
+                                                    'itm': itm,
+                                                    'matches': match_count,
+                                                    'first_matched': first_word_matched,
+                                                    'startswith_boost': startswith_boost,
+                                                    'name_len': len(itm_name_lower)
+                                                })
+                                        
+                                        scored_fresh.sort(key=lambda x: (-x['matches'], -x['first_matched'], -x['startswith_boost'], x['name_len']))
+                                        matched_fresh = [x['itm'] for x in scored_fresh[:search_capacity]]
+                                        
+                                        # Convert and save on-the-fly to PostgreSQL ItemMaster
+                                        for fitm in matched_fresh:
+                                            f_code = fitm.get('c_item_code') or fitm.get('itemCode')
+                                            if f_code:
+                                                std_disc = float(fitm.get('stdDiscRate') or fitm.get('std_disc') or 0)
+                                                max_disc = float(fitm.get('maxDiscPer') or fitm.get('max_disc') or 0)
+                                                mrp = float(fitm.get('mrpBox') or fitm.get('mrp') or 0)
+                                                
+                                                db_item, _ = ItemMaster.objects.update_or_create(
+                                                    item_code=f_code,
+                                                    defaults={
+                                                        'item_name': fitm.get('itemName', ''),
+                                                        'item_qty_per_box': fitm.get('itemQtyPerBox', 1),
+                                                        'batch_no': fitm.get('batchNo') or '-',
+                                                        'std_disc': std_disc,
+                                                        'max_disc': max_disc,
+                                                        'mrp': mrp,
+                                                        'brand_code': fitm.get('brandCode') or '-',
+                                                        'brand_name': fitm.get('brandName') or '-',
+                                                        'category_code': fitm.get('categoryCode') or '-',
+                                                        'category_name': fitm.get('categoryName') or '-',
+                                                        'content_code': fitm.get('contentCode') or '-',
+                                                        'content_name': fitm.get('contentName') or '-',
+                                                        'hsn_sac_name': fitm.get('hsnSacName') or '-',
+                                                        'item_full_name': fitm.get('itemFullName'),
+                                                        'item_short_name': fitm.get('itemShortName') or '-',
+                                                        'pack_code': fitm.get('packCode') or '-',
+                                                        'pack_name': fitm.get('packName') or '-',
+                                                        'hsn_code': fitm.get('hsnSacCode') or fitm.get('hsnCode') or '-',
+                                                    }
+                                                )
+                                                
+                                                matching_erp_items.append({
+                                                    'c_item_code':     f_code,
+                                                    'itemCode':        f_code,
+                                                    'itemName':        fitm.get('itemName', ''),
+                                                    'itemShortName':   fitm.get('itemShortName') or '-',
+                                                    'itemFullName':    fitm.get('itemFullName') or fitm.get('itemName') or '',
+                                                    'maxDiscPer':      max_disc,
+                                                    'stdDiscRate':     std_disc,
+                                                    'itemQtyPerBox':   fitm.get('itemQtyPerBox') or 1,
+                                                })
+                    except Exception as fallback_err:
+                        logger.error(f'[SEARCH] Live ERP API fallback error: {fallback_err}')
+
+            # ── Pagination logic ──
+            total_items = len(matching_erp_items)
+            import math
+            if no_pagination:
+                paged_matching_erp_items = matching_erp_items
+                total_pages = 1
+            else:
+                total_pages = math.ceil(total_items / page_size) if total_items > 0 else 1
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                paged_matching_erp_items = matching_erp_items[start_idx:end_idx]
+
+            # ── Stock fetch — identical strategy to GetItemMasterView ─────────────
+            # Pass only the current-page item codes → ERP returns just those items (fast).
+            # 1. Try global stock cache (warmed by GetItemMasterView, 60s TTL) for instant lookup.
+            # 2. On cache miss, make targeted ERP call for only the page's item codes.
+            search_stock_map = {}
+            page_item_codes = [
+                str(item.get('c_item_code') or item.get('itemCode')).strip()
+                for item in paged_matching_erp_items
+                if item.get('c_item_code') or item.get('itemCode')
+            ]
+            page_item_codes = [c for c in page_item_codes if c]
+
+            if page_item_codes:
+                # Step 1: try global stock cache (warmed by GetItemMasterView)
+                global_stock = ERPRedisCache.get_global_stock_map(erp_store_id)
+                if global_stock:
+                    for code in page_item_codes:
+                        entry = global_stock.get(code)
+                        if entry:
+                            search_stock_map[code] = entry
+                    logger.info(f'[SEARCH] Stock from global cache: {len(search_stock_map)}/{len(page_item_codes)} items')
+
+                if not search_stock_map:
+                    # Step 2: targeted ERP stock call — only for this page's items
+                    try:
+                        api_key_for_stock = get_erp_token_for_store_config(erp_config)
+                        if api_key_for_stock:
+                            stock_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                            stock_payload = {
+                                'apiKey':        api_key_for_stock,
+                                'prodCode':      erp_config['prod_code'],
+                                'c2Code':        erp_config['c2_code'],
+                                'storeId':       erp_store_id,
+                                'inputDateTime': input_date_time,
+                                'itemCodes':     page_item_codes,   # ← targeted, NOT []
+                            }
+                            stock_headers = {
+                                'User-Agent': 'PostmanRuntime/7.43.0',
+                                'Accept': '*/*',
+                                'Accept-Encoding': 'gzip, deflate',
+                                'Connection': 'keep-alive',
+                            }
+                            stock_resp = requests.post(
+                                stock_server_url, json=stock_payload,
+                                headers=stock_headers, timeout=30, stream=True
                             )
-                except Exception as e:
-                    logger.warning(f"[PRODUCT_VIEW_ERROR] Failed to track product views: {str(e)}")
+                            if stock_resp.status_code == 200:
+                                raw_chunks = []
+                                for chunk in stock_resp.iter_content(chunk_size=65536):
+                                    if chunk:
+                                        raw_chunks.append(chunk)
+                                raw_bytes = b''.join(raw_chunks)
+                                raw_text = raw_bytes.decode('utf-8', errors='replace').strip()
+                                if raw_text.startswith('\ufeff'):
+                                    raw_text = raw_text[1:]
+                                import re as _re
+                                raw_text = _re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
+                                try:
+                                    stock_data = json.loads(raw_text)
+                                    stock_items_list = (
+                                        stock_data.get('stockDetails', []) or stock_data.get('data', [])
+                                        if isinstance(stock_data, dict) else stock_data
+                                    )
+                                    for s in stock_items_list:
+                                        s_code = str(s.get('c_item_code') or s.get('itemCode') or '').strip()
+                                        if s_code:
+                                            s_code_val = s.get('itemCode') or s.get('c_item_code')
+                                            s.pop('c_item_code', None)
+                                            if s_code_val:
+                                                s['itemCode'] = str(s_code_val).strip()
+                                            if s_code not in search_stock_map:
+                                                search_stock_map[s_code] = dict(s)
+                                                search_stock_map[s_code]['batchDetails'] = list(s.get('batchDetails', []) or [])
+                                            else:
+                                                search_stock_map[s_code]['batchDetails'].extend(s.get('batchDetails', []) or [])
+                                                for key in ('qtyBox', 'contCode', 'contName'):
+                                                    if key not in search_stock_map[s_code] or search_stock_map[s_code][key] is None:
+                                                        search_stock_map[s_code][key] = s.get(key)
+                                    # Cache result globally for other callers (60s TTL)
+                                    if search_stock_map:
+                                        existing_stock = ERPRedisCache.get_global_stock_map(erp_store_id) or {}
+                                        existing_stock.update(search_stock_map)
+                                        ERPRedisCache.set_global_stock_map(erp_store_id, existing_stock)
+                                        logger.info(f'[SEARCH] Targeted stock fetched & merged: {len(search_stock_map)} items')
+                                except Exception as parse_err:
+                                    logger.error(f'[SEARCH] Stock parse error: {parse_err}')
+                    except Exception as stock_err:
+                        logger.error(f'[SEARCH] Stock fetch error: {stock_err}')
+
+            # ── Bulk pre-fetch ProductInfo + images (same as GetItemMasterView) ─────
+            product_info_map = {}
+            images_by_product_map = {}
+            user_cart_item_codes = set()
+            user_wishlist_item_codes = set()
+
+            if page_item_codes:
+                # Query 1: ProductInfo + brand/category (select_related avoids N+1)
+                product_infos = ProductInfo.objects.filter(
+                    item__item_code__in=page_item_codes
+                ).select_related('item', 'category')
+                for info in product_infos:
+                    product_info_map[info.item.item_code] = info
+
+                # Query 2: Product images in bulk (keyed by product_info.id like GetItemMasterView)
+                from .models import ProductImage
+                product_images = ProductImage.objects.filter(
+                    product_info__in=product_infos
+                ).order_by('image_order')
+                for img in product_images:
+                    prod_info_id = img.product_info_id
+                    if prod_info_id not in images_by_product_map:
+                        images_by_product_map[prod_info_id] = []
+                    images_by_product_map[prod_info_id].append(img)
+
+                # Query 3 & 4: Cart and wishlist flags
+                auth_user = request.user if request.user.is_authenticated else None
+                if auth_user:
+                    try:
+                        user_cart = Cart.objects.get(user=auth_user)
+                        user_cart_item_codes = set(
+                            CartItem.objects.filter(
+                                cart=user_cart, item__item_code__in=page_item_codes
+                            ).values_list('item__item_code', flat=True)
+                        )
+                    except Cart.DoesNotExist:
+                        pass
+                    try:
+                        user_wishlist = Wishlist.objects.get(user=auth_user)
+                        user_wishlist_item_codes = set(
+                            WishlistItem.objects.filter(
+                                wishlist=user_wishlist, item__item_code__in=page_item_codes
+                            ).values_list('item__item_code', flat=True)
+                        )
+                    except Wishlist.DoesNotExist:
+                        pass
+
+            # ── Enrich paged items — identical to GetItemMasterView ───────────────
+            for idx, erp_item in enumerate(paged_matching_erp_items):
+                item_code = str(erp_item.get('c_item_code') or erp_item.get('itemCode') or '').strip()
+
+                # Merge stock data
+                stock_entry = search_stock_map.get(item_code)
+                if isinstance(stock_entry, dict):
+                    for k, v in stock_entry.items():
+                        if k not in ('c_item_code', 'itemCode'):
+                            erp_item[k] = v
+                    batch_list = stock_entry.get('batchDetails', [])
+                    if batch_list:
+                        erp_item['stockBalQty'] = sum(int(float(b.get('packQty') or 0)) for b in batch_list)
+                    else:
+                        erp_item['stockBalQty'] = int(float(stock_entry.get('totalBalLsQty') or stock_entry.get('packQty') or 0))
+                elif isinstance(stock_entry, (int, float)):
+                    erp_item['stockBalQty'] = stock_entry
+                    erp_item['batchDetails'] = []
+                else:
+                    erp_item['stockBalQty'] = 0
+                    erp_item['batchDetails'] = []
+
+                paged_matching_erp_items[idx] = erp_item
+
+                # ERP catalog fields (normalise)
+                erp_item['contentCode']  = erp_item.get('contentCode')  or '-'
+                erp_item['contentName']  = erp_item.get('contentName')  or '-'
+                erp_item['packCode']     = erp_item.get('packCode')     or '-'
+                erp_item['packName']     = erp_item.get('packName')     or '-'
+                erp_item['hsnSacCode']   = erp_item.get('hsnSacCode')   or '-'
+                erp_item['hsnSacName']   = erp_item.get('hsnSacName')   or '-'
+                erp_item['brandCode']    = erp_item.get('brandCode')    or '-'
+                erp_item['brandName']    = erp_item.get('brandName')    or '-'
+                erp_item['categoryCode'] = erp_item.get('categoryCode') or '-'
+                erp_item['categoryName'] = erp_item.get('categoryName') or '-'
+                erp_item['itemFullName'] = erp_item.get('itemFullName') or erp_item.get('itemName') or '-'
+                erp_item['itemShortName']= erp_item.get('itemShortName') or '-'
+                erp_item['itemAddedDate']   = erp_item.get('itemAddedDate')   or '-'
+                erp_item['itemUpdatedDate'] = erp_item.get('itemUpdatedDate') or '-'
+
+                # DB enrichment (ProductInfo + images)
+                product_info = product_info_map.get(item_code)
+                if product_info:
+                    subheading  = product_info.subheading  or ''
+                    description = product_info.description or ''
+                    type_label  = product_info.type_label  or ''
+                    brand_id    = product_info.category.id   if product_info.category else None
+                    brand_name  = product_info.category.name if product_info.category else ''
+                    brand_logo  = (
+                        request.build_absolute_uri(product_info.category.icon.url)
+                        if product_info.category and product_info.category.icon else ''
+                    )
+                    images = images_by_product_map.get(product_info.id, [])
+                    images_list = [
+                        {'image': request.build_absolute_uri(img.image.url), 'image_order': img.image_order}
+                        for img in images
+                    ]
+                else:
+                    subheading = description = type_label = brand_logo = ''
+                    brand_id = None
+                    brand_name = erp_item.get('brandName') or ''
+                    images_list = []
+
+                formatted_item = {
+                    'c_item_code':     item_code,
+                    'itemCode':        item_code,
+                    'itemName':        erp_item.get('itemName') or '',
+                    'maxDiscPer':      erp_item.get('maxDiscPer', 0),
+                    'stdDiscRate':     erp_item.get('stdDiscRate', 0),
+                    'itemQtyPerBox':   int(erp_item.get('itemQtyPerBox') or erp_item.get('qtyBox') or 1),
+                    'stockBalQty':     erp_item.get('stockBalQty', 0),
+                    'batchDetails':    erp_item.get('batchDetails', []),
+                    'subheading':      subheading,
+                    'description':     description,
+                    'type_label':      type_label,
+                    'brand_id':        brand_id,
+                    'brand_name':      brand_name,
+                    'brand_logo':      brand_logo,
+                    'images':          images_list,
+                    'cart_status':     item_code in user_cart_item_codes,
+                    'wishlist_status': item_code in user_wishlist_item_codes,
+                }
+                products.append(formatted_item)
+            
+            # Track product views for matched items that exist in our database
+            try:
+                user = request.user if request.user.is_authenticated else None
+                if user and product_info_map:
+                    from .models import ProductView
+                    for product_info in product_info_map.values():
+                        ProductView.objects.update_or_create(
+                            user=user,
+                            item=product_info.item,
+                            defaults={'viewed_at': timezone.now()}
+                        )
+            except Exception as e:
+                logger.warning(f"[PRODUCT_VIEW_ERROR] Failed to track product views: {str(e)}")
 
             if not products:
                 return Response({
@@ -3809,7 +4218,15 @@ class SearchProductsView(APIView):
                     'message': 'No products found',
                     'query': query,
                     'count': 0,
-                    'data': []
+                    'data': [],
+                    'pagination': {
+                        'current_page': page,
+                        'page_size':    page_size,
+                        'total_items':  total_items,
+                        'total_pages':  total_pages,
+                        'has_next':     page < total_pages,
+                        'has_previous': page > 1,
+                    }
                 }, status=status.HTTP_200_OK)
             
             # Log search for popular search tracking
@@ -3830,11 +4247,19 @@ class SearchProductsView(APIView):
             
             return Response({
                 'success': True,
-                'message': f'Found {len(products)} products',
+                'message': f'Found {total_items} products',
                 'query': query,
                 'count': len(products),
                 'data': products,
-                'source': 'erp' if erp_items else 'database'
+                'source': 'erp' if search_index else 'database',
+                'pagination': {
+                    'current_page': page,
+                    'page_size':    page_size,
+                    'total_items':  total_items,
+                    'total_pages':  total_pages,
+                    'has_next':     page < total_pages,
+                    'has_previous': page > 1,
+                }
             }, status=status.HTTP_200_OK)
         
         except Exception as e:
@@ -3882,9 +4307,24 @@ class PopularSearchView(APIView):
                     'data': []
                 }, status=status.HTTP_200_OK)
             
-            # [UPDATED] Fetch ERP data with auto-generated token
-            erp_map = {}
-            erp_items = fetch_all_items_from_erp()
+            # Collect all matching item codes first
+            item_codes = []
+            search_products_map = {}
+            for search in popular_searches:
+                query = search.query
+                product_infos = list(ProductInfo.objects.select_related('item', 'category').filter(
+                    Q(item__item_name__icontains=query) |
+                    Q(description__icontains=query) |
+                    Q(type_label__icontains=query) |
+                    Q(category__name__icontains=query)
+                ).distinct()[:20])
+                search_products_map[query] = product_infos
+                for prod_info in product_infos:
+                    if prod_info.item and prod_info.item.item_code:
+                        item_codes.append(prod_info.item.item_code)
+
+            # [UPDATED] Fetch ERP data only for these matching item codes
+            erp_items = fetch_items_by_codes_from_erp(item_codes)
             erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
             if erp_map:
                 logger.info(f"[POPULAR_SEARCH] Fetched {len(erp_map)} items from ERP with auto-token")
@@ -3893,14 +4333,7 @@ class PopularSearchView(APIView):
             searches = []
             for search in popular_searches:
                 query = search.query
-                
-                # Get products matching this popular search query
-                product_infos = ProductInfo.objects.select_related('item', 'category').filter(
-                    Q(item__item_name__icontains=query) |
-                    Q(description__icontains=query) |
-                    Q(type_label__icontains=query) |
-                    Q(category__name__icontains=query)
-                ).distinct()[:20]  # Limit to 20 products per search
+                product_infos = search_products_map.get(query, [])
                 
                 # Serialize products
                 products = []
@@ -4170,13 +4603,16 @@ def fetch_all_items_from_erp(store_id=None):
         erp_config = store_info['erp_config']
         api_key = get_erp_token_for_store_config(erp_config)
             
-        if not api_key:
-            logger.error("[ERP_ERROR] Could not get auto-generated token")
-            return []
+        from .erp_redis_cache import ERPRedisCache
         
+        # ── 1. Check Redis cache first (sub-50ms) ──────────────────────────────────
+        cached_items = ERPRedisCache.get_master_data(erp_config['store_id'], '2021-07-01 10:10:00')
+        if cached_items:
+            logger.info(f"[ERP_FETCH_ALL] Cache HIT — loaded {len(cached_items)} items from Redis for store {erp_config['store_id']}")
+            return cached_items
+
         erp_url = f"{settings.ERP_BASE_URL}/ws_c2_services_get_master_data"
-        
-        logger.info(f"[ERP_FETCH_ALL] Fetching all items from ERP: {erp_url}")
+        logger.info(f"[ERP_FETCH_ALL] Cache MISS — fetching all items from ERP: {erp_url}")
         
         # 🎯 Official Ecogreen API uses GET with JSON body for master data
         erp_payload = {
@@ -4217,6 +4653,165 @@ def fetch_all_items_from_erp(store_id=None):
     except Exception as e:
         logger.error(f"[ERP_ERROR] Error fetching all items from ERP: {str(e)}")
         return []
+
+
+def fetch_items_by_codes_from_erp(item_codes, store_id=None):
+    """
+    Optimized helper: Get ERP master data details for a specific list of item codes.
+    Avoids loading and de-serializing all 165k items from Redis.
+    """
+    if not item_codes:
+        return []
+        
+    # Clean/normalize codes list
+    item_codes = list(set(str(code).strip() for code in item_codes if code))
+    if not item_codes:
+        return []
+
+    try:
+        from .erp_redis_cache import ERPRedisCache
+        from .erp_service import ERPService
+        
+        if store_id:
+            store_info = ERPService.get_config_by_store_id(store_id)
+        else:
+            store_info = ERPService._get_fallback_config()
+            
+        if not store_info:
+            store_info = ERPService._get_fallback_config()
+            
+        erp_config = store_info['erp_config']
+        erp_store_id = erp_config['store_id']
+        input_date_time = '2021-07-01 10:10:00'
+        
+        # 1. Try master_dict cache in Redis
+        master_dict = ERPRedisCache.get_master_dict(erp_store_id, input_date_time)
+        if master_dict:
+            logger.info(f"[ERP_FETCH_CODES] Cache HIT for {len(item_codes)} codes")
+            results = []
+            for code in item_codes:
+                itm = master_dict.get(code)
+                if itm:
+                    # Normalize keys
+                    itm_code = itm.get('c_item_code') or itm.get('itemCode')
+                    itm['c_item_code'] = itm_code
+                    itm['itemCode'] = itm_code
+                    results.append(itm)
+            return results
+            
+        # 2. Cache miss: Fall back to local ItemMaster database lookup (instant)
+        logger.info(f"[ERP_FETCH_CODES] Cache MISS — loading {len(item_codes)} codes from local database")
+        db_items = ItemMaster.objects.filter(item_code__in=item_codes)
+        results = []
+        for itm in db_items:
+            results.append({
+                'c_item_code':     itm.item_code,
+                'itemCode':        itm.item_code,
+                'itemName':        itm.item_name,
+                'itemShortName':   itm.item_short_name or '-',
+                'itemFullName':    itm.item_full_name or itm.item_name,
+                'brandCode':       itm.brand_code or '-',
+                'brandName':       itm.brand_name or '-',
+                'categoryCode':    itm.category_code or '-',
+                'categoryName':    itm.category_name or '-',
+                'maxDiscPer':      itm.max_disc or 0,
+                'stdDiscRate':     itm.std_disc or 0,
+                'contentCode':     itm.content_code or '-',
+                'contentName':     itm.content_name or '-',
+                'packCode':        itm.pack_code or '-',
+                'packName':        itm.pack_name or '-',
+                'itemQtyPerBox':   itm.item_qty_per_box or 1,
+                'hsnSacCode':      itm.hsn_code or '-',
+                'hsnSacName':      itm.hsn_sac_name or '-',
+            })
+        return results
+        
+    except Exception as e:
+        logger.error(f"[ERP_FETCH_CODES] Error loading codes: {str(e)}")
+        return []
+
+
+def fetch_items_with_stock_and_batches(item_codes, store_id=None):
+    """
+    Optimized helper: Get both ERP master data and live stock/batchDetails for a list of item codes in bulk.
+    Returns: (erp_item_map, stock_map)
+    """
+    if not item_codes:
+        return {}, {}
+        
+    item_codes = list(set(str(code).strip() for code in item_codes if code))
+    if not item_codes:
+        return {}, {}
+
+    # 1. Fetch Item Master details
+    erp_items = fetch_items_by_codes_from_erp(item_codes, store_id=store_id)
+    erp_item_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+
+    # 2. Fetch live stock and batch details
+    stock_map = {}
+    try:
+        from .erp_service import ERPService
+        from .erp_token_service import get_erp_token_for_store_config
+        if store_id:
+            store_info = ERPService.get_config_by_store_id(store_id)
+        else:
+            store_info = ERPService._get_fallback_config()
+
+        if store_info:
+            erp_config = store_info['erp_config']
+            api_key = get_erp_token_for_store_config(erp_config)
+            if api_key:
+                stock_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                stock_payload = {
+                    'apiKey':        api_key,
+                    'prodCode':      erp_config['prod_code'],
+                    'c2Code':        erp_config['c2_code'],
+                    'storeId':       erp_config['store_id'],
+                    'inputDateTime': '2021-07-01 10:10:00',
+                    'itemCodes':     item_codes,
+                }
+                headers = {
+                    'User-Agent': 'PostmanRuntime/7.43.0',
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                }
+                stock_resp = requests.post(stock_url, json=stock_payload, headers=headers, timeout=30, stream=True)
+                if stock_resp.status_code == 200:
+                    raw_chunks = []
+                    for chunk in stock_resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            raw_chunks.append(chunk)
+                    raw_bytes = b''.join(raw_chunks)
+                    raw_text = raw_bytes.decode('utf-8', errors='replace').strip()
+                    if raw_text.startswith('\ufeff'):
+                        raw_text = raw_text[1:]
+                    # Fix malformed decimals like .000 -> 0.000 (ERP bug)
+                    import re as _re
+                    raw_text = _re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
+                    try:
+                        stock_data = json.loads(raw_text)
+                    except:
+                        stock_data = {}
+                    stock_items_list = []
+                    if isinstance(stock_data, dict):
+                        stock_items_list = stock_data.get('stockDetails', []) or stock_data.get('data', [])
+                    elif isinstance(stock_data, list):
+                        stock_items_list = stock_data
+                    item_codes_set = set(str(c) for c in item_codes)
+                    for s in stock_items_list:
+                        s_code = str(s.get('c_item_code') or s.get('itemCode') or '').strip()
+                        if s_code not in item_codes_set:
+                            continue
+                        batch_details = s.get('batchDetails', [])
+                        if s_code not in stock_map:
+                            stock_map[s_code] = {'batchDetails': list(batch_details or [])}
+                        else:
+                            stock_map[s_code]['batchDetails'].extend(batch_details or [])
+    except Exception as e:
+        logger.warning(f"[ERP_STOCK_HELPER] Failed to fetch live stock/batches: {e}")
+
+    return erp_item_map, stock_map
 
 
 def parse_date(date_string):
@@ -4914,7 +5509,8 @@ class DetectCurrentLocationView(APIView):
         }
         """
         try:
-            serializer = DetectLocationSerializer(data=request.data)
+            request_data = _parse_request_data(request)
+            serializer = DetectLocationSerializer(data=request_data)
             if not serializer.is_valid():
                 return Response({
                     'success': False,
@@ -4933,8 +5529,34 @@ class DetectCurrentLocationView(APIView):
             address_data = reverse_geocode(latitude, longitude)
             
             response_serializer = LocationAddressResponseSerializer(address_data)
-            logger.info(f"[LOCATION_DETECT] User {user_id} detected location at ({latitude}, {longitude})")
             
+            # ── Persist detected location to user profile automatically ──
+            user = get_object_or_404(User, id=user_id)
+            try:
+                user.last_latitude = float(latitude)
+                user.last_longitude = float(longitude)
+                user.last_location_update = timezone.now()
+                pincode = address_data.get('pincode')
+                if pincode:
+                    user.location_pincode = pincode
+                
+                # Update user's preferred store to nearest store automatically
+                from .store_manager import StoreLocationManager
+                store_data = StoreLocationManager.find_nearest_store(float(latitude), float(longitude))
+                if store_data and store_data.get('store_id'):
+                    from .models import Store as _Store
+                    try:
+                        user.preferred_store = _Store.objects.get(pk=store_data['store_id'])
+                    except _Store.DoesNotExist:
+                        pass
+                user.save(update_fields=[
+                    'last_latitude', 'last_longitude', 'last_location_update',
+                    'location_pincode', 'preferred_store'
+                ])
+                logger.info(f"[LOCATION_DETECT] Auto-saved coordinates to user {user_id} profile: ({latitude}, {longitude})")
+            except Exception as persist_err:
+                logger.warning(f"[LOCATION_DETECT] Could not auto-save location to profile for user {user_id}: {persist_err}")
+
             return Response({
                 'success': True,
                 'message': 'Location detected successfully',
@@ -4982,7 +5604,8 @@ class ConfirmLocationAddressView(APIView):
         }
         """
         try:
-            serializer = ConfirmLocationAddressSerializer(data=request.data)
+            request_data = _parse_request_data(request)
+            serializer = ConfirmLocationAddressSerializer(data=request_data)
             if not serializer.is_valid():
                 return Response({
                     'success': False,
@@ -5336,8 +5959,7 @@ class FrequentlyBoughtTogetherView(APIView):
             )
             
             # ✅ Step 3: Fetch fresh data from ERP with auto-generated token
-            erp_items = fetch_all_items_from_erp()
-            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            erp_map, stock_map = fetch_items_with_stock_and_batches(frequently_bought_item_codes)
             
             products_data = []
             for product in frequently_bought_items:
@@ -5354,6 +5976,10 @@ class FrequentlyBoughtTogetherView(APIView):
                     product.max_disc = float(erp_data.get('max_disc', product.max_disc))
                     product.expiry_date = parse_date(erp_data.get('expiryDate', product.expiry_date))
                     product.erp_stock = erp_data.get('stockBalQty', 0)
+                
+                # Attach live batchDetails
+                stock_entry = stock_map.get(str(product.item_code))
+                product.erp_batch_details = stock_entry.get('batchDetails', []) if stock_entry else []
                 
                 products_data.append(product)
             
@@ -5472,8 +6098,7 @@ class TopSellingProductsView(APIView):
             )[:limit]
             
             # ✅ Step 3: Fetch fresh data from ERP with auto-generated token
-            erp_items = fetch_all_items_from_erp()
-            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            erp_map, stock_map = fetch_items_with_stock_and_batches(top_item_codes)
             
             products_data = []
             for product in top_items:
@@ -5493,6 +6118,10 @@ class TopSellingProductsView(APIView):
                     product.max_disc = float(erp_data.get('max_disc', product.max_disc))
                     product.expiry_date = parse_date(erp_data.get('expiryDate', product.expiry_date))
                     product.erp_stock = erp_data.get('stockBalQty', 0)
+                
+                # Attach live batchDetails
+                stock_entry = stock_map.get(str(product.item_code))
+                product.erp_batch_details = stock_entry.get('batchDetails', []) if stock_entry else []
                 
                 products_data.append(product)
             
@@ -5669,8 +6298,8 @@ class PersonalizedRecommendationsView(APIView):
                 }, status=status.HTTP_200_OK)
             
             # ✅ Step 4: Fetch fresh data from ERP and enrich with auto-generated token
-            erp_items = fetch_all_items_from_erp()
-            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            rec_item_codes = [p_info.item.item_code for p_info in recommended_products if p_info.item and p_info.item.item_code]
+            erp_map, stock_map = fetch_items_with_stock_and_batches(rec_item_codes)
             
             products_data = []
             for product_info in recommended_products:
@@ -5686,6 +6315,10 @@ class PersonalizedRecommendationsView(APIView):
                     item.max_disc = float(erp_data.get('max_disc', item.max_disc))
                     item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
                     item.erp_stock = erp_data.get('stockBalQty', 0)
+                
+                # Attach live batchDetails
+                stock_entry = stock_map.get(str(item.item_code))
+                item.erp_batch_details = stock_entry.get('batchDetails', []) if stock_entry else []
                 
                 products_data.append(item)
             
@@ -5811,8 +6444,8 @@ class PopularProductsView(APIView):
                 }, status=status.HTTP_200_OK)
             
             # ✅ Step 4: Fetch fresh data from ERP with auto-generated token
-            erp_items = fetch_all_items_from_erp()
-            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            popular_item_codes = [itm.item_code for itm in popular_items]
+            erp_map, stock_map = fetch_items_with_stock_and_batches(popular_item_codes)
             
             products_data = []
             search_count_map = {search.query: search.search_count for search in popular_searches}
@@ -5828,6 +6461,10 @@ class PopularProductsView(APIView):
                     item.max_disc = float(erp_data.get('max_disc', item.max_disc))
                     item.expiry_date = parse_date(erp_data.get('expiryDate', item.expiry_date))
                     item.erp_stock = erp_data.get('stockBalQty', 0)
+                
+                # Attach live batchDetails
+                stock_entry = stock_map.get(str(item.item_code))
+                item.erp_batch_details = stock_entry.get('batchDetails', []) if stock_entry else []
                 
                 products_data.append(item)
             
@@ -5912,7 +6549,7 @@ class RecentlyViewedView(APIView):
                     'success': True,
                     'data': {
                         'userId': user_id,
-                        'userName': user.username,
+                        'userName': request.user.username,
                         'recentlyViewed': [],
                         'totalCount': 0,
                         'source': 'database'
@@ -5923,8 +6560,8 @@ class RecentlyViewedView(APIView):
             viewed_items = [pv.item for pv in recently_viewed]
             
             # ✅ Step 2: Fetch fresh data from ERP with auto-generated token
-            erp_items = fetch_all_items_from_erp()
-            erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
+            viewed_item_codes = [itm.item_code for itm in viewed_items if itm and itm.item_code]
+            erp_map, stock_map = fetch_items_with_stock_and_batches(viewed_item_codes)
             
             products_data = []
             for product in viewed_items:
@@ -5941,6 +6578,10 @@ class RecentlyViewedView(APIView):
                     product.expiry_date = parse_date(erp_data.get('expiryDate', product.expiry_date))
                     product.erp_stock = erp_data.get('stockBalQty', 0)
                 
+                # Attach live batchDetails
+                stock_entry = stock_map.get(str(product.item_code))
+                product.erp_batch_details = stock_entry.get('batchDetails', []) if stock_entry else []
+                
                 products_data.append(product)
             
             # ✅ Step 3: Serialize results
@@ -5956,7 +6597,7 @@ class RecentlyViewedView(APIView):
                 'success': True,
                 'data': {
                     'userId': user_id,
-                    'userName': user.username,
+                    'userName': request.user.username,
                     'recentlyViewed': serializer.data,
                     'totalCount': len(serializer.data),
                     'source': 'erp',
@@ -6005,8 +6646,23 @@ class UserRecentActivityView(APIView):
             cart_limit = int(request.query_params.get('cart_limit', limit))
             wishlist_limit = int(request.query_params.get('wishlist_limit', limit))
             
+            # ✅ Collect relevant item codes before fetching
+            viewed_codes = list(ProductView.objects.filter(user_id=user_id).values_list('item__item_code', flat=True)[:viewed_limit])
+            cart_codes = []
+            try:
+                cart_codes = list(CartItem.objects.filter(cart__user_id=user_id).values_list('item__item_code', flat=True)[:cart_limit])
+            except:
+                pass
+            wishlist_codes = []
+            try:
+                wishlist_codes = list(WishlistItem.objects.filter(wishlist__user_id=user_id).values_list('item__item_code', flat=True)[:wishlist_limit])
+            except:
+                pass
+                
+            combined_codes = list(set(viewed_codes + cart_codes + wishlist_codes))
+            
             # ✅ Fetch ERP data once (reuse for all)
-            erp_items = fetch_all_items_from_erp()
+            erp_items = fetch_items_by_codes_from_erp(combined_codes)
             erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
             
             # ✅ Step 1: Get recently viewed products
@@ -6556,7 +7212,12 @@ class CategoryListView(ListAPIView):
         # ============ ERP TOKEN & STOCK ENRICHMENT ============
         # Fetch ERP master data to enrich with stock quantities
         try:
-            items = fetch_all_items_from_erp()
+            from .models import ProductInfo
+            active_product_codes = list(ProductInfo.objects.filter(
+                category__is_active=True
+            ).values_list('item__item_code', flat=True).distinct())
+            
+            items = fetch_items_by_codes_from_erp(active_product_codes)
             if items:
                 # Create mapping of item_code -> stockBalQty from ERP
                 stock_map = {}
@@ -6584,15 +7245,16 @@ def related_products(request, product_id):
     Get related products by category (excluding the current product), enriched with ERP data if available.
     Requires JWT authentication.
     """
-    from .views import fetch_all_items_from_erp, parse_date
+    from .views import fetch_items_by_codes_from_erp, parse_date
     try:
         product = ProductInfo.objects.get(pk=product_id)
         related = ProductInfo.objects.filter(
             category=product.category
         ).exclude(pk=product.pk)[:10]
 
-        # ERP enrichment logic (same as search view)
-        erp_items = fetch_all_items_from_erp()
+        # ERP enrichment logic: only lookup the related item codes
+        related_codes = [p_info.item.item_code for p_info in related if p_info.item and p_info.item.item_code]
+        erp_items = fetch_items_by_codes_from_erp(related_codes)
         erp_map = {item.get('c_item_code'): item for item in erp_items} if erp_items else {}
 
         products = []
@@ -8107,6 +8769,19 @@ from .serializers import StartupLocationInputSerializer, StartupLocationResponse
 from .store_manager import StoreLocationManager
 from .geocoding import reverse_geocode as _reverse_geocode, GeocodingException
 
+def _parse_request_data(request):
+    """Robust parser helper to parse JSON data even if Content-Type is text/plain"""
+    content_type = request.META.get('CONTENT_TYPE', '')
+    request_data = request.data
+    if 'text/plain' in content_type or not request_data:
+        try:
+            body_bytes = request.body
+            if body_bytes:
+                request_data = json.loads(body_bytes.decode('utf-8'))
+        except Exception:
+            pass
+    return request_data or {}
+
 def _build_location_payload(lat, lon, accuracy=None):
     try:
         addr = _reverse_geocode(lat, lon)
@@ -8203,7 +8878,8 @@ class StartupDetectLocationView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, user_id=None):
-        serializer = StartupLocationInputSerializer(data=request.data)
+        request_data = _parse_request_data(request)
+        serializer = StartupLocationInputSerializer(data=request_data)
         if not serializer.is_valid():
             return Response({
                 'success': False,
@@ -8279,39 +8955,60 @@ class GetMyLocationView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
+        # ── single DB query — fetches user + preferred_store in one JOIN ──
+        user = request.user.__class__.objects.select_related('preferred_store').get(
+            pk=request.user.pk
+        )
 
         if not user.last_latitude or not user.last_longitude:
             return Response({
                 'success': True,
-                'message': f'No location saved yet. Please call POST /api/location/save/ to save a location.',
+                'message': 'No location saved yet. Please call POST /api/location/save/ to save a location.',
                 'data': None,
             }, status=status.HTTP_200_OK)
 
         lat = user.last_latitude
         lon = user.last_longitude
 
-        # Build fresh payload (re-runs store lookup so distance is always live)
-        payload = _build_location_payload(lat, lon)
-
-        # Fallback: use persisted pincode if geocoding returned blank
-        if not payload['pincode'] and user.location_pincode:
-            payload['pincode'] = user.location_pincode
-
-        # If user has a preferred_store, always use it (overrides nearest-store calculation)
         if user.preferred_store:
+            # ── Fast path: build payload from persisted store + cached geocode ──
+            # reverse_geocode is cached — sub-millisecond after first call.
+            # preferred_store is already loaded via select_related — zero extra DB hit.
             ps = user.preferred_store
-            payload.update({
+            try:
+                addr = _reverse_geocode(lat, lon)
+            except GeocodingException:
+                addr = {
+                    'full_address': '', 'locality': '', 'city': '',
+                    'state': '', 'pincode': user.location_pincode or '',
+                    'country': '', 'accuracy': 'UNKNOWN',
+                }
+
+            payload = {
+                'full_address': addr.get('full_address', ''),
+                'locality':     addr.get('locality', ''),
+                'city':         addr.get('city', ''),
+                'state':        addr.get('state', ''),
+                'pincode':      addr.get('pincode', '') or user.location_pincode or '',
+                'country':      addr.get('country', ''),
+                'latitude':     float(lat),
+                'longitude':    float(lon),
                 'store_id':      ps.id,
                 'store_name':    ps.name,
                 'store_address': ps.address,
                 'store_city':    ps.city,
                 'store_pincode': ps.pincode,
                 'store_phone':   ps.phone,
+                'distance_km':   None,
                 'erp_c2_code':   ps.c2_code,
                 'erp_store_id':  ps.store_id,
                 'erp_prod_code': ps.prod_code,
-            })
+            }
+        else:
+            # ── Slow path: full nearest-store lookup (both geocode + store are cached) ──
+            payload = _build_location_payload(lat, lon)
+            if not payload['pincode'] and user.location_pincode:
+                payload['pincode'] = user.location_pincode
 
         logger.info(f"[GET_MY_LOCATION] User {user.id} fetched last saved location.")
 
@@ -8349,7 +9046,8 @@ class SaveMyLocationView(APIView):
     def post(self, request):
         user = request.user
 
-        serializer = StartupLocationInputSerializer(data=request.data)
+        request_data = _parse_request_data(request)
+        serializer = StartupLocationInputSerializer(data=request_data)
         if not serializer.is_valid():
             return Response({
                 'success': False,

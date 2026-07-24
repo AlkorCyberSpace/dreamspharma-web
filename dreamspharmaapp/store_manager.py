@@ -4,10 +4,14 @@ Provides utilities for finding nearest stores based on customer location using d
 """
 
 import math
+import logging
 from decimal import Decimal
 from django.db.models import F, FloatField, Value
 from django.db.models.functions import Sqrt, Power
+from django.core.cache import cache
 from .models import Store
+
+logger = logging.getLogger(__name__)
 
 
 class StoreLocationManager:
@@ -47,7 +51,8 @@ class StoreLocationManager:
     @staticmethod
     def find_nearest_store(latitude, longitude):
         """
-        Find the nearest active store to given coordinates
+        Find the nearest active store to given coordinates.
+        Results are cached in Django cache for 10 minutes to avoid repeated DB queries.
         
         Args:
             latitude (float): Customer latitude
@@ -56,36 +61,63 @@ class StoreLocationManager:
         Returns:
             dict or None: Store details with distance, or None if no stores found
         """
-        active_stores = Store.objects.filter(is_active=True)
-        
-        if not active_stores.exists():
+        # Round to 3 decimal places (~110m precision) for a stable cache key
+        try:
+            lat_r = round(float(latitude), 3)
+            lon_r = round(float(longitude), 3)
+        except (TypeError, ValueError):
+            lat_r, lon_r = latitude, longitude
+
+        cache_key = f"nearest_store_{lat_r}_{lon_r}"
+
+        # 1. Check Django cache first
+        cached = cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"[STORE_CACHE] Cache hit for nearest store at ({lat_r}, {lon_r})")
+            # cached stores the serialisable result dict (no ORM object)
+            # Re-attach a live Store object so callers can access store fields
+            try:
+                cached['store'] = Store.objects.get(pk=cached['store_id'])
+            except Store.DoesNotExist:
+                pass
+            return cached
+
+        # 2. Cache miss — query DB
+        active_stores = list(Store.objects.filter(is_active=True))
+
+        if not active_stores:
             return None
-        
+
         nearest_store = None
         min_distance = float('inf')
-        
+
         for store in active_stores:
             distance = StoreLocationManager.haversine_distance(
                 latitude, longitude,
                 store.latitude, store.longitude
             )
-            
+
             if distance < min_distance:
                 min_distance = distance
                 nearest_store = store
-        
+
         if nearest_store:
-            return {
-                'store': nearest_store,
-                'distance': min_distance,
-                'store_id': nearest_store.id,
+            result = {
+                'store':      nearest_store,
+                'distance':   min_distance,
+                'store_id':   nearest_store.id,
                 'store_name': nearest_store.name,
-                'c2_code': nearest_store.c2_code,
+                'c2_code':    nearest_store.c2_code,
                 'erp_store_id': nearest_store.store_id,
-                'address': nearest_store.address,
-                'phone': nearest_store.phone,
+                'address':    nearest_store.address,
+                'phone':      nearest_store.phone,
             }
-        
+            # Cache a serialisable copy (no ORM object) for 10 minutes
+            serialisable = {k: v for k, v in result.items() if k != 'store'}
+            cache.set(cache_key, serialisable, timeout=600)
+            logger.debug(f"[STORE_CACHE] Cached nearest store ({nearest_store.name}) for ({lat_r}, {lon_r})")
+            return result
+
         return None
     
     @staticmethod
@@ -104,6 +136,7 @@ class StoreLocationManager:
         active_stores = Store.objects.filter(is_active=True)
         nearby = []
         
+
         for store in active_stores:
             distance = StoreLocationManager.haversine_distance(
                 latitude, longitude,

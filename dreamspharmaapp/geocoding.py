@@ -7,8 +7,12 @@ import requests
 import logging
 from django.conf import settings
 from decimal import Decimal
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+
+# Process-level in-memory cache for fast reverse geocoding lookups
+_geocode_in_memory_cache = {}
 
 
 class GeocodingException(Exception):
@@ -229,8 +233,45 @@ def reverse_geocode(latitude, longitude):
     Raises:
         GeocodingException: If geocoding fails
     """
+    # Round coordinates to 4 decimal places for stable caching (approx 11m precision)
+    try:
+        lat_rounded = round(float(latitude), 4)
+        lon_rounded = round(float(longitude), 4)
+    except (ValueError, TypeError):
+        # Fallback to direct lookup if coordinates are invalid or cannot be parsed/rounded
+        geocoder = get_geocoder()
+        return geocoder.reverse_geocode(latitude, longitude)
+
+    cache_key = f"geocode_rev_{lat_rounded}_{lon_rounded}"
+
+    # 1. Process-level local cache check (sub-millisecond speed)
+    if cache_key in _geocode_in_memory_cache:
+        logger.info(f"[GEOCODE_CACHE] In-memory local cache hit for: ({lat_rounded}, {lon_rounded})")
+        return _geocode_in_memory_cache[cache_key]
+
+    # 2. Django cache check (shared, handles persistent states)
+    try:
+        cached_address = cache.get(cache_key)
+        if cached_address:
+            logger.info(f"[GEOCODE_CACHE] Django cache hit for: ({lat_rounded}, {lon_rounded})")
+            _geocode_in_memory_cache[cache_key] = cached_address
+            return cached_address
+    except Exception as cache_err:
+        logger.warning(f"[GEOCODE_CACHE] Django cache read failed: {cache_err}")
+
+    # 3. Cache miss: invoke provider reverse geocode
+    logger.info(f"[GEOCODE_CACHE] Cache miss for: ({lat_rounded}, {lon_rounded}). Fetching from provider...")
     geocoder = get_geocoder()
-    return geocoder.reverse_geocode(latitude, longitude)
+    address = geocoder.reverse_geocode(latitude, longitude)
+
+    # 4. Save results to both caches (cached for 24 hours)
+    _geocode_in_memory_cache[cache_key] = address
+    try:
+        cache.set(cache_key, address, timeout=86400)
+    except Exception as cache_err:
+        logger.warning(f"[GEOCODE_CACHE] Django cache write failed: {cache_err}")
+
+    return address
 
 
 def validate_coordinates(latitude, longitude):
