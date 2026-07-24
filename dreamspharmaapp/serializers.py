@@ -972,23 +972,22 @@ class WishlistItemSerializer(serializers.ModelSerializer):
     """Serializer for wishlist item with full product details"""
     itemCode = serializers.CharField(source='item.item_code', read_only=True)
     itemName = serializers.CharField(source='item.item_name', read_only=True)
-    batchNo = serializers.CharField(source='item.batch_no', read_only=True)
     subheading = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     categoryName = serializers.SerializerMethodField()
     images = serializers.SerializerMethodField()
-    mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
-    expiryDate = serializers.DateField(source='item.expiry_date', read_only=True, allow_null=True)
     stockBalQty = serializers.SerializerMethodField()
     discountPercentage = serializers.SerializerMethodField()
     discountedPrice = serializers.SerializerMethodField()
+    batches = serializers.SerializerMethodField()
+    batchDetails = serializers.SerializerMethodField()
     
     class Meta:
         model = WishlistItem
         fields = [
-            'id', 'itemCode', 'itemName', 'batchNo', 'subheading', 'description', 
-            'categoryName', 'images', 'mrp', 'quantity', 'expiryDate', 'stockBalQty',
-            'discountPercentage', 'discountedPrice'
+            'id', 'itemCode', 'itemName', 'subheading', 'description', 
+            'categoryName', 'images', 'quantity', 'stockBalQty',
+            'discountPercentage', 'discountedPrice', 'batches', 'batchDetails'
         ]
     
     def get_subheading(self, obj):
@@ -1032,6 +1031,27 @@ class WishlistItemSerializer(serializers.ModelSerializer):
     def get_discountedPrice(self, obj):
         return obj.get_discounted_price()
     
+    def get_batches(self, obj):
+        """Return batch details attached by WishlistView from ERP global stock map."""
+        batch_details = getattr(obj.item, 'erp_batch_details', [])
+        result = []
+        for b in (batch_details or []):
+            result.append({
+                'batchNo':              b.get('batchNo', ''),
+                'expiryDate':           b.get('expiryDate', None),
+                'totalBalLsQty':        b.get('totalBalLsQty', 0),
+                'packQty':              b.get('packQty', 0),
+                'looseQty':             b.get('looseQty', 0),
+                'mrp':                  b.get('mrp', None),
+                'mrpBox':               b.get('mrpBox', None),
+                'lastModifiedDateTime': b.get('lastModifiedDateTime', None),
+            })
+        return result
+
+    def get_batchDetails(self, obj):
+        """Alias for batches to maintain compatibility."""
+        return self.get_batches(obj)
+
     def get_stockBalQty(self, obj):
         """Get stock quantity with priority: ECoGreen Real-Time > ERP Enriched > Database > 0"""
         # Priority 1: ECoGreen real-time stock (attached by view from fetch_stock API)
@@ -1358,13 +1378,10 @@ class ProductRecommendationSerializer(serializers.ModelSerializer):
     1. If apiKey provided: Use ERP data (mrp, std_disc, max_disc, expiry_date, stockBalQty)
     2. Fallback: Use database values
     """
-    batchNo = serializers.CharField(source='batch_no', allow_null=True)
     c_item_code = serializers.CharField(source='item_code')
-    expiryDate = serializers.DateField(source='expiry_date', allow_null=True)
     itemName = serializers.CharField(source='item_name')
     itemQtyPerBox = serializers.IntegerField(source='item_qty_per_box', allow_null=True)
     max_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
-    mrp = serializers.DecimalField(max_digits=10, decimal_places=2)
     std_disc = serializers.DecimalField(max_digits=10, decimal_places=2)
     stockBalQty = serializers.SerializerMethodField()
     subheading = serializers.SerializerMethodField()
@@ -1376,13 +1393,36 @@ class ProductRecommendationSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
     cart_status = serializers.SerializerMethodField()
     wishlist_status = serializers.SerializerMethodField()
+    batchDetails = serializers.SerializerMethodField()
+    batches = serializers.SerializerMethodField()
     
     class Meta:
         model = ItemMaster
-        fields = ['batchNo', 'c_item_code', 'expiryDate', 'itemName', 'itemQtyPerBox', 
-                  'max_disc', 'mrp', 'std_disc', 'stockBalQty', 'subheading', 'description',
-                  'type_label', 'brand_id', 'brand_name', 'brand_logo', 'images', 
-                  'cart_status', 'wishlist_status']
+        fields = ['c_item_code', 'itemName', 'itemQtyPerBox', 'max_disc', 'std_disc', 
+                  'stockBalQty', 'subheading', 'description', 'type_label', 
+                  'brand_id', 'brand_name', 'brand_logo', 'images', 
+                  'cart_status', 'wishlist_status', 'batchDetails', 'batches']
+    
+    def get_batchDetails(self, obj):
+        """Return batch details attached by view from ERP stock map."""
+        batch_details = getattr(obj, 'erp_batch_details', [])
+        result = []
+        for b in (batch_details or []):
+            result.append({
+                'batchNo':              b.get('batchNo', ''),
+                'expiryDate':           b.get('expiryDate', None),
+                'totalBalLsQty':        b.get('totalBalLsQty', 0),
+                'packQty':              b.get('packQty', 0),
+                'looseQty':             b.get('looseQty', 0),
+                'mrp':                  b.get('mrp', None),
+                'mrpBox':               b.get('mrpBox', None),
+                'lastModifiedDateTime': b.get('lastModifiedDateTime', None),
+            })
+        return result
+
+    def get_batches(self, obj):
+        """Alias for batchDetails to maintain compatibility."""
+        return self.get_batchDetails(obj)
     
     def get_stockBalQty(self, obj):
         """

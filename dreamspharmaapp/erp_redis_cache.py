@@ -56,6 +56,23 @@ def _stock_key(store_id: str, item_codes: list) -> str:
     return f"erp:stock:{store_id}:{codes_hash}"
 
 
+def _global_stock_key(store_id: str) -> str:
+    """Redis key for the full global stock map (all items). Used by search."""
+    return f"erp:stock_global:{store_id}"
+
+
+def _search_index_key(store_id: str, input_date_time: str) -> str:
+    """Redis key for the compact search index (tiny list of searchable fields only)."""
+    slug = input_date_time.replace(' ', '_').replace(':', '-')
+    return f"erp:search_idx:{store_id}:{slug}"
+
+
+def _master_dict_key(store_id: str, input_date_time: str) -> str:
+    """Redis key for the full master data dict keyed by item_code (O(1) lookup)."""
+    slug = input_date_time.replace(' ', '_').replace(':', '-')
+    return f"erp:master_dict:{store_id}:{slug}"
+
+
 def _store_pattern(store_id: str) -> str:
     """Pattern to match ALL cache keys for a given store (used for invalidation)."""
     return f"erp:*:{store_id}:*"
@@ -96,6 +113,8 @@ class ERPRedisCache:
     def set_master_data(store_id: str, input_date_time: str, items: list) -> bool:
         """
         Store ERP master-data list in Redis with MASTER_TTL.
+        Also auto-builds and stores the compact search index and master dict
+        so search lookups are fast (no need to iterate 165k items).
 
         Returns:
             True if stored, False on failure.
@@ -109,19 +128,89 @@ class ERPRedisCache:
                 f"[ERP_CACHE] [MASTER] STORED    store={store_id} "
                 f"date={input_date_time} items={len(items)} ttl={MASTER_TTL}s"
             )
+            # Auto-build compact search index and master dict for fast search
+            ERPRedisCache._build_search_structures(store_id, input_date_time, items)
             return True
         except Exception as e:
             logger.error(f"[ERP_CACHE] [MASTER] SET FAILED: {e}")
             return False
 
     @staticmethod
+    def _build_search_structures(store_id: str, input_date_time: str, items: list):
+        """
+        Build and cache two auxiliary structures from master data:
+          1. search_index: compact list [{c, n, b, co}] — only searchable fields
+          2. master_dict:  {item_code: full_item} — O(1) lookup by item_code
+        Both use the same MASTER_TTL as master data.
+        """
+        try:
+            search_index = []
+            master_dict = {}
+            for itm in items:
+                code = str(itm.get('c_item_code') or itm.get('itemCode') or '').strip()
+                if not code:
+                    continue
+                search_index.append({
+                    'c':  code,
+                    'n':  (itm.get('itemName') or '').lower(),
+                    'b':  (itm.get('brandName') or '').lower(),
+                    'co': (itm.get('contentName') or '').lower(),
+                    's':  (itm.get('itemShortName') or '').lower(),
+                    'ca': (itm.get('categoryName') or '').lower(),
+                })
+                master_dict[code] = itm
+
+            si_key = _search_index_key(store_id, input_date_time)
+            md_key = _master_dict_key(store_id, input_date_time)
+            cache.set(si_key, search_index, timeout=MASTER_TTL)
+            cache.set(md_key, master_dict,   timeout=MASTER_TTL)
+            logger.info(
+                f"[ERP_CACHE] [SEARCH_IDX] BUILT store={store_id} "
+                f"entries={len(search_index)} ttl={MASTER_TTL}s"
+            )
+        except Exception as e:
+            logger.error(f"[ERP_CACHE] [SEARCH_IDX] BUILD FAILED: {e}")
+
+    @staticmethod
     def invalidate_master_data(store_id: str, input_date_time: str) -> None:
-        """Delete a specific master-data cache entry."""
-        key = _master_key(store_id, input_date_time)
-        cache.delete(key)
+        """Delete a specific master-data cache entry (and its search structures)."""
+        for key in [
+            _master_key(store_id, input_date_time),
+            _search_index_key(store_id, input_date_time),
+            _master_dict_key(store_id, input_date_time),
+        ]:
+            cache.delete(key)
         logger.info(
             f"[ERP_CACHE] [MASTER] DELETED store={store_id} date={input_date_time}"
         )
+
+    @staticmethod
+    def get_search_index(store_id: str, input_date_time: str):
+        """
+        Return the compact search index list or None on miss.
+        Each entry: {'c': code, 'n': name_lower, 'b': brand_lower, 'co': content_lower}
+        """
+        key = _search_index_key(store_id, input_date_time)
+        data = cache.get(key)
+        if data is not None:
+            logger.info(f"[ERP_CACHE] [SEARCH_IDX] HIT  store={store_id} entries={len(data)}")
+        else:
+            logger.info(f"[ERP_CACHE] [SEARCH_IDX] MISS store={store_id}")
+        return data
+
+    @staticmethod
+    def get_master_dict(store_id: str, input_date_time: str):
+        """
+        Return the master data dict {item_code: full_item} or None on miss.
+        Allows O(1) lookup of full item data after search matching.
+        """
+        key = _master_dict_key(store_id, input_date_time)
+        data = cache.get(key)
+        if data is not None:
+            logger.info(f"[ERP_CACHE] [MASTER_DICT] HIT  store={store_id} entries={len(data)}")
+        else:
+            logger.info(f"[ERP_CACHE] [MASTER_DICT] MISS store={store_id}")
+        return data
 
     # ── Stock map ─────────────────────────────────────────────────────────────
 
@@ -133,7 +222,7 @@ class ERPRedisCache:
         Returns:
             dict {item_code: pack_qty} if hit, None on miss / unavailable.
         """
-        if not item_codes:
+        if item_codes is None:
             return {}
         key = _stock_key(store_id, item_codes)
         data = cache.get(key)
@@ -157,7 +246,7 @@ class ERPRedisCache:
         Returns:
             True if stored, False on failure.
         """
-        if not item_codes:
+        if item_codes is None:
             return False
         key = _stock_key(store_id, item_codes)
         try:
@@ -169,6 +258,43 @@ class ERPRedisCache:
             return True
         except Exception as e:
             logger.error(f"[ERP_CACHE] [STOCK]  SET FAILED: {e}")
+            return False
+
+    # ── Global stock map (all items — shared by search + item master) ─────────
+
+    GLOBAL_STOCK_TTL = 60  # seconds — stock refreshed every minute
+
+    @staticmethod
+    def get_global_stock_map(store_id: str):
+        """
+        Retrieve the full global stock map from Redis.
+        Returns dict {item_code: stock_entry} if hit, None on miss.
+        """
+        key = _global_stock_key(store_id)
+        data = cache.get(key)
+        if data is not None:
+            logger.info(f"[ERP_CACHE] [STOCK_GLOBAL] HIT  store={store_id} entries={len(data)}")
+        else:
+            logger.info(f"[ERP_CACHE] [STOCK_GLOBAL] MISS store={store_id}")
+        return data
+
+    @staticmethod
+    def set_global_stock_map(store_id: str, stock_map: dict) -> bool:
+        """
+        Store the full global stock map in Redis with GLOBAL_STOCK_TTL (60s).
+        """
+        if not stock_map:
+            return False
+        key = _global_stock_key(store_id)
+        try:
+            cache.set(key, stock_map, timeout=ERPRedisCache.GLOBAL_STOCK_TTL)
+            logger.info(
+                f"[ERP_CACHE] [STOCK_GLOBAL] STORED store={store_id} "
+                f"entries={len(stock_map)} ttl={ERPRedisCache.GLOBAL_STOCK_TTL}s"
+            )
+            return True
+        except Exception as e:
+            logger.error(f"[ERP_CACHE] [STOCK_GLOBAL] SET FAILED: {e}")
             return False
 
     # ── Invalidation ──────────────────────────────────────────────────────────

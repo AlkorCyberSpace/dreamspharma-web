@@ -104,8 +104,6 @@ class StoreViewSet(viewsets.ModelViewSet):
 def find_nearest_store(request):
     user_id = request.user.id
     if not user_id:
-        from rest_framework.response import Response
-        from rest_framework import status
         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
     """
     Find the nearest store to customer location.
@@ -179,8 +177,6 @@ def find_nearest_store(request):
 def find_nearby_stores(request):
     user_id = request.user.id
     if not user_id:
-        from rest_framework.response import Response
-        from rest_framework import status
         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
     """
     Find all stores near customer location within radius.

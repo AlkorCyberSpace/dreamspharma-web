@@ -11,6 +11,20 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 from pathlib import Path
+import sys
+import logging
+
+# Monkeypatch logging to prevent daemon threads from crashing during interpreter finalization
+_original_handle = logging.Handler.handle
+def _safe_handle(self, record):
+    if sys.is_finalizing():
+        return
+    try:
+        return _original_handle(self, record)
+    except Exception:
+        pass
+logging.Handler.handle = _safe_handle
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

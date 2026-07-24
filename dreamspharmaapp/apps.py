@@ -2,11 +2,84 @@ from django.apps import AppConfig
 import logging
 import os
 import sys
+import threading
 
 logger = logging.getLogger(__name__)
 
 # Global flag to ensure scheduler only starts once per process
 _scheduler_started = False
+
+
+def _prewarm_search_cache():
+    """
+    Run in a background thread at startup.
+    Fetches all ERP items + builds search_index + master_dict in Redis
+    so the very first user search is instant (< 50ms) instead of 42s.
+    """
+    import time
+    import sys
+    
+    # Sleep in small increments to allow fast exit checking
+    for _ in range(30):
+        if sys.is_finalizing():
+            return
+        time.sleep(0.1)
+        
+    try:
+        if sys.is_finalizing():
+            return
+        logger.info('[PREWARM] Starting ERP search cache pre-warm...')
+        
+        from django.core.management import call_command
+        import io
+        
+        # Safe stdout/stderr to prevent lock acquisition errors on finalized streams
+        class SafeOut(io.StringIO):
+            def write(self, s):
+                if not sys.is_finalizing():
+                    try:
+                        sys.stdout.write(s)
+                    except Exception:
+                        pass
+            def flush(self):
+                if not sys.is_finalizing():
+                    try:
+                        sys.stdout.flush()
+                    except Exception:
+                        pass
+            def isatty(self):
+                return False
+
+        class SafeErr(io.StringIO):
+            def write(self, s):
+                if not sys.is_finalizing():
+                    try:
+                        sys.stderr.write(s)
+                    except Exception:
+                        pass
+            def flush(self):
+                if not sys.is_finalizing():
+                    try:
+                        sys.stderr.flush()
+                    except Exception:
+                        pass
+            def isatty(self):
+                return False
+                
+        safe_stdout = SafeOut()
+        safe_stderr = SafeErr()
+        
+        if sys.is_finalizing():
+            return
+            
+        call_command('sync_itemmaster', stdout=safe_stdout, stderr=safe_stderr)
+        
+        if sys.is_finalizing():
+            return
+        logger.info('[PREWARM] ERP search cache pre-warm complete.')
+    except Exception as e:
+        if not sys.is_finalizing():
+            logger.error(f'[PREWARM] Pre-warm failed: {e}')
 
 
 class DreamspharmaappConfig(AppConfig):
@@ -33,6 +106,15 @@ class DreamspharmaappConfig(AppConfig):
             initialize_erp_token()
         except Exception as e:
             logger.error(f'[ERP_TOKEN] Error initializing token: {str(e)}')
+
+        # ==================== PRE-WARM SEARCH CACHE ====================
+        # Run immediately in background so first user search is instant.
+        try:
+            t = threading.Thread(target=_prewarm_search_cache, daemon=True)
+            t.start()
+            logger.info('[PREWARM] Background cache pre-warm thread started.')
+        except Exception as e:
+            logger.error(f'[PREWARM] Failed to start pre-warm thread: {e}')
             
         try:
             from apscheduler.schedulers.background import BackgroundScheduler
@@ -44,10 +126,11 @@ class DreamspharmaappConfig(AppConfig):
             
             scheduler = BackgroundScheduler(jobstore=DjangoJobStore())
             
-            # Job 1: Sync ItemMaster Cache every 15 minutes
+            # Job 1: Sync ItemMaster Cache every 10 minutes
+            # Keep PostgreSQL database catalog synchronized with ERP in near real-time
             scheduler.add_job(
                 sync_itemmaster_job,
-                trigger=IntervalTrigger(minutes=15),
+                trigger=IntervalTrigger(minutes=10),
                 id='sync_itemmaster',
                 name='Sync ItemMaster Cache',
                 replace_existing=True,
@@ -80,8 +163,19 @@ class DreamspharmaappConfig(AppConfig):
             scheduler.start()
             _scheduler_started = True
             logger.info('[OK] APScheduler started - Jobs scheduled:')
-            logger.info(f'  [OK] sync_itemmaster: every 15 minutes')
+            logger.info(f'  [OK] sync_itemmaster: every 10 minutes (keeps cache hot)')
             logger.info(f'  [OK] refresh_erp_token: every {token_refresh_hours} hours')
             logger.info(f'  [OK] retry_unsynced_orders: every 5 minutes')
+            
+            # Register atexit handler to shut down scheduler cleanly with wait=False
+            import atexit
+            def _shutdown_scheduler():
+                try:
+                    if scheduler.running:
+                        scheduler.shutdown(wait=False)
+                except Exception:
+                    pass
+            atexit.register(_shutdown_scheduler)
         except Exception as e:
             logger.error(f'Failed to start APScheduler: {str(e)}')
+

@@ -446,7 +446,7 @@ export default function Products() {
                                         <td className="px-3 text-sm text-gray-800 font-medium">{product.name}</td>
                                         <td className="px-2 text-sm text-gray-800">{product.category}</td>
                                         <td className="px-2 py-4 text-sm text-gray-800">{product.hsnCode}</td>
-                                        <td className="px-2 py-4 text-sm text-gray-800">{product.pack}</td>
+                                        <td className="px-2 py-4 text-sm text-gray-800">{product.erpPack}</td>
                                         <td className="px-2 py-4 text-sm text-gray-600 font-bold whitespace-nowrap">{product.itemAddedDate}</td>
                                         <td className="px-2 py-4 text-sm whitespace-nowrap">
                                             <span className="text-gray-600 font-semibold">{product.itemUpdatedDate}</span>
