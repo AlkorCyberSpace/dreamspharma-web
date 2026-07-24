@@ -11,12 +11,12 @@ export default function Products() {
     const [categoryFilter, setCategoryFilter] = useState("All Brands");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 16;
+    const [pageSize, setPageSize] = useState(20);
     const [totalPages, setTotalPages] = useState(1);
     const [summaryStats, setSummaryStats] = useState({
         totalProducts: 0,
         lowStockCount: 0,
-        totalWarehouses: 1
+        totalWarehouses: 0
     });
     const [productsData, setProductsData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -75,19 +75,20 @@ export default function Products() {
             if (debouncedSearch) {
                 const searchParams = {
                     search: debouncedSearch,
-                    limit: itemsPerPage,
+                    limit: 100,
                 };
                 response = await searchProductsAPI(searchParams);
+                log
             } else {
                 const params = {
-                    page: currentPage,
-                    page_size: itemsPerPage,
+                    page: currentPage
                 };
                 if (categoryFilter && categoryFilter !== "All Brands") {
                     params.brand = categoryFilter;
                 }
                 response = await getProductsAPI(params);
             }
+
             if (response.data && response.data.data) {
                 const mappedData = response.data.data.map((item) => {
                     return {
@@ -106,8 +107,8 @@ export default function Products() {
                         mrp: item.mrp ? `₹${item.mrp}` : "N/A",
                         stock: item.stockBalQty || 0,
                         lowStock: (item.stockBalQty || 0) < 5,
-                        batch: item.batchNo || "N/A",
-                        expiry: item.expiryDate || "N/A",
+                        // batch: item.batchNo || "N/A",
+                        // expiry: item.expiryDate || "N/A",
                         description: item.description,
                         subheading: item.subheading,
                         type_label: item.type_label,
@@ -129,8 +130,10 @@ export default function Products() {
 
                 if (response.data.pagination) {
                     setTotalPages(response.data.pagination.total_pages || 1);
+                    setPageSize(response.data.pagination.page_size || 20);
                 } else {
                     setTotalPages(1);
+                    setPageSize(20);
                 }
                 if (response.data.summary) {
                     setSummaryStats({
@@ -138,6 +141,8 @@ export default function Products() {
                         lowStockCount: response.data.summary.low_stock_count || 0,
                         totalWarehouses: response.data.summary.total_warehouses || 1
                     });
+                    console.log(response.data.summary);
+
                 }
             }
         } catch (error) {
@@ -436,7 +441,7 @@ export default function Products() {
                                         key={index}
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"} hover:bg-[#EEF2F6] transition`}
                                     >
-                                        <td className="px-3 py-2 text-[12px] font-bold text-gray-800 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                                        <td className="px-3 py-2 text-[12px] font-bold text-gray-800 text-center">{(currentPage - 1) * pageSize + index + 1}</td>
                                         <td className="px-2 text-sm text-[#127690] font-bold">{product.id}</td>
                                         <td className="px-3 text-sm text-gray-800 font-medium">{product.name}</td>
                                         <td className="px-2 text-sm text-gray-800">{product.category}</td>
@@ -643,10 +648,10 @@ export default function Products() {
                                         <ModalRow label="Short Name" value={selectedProduct.shortName} />
                                         <ModalRow label="ERP Brand" value={selectedProduct.erpBrand} />
                                         <ModalRow label="ERP Category" value={selectedProduct.erpCategory} />
-                                        <ModalRow label="Content" value={selectedProduct.erpContent} />
-                                        <ModalRow label="Pack" value={selectedProduct.erpPack} />
+                                        {/* <ModalRow label="Content" value={selectedProduct.erpContent} />
+                                        <ModalRow label="Pack" value={selectedProduct.erpPack} /> */}
                                         <ModalRow label="HSN Code" value={selectedProduct.hsnCode} />
-                                        <ModalRow label="HSN Name" value={selectedProduct.hsnName} />
+                                        <ModalRow label="HSN Name" value={selectedProduct.hsnSacName} />
                                         {/* <div className="flex flex-col sm:flex-row sm:items-start gap-1">
                                             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0 mt-1.5">Category</span>
                                             <input type="text" value={editFormState.type_label} onChange={e => setEditFormState({ ...editFormState, type_label: e.target.value })} className="flex-1 text-sm bg-gray-50 rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Category" />
@@ -659,7 +664,7 @@ export default function Products() {
 
                                     {/* Brand Selection */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Brand</p>
+                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Category</p>
                                         <div className="relative">
                                             <button
                                                 type="button"
@@ -685,7 +690,7 @@ export default function Products() {
                                                         <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
                                                             <Archive size={14} className="text-gray-400" />
                                                         </div>
-                                                        <span className="text-sm text-gray-400 font-medium">Select Brand</span>
+                                                        <span className="text-sm text-gray-400 font-medium">Select category</span>
                                                     </div>
                                                 )}
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
