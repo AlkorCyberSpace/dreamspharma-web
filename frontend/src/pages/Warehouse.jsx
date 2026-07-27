@@ -1,29 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-    Plus,
-    Search,
-    MapPin,
-    Phone,
-    Mail,
-    User,
-    Shield,
-    Activity,
-    MoreVertical,
-    X,
-    LayoutGrid,
-    List,
-    Building2,
-    Database,
-    Globe,
-    Eye,
-    Settings,
-    Edit,
-    Trash2,
-    ChevronDown
-} from 'lucide-react';
+import { Plus, Search, MapPin, Phone, Mail, User, Shield, Activity, MoreVertical, X, LayoutGrid, List, Building2, Database, Globe, Eye, Settings, Edit, Trash2, ChevronDown } from 'lucide-react';
 import { getWarehousesAPI, addWarehouseAPI, updateWarehouseAPI, deleteWarehouseAPI } from '../services/allAPI';
-
-// Warehouse management component
 
 const Warehouse = () => {
     const [warehouses, setWarehouses] = useState([]);
@@ -87,11 +64,11 @@ const Warehouse = () => {
                     // Using Nominatim (OpenStreetMap) for free geocoding
                     const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&postalcode=${pincode}&country=India&addressdetails=1`);
                     const data = await response.json();
-                    
+
                     if (data && data.length > 0) {
                         const location = data[0];
                         const address = location.address;
-                        
+
                         setFormData(prev => ({
                             ...prev,
                             latitude: location.lat,
@@ -230,7 +207,7 @@ const Warehouse = () => {
                 </div>
             </div>
 
-            {/* Stats Overview - Restored */}
+            {/* Stats Overview  */}
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between hover:border-[#127690]/30 transition-all group">
                     <div>
@@ -241,7 +218,7 @@ const Warehouse = () => {
                         <Building2 size={16} />
                     </div>
                 </div>
-                
+
                 <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between hover:border-amber-200 transition-all group">
                     <div>
                         <p className="text-[9px] font-bold text-gray-800 uppercase tracking-widest mb-0.5">Primary Hubs</p>
@@ -476,7 +453,7 @@ const Warehouse = () => {
             {/* Pagination UI - Numbered Design */}
             {totalPages > 1 && (
                 <div className="mt-8 mb-4 flex items-center justify-end px-2">
-                 
+
                     <div className="flex gap-1.5">
                         <button
                             onClick={() => paginate(Math.max(1, currentPage - 1))}
@@ -485,7 +462,7 @@ const Warehouse = () => {
                         >
                             <ChevronDown className="rotate-90" size={16} />
                         </button>
-                        
+
                         {[...Array(totalPages)].map((_, i) => {
                             const pageNum = i + 1;
                             // Basic logic to show first, last, and pages around current
@@ -499,11 +476,10 @@ const Warehouse = () => {
                                     <button
                                         key={pageNum}
                                         onClick={() => paginate(pageNum)}
-                                        className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${
-                                            currentPage === pageNum
+                                        className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
                                                 ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
                                                 : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
-                                        }`}
+                                            }`}
                                     >
                                         {pageNum}
                                     </button>
@@ -674,14 +650,14 @@ const Warehouse = () => {
                                                         placeholder="e.g. 03C000"
                                                     />
                                                 </div>
-                                                    <div className="space-y-1">
-                                                        <label className="text-[10px] font-bold text-gray-500 ml-1">PROD CODE</label>
-                                                        <input
-                                                            name="prod_code" value={formData.prod_code} onChange={handleInputChange}
-                                                            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#127690] transition-all text-base font-mono"
-                                                            placeholder="e.g. 02"
-                                                        />
-                                                    </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-gray-500 ml-1">PROD CODE</label>
+                                                    <input
+                                                        name="prod_code" value={formData.prod_code} onChange={handleInputChange}
+                                                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#127690] transition-all text-base font-mono"
+                                                        placeholder="e.g. 02"
+                                                    />
+                                                </div>
 
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] font-bold text-gray-500 ml-1 flex items-center gap-1">
@@ -878,9 +854,17 @@ const Warehouse = () => {
                                                     <p className="text-base font-mono font-bold text-gray-700">{selectedWarehouse.prod_code}</p>
                                                 </div>
                                                 <div className="col-span-2 pt-2 border-t border-gray-100">
+                                                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Lattitude</p>
+                                                    <p className="text-base font-mono text-gray-600 break-all">{selectedWarehouse.latitude || "Not Set"}</p>
+                                                </div>
+                                                <div className="col-span-2 pt-2 border-t border-gray-100">
+                                                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Longitude</p>
+                                                    <p className="text-base font-mono text-gray-600 break-all">{selectedWarehouse.longitude || "Not Set"}</p>
+                                                </div>
+                                                {/* <div className="col-span-2 pt-2 border-t border-gray-100">
                                                     <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Security Key</p>
                                                     <p className="text-base font-mono text-gray-600 break-all">{selectedWarehouse.security_key || "Not Set"}</p>
-                                                </div>
+                                                </div> */}
                                             </div>
                                         </div>
                                     </div>

@@ -153,14 +153,19 @@ function OfferModal({ offer, onClose, onSave }) {
     useEffect(() => {
         const fetchMetadata = async () => {
             try {
-                const [catRes, prodRes] = await Promise.all([getCategoriesAPI(), getProductsAPI({ no_pagination: true })]);
+                const catRes = await getCategoriesAPI();
                 const categoriesData = catRes.data?.data || catRes.data?.results || catRes.data || [];
                 setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+            } catch (error) {
+                console.error("Error fetching categories:", error);
+            }
 
+            try {
+                const prodRes = await getProductsAPI({ limit: 1000, no_pagination: true });
                 const productsData = prodRes.data?.data || prodRes.data?.results || prodRes.data || [];
                 setProductsList(Array.isArray(productsData) ? productsData : []);
             } catch (error) {
-                console.error("Error fetching metadata:", error);
+                console.error("Error fetching products:", error);
             }
         };
         fetchMetadata();

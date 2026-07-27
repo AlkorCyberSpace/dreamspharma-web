@@ -22,10 +22,10 @@ function StatusBadge({ status }) {
 function DetailRow({ label, value }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0">
+      <span className="text-xs font-semibold text-gray-800 uppercase tracking-wide w-40 shrink-0">
         {label}
       </span>
-      <span className="text-sm text-gray-900 break-all">{value || "—"}</span>
+      <span className="text-sm text-black break-all">{value || "—"}</span>
     </div>
   );
 }
@@ -83,7 +83,7 @@ function RetailerModal({
             <h2 className="text-lg font-semibold text-gray-800">
               {retailer.shop_name || "Retailer Details"}
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-sm text-gray-900 mt-0.5">
               Retailer ID: #{retailer.id}
             </p>
           </div>
@@ -141,7 +141,7 @@ function RetailerModal({
 
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Drug License</p>
+                  <p className="text-[10px] font-bold text-gray-800 uppercase mb-1">Drug License</p>
                   {retailer.drug_license ? (
                     <button
                       onClick={() => setPreviewDoc(getMediaLink(retailer.drug_license))}
@@ -155,7 +155,7 @@ function RetailerModal({
                   )}
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">ID Proof</p>
+                  <p className="text-[10px] font-bold text-gray-800 uppercase mb-1">ID Proof</p>
                   {retailer.id_proof ? (
                     <button
                       onClick={() => setPreviewDoc(getMediaLink(retailer.id_proof))}
@@ -427,16 +427,16 @@ export default function RetailerKYCPage() {
         <div className="h-full overflow-y-auto">
           <div className="w-full overflow-x-auto">
             <table className="min-w-[900px] w-full text-left">
-              <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
+              <thead className="bg-[#DCE4EA] text-gray-700 text-[12px] uppercase  tracking-wider sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4">Retailer ID</th>
-                  <th className="px-6">Shop Name</th>
-                  <th className="px-6">Owner</th>
-                  <th className="px-6">Contact</th>
-                  <th className="px-6">Email</th>
-                  <th className="px-6">GST Number</th>
-                  <th className="px-6">KYC Status</th>
-                  <th className="px-6 text-center">Actions</th>
+                  <th className="px-2.5 py-2">Retailer ID</th>
+                  <th className="px-2">Shop Name</th>
+                  <th className="px-2">Owner</th>
+                  <th className="px-2">Contact</th>
+                  <th className="px-2">Email</th>
+                  <th className="px-2">GST Number</th>
+                  <th className="px-1">KYC Status</th>
+                  <th className="px-2 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="text-md text-gray-700">
@@ -457,16 +457,21 @@ export default function RetailerKYCPage() {
                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"
                           } hover:bg-[#EEF2F6] transition`}
                       >
-                        <td className="px-6 py-2 font-bold text-[#127690] whitespace-nowrap">{retailer.id}</td>
-                        <td className="px-6 text-sm text-gray-800 font-medium whitespace-nowrap ">{retailer.shop_name || "—"}</td>
-                        <td className="px-6 text-sm text-gray-900 whitespace-nowrap">{ownerName}</td>
-                        <td className="px-6 text-sm text-gray-800 whitespace-nowrap">{retailer.shop_phone || "—"}</td>
-                        <td className="px-6 text-sm text-gray-800 whitespace-nowrap">{retailer.shop_email || "—"}</td>
-                        <td className="px-6 text-sm text-gray-800 whitespace-nowrap font-medium">{retailer.gst_number || "—"}</td>
-                        <td className="px-6 whitespace-nowrap">
+                        <td className="px-2.5 py-2.5 font-bold text-[#127690] whitespace-nowrap">{retailer.id}</td>
+                        <td 
+                          className="px-2 text-md text-gray-800 font-medium whitespace-nowrap cursor-pointer hover:text-[#127690] hover:underline transition-colors"
+                          onClick={() => setSelectedRetailer(retailer)}
+                        >
+                          {retailer.shop_name || "—"}
+                        </td>
+                        <td className="px-2 text-md text-gray-900 whitespace-nowrap">{ownerName}</td>
+                        <td className="px-2 text-md text-gray-800 whitespace-nowrap">{retailer.shop_phone || "—"}</td>
+                        <td className="px-2 text-md text-gray-800 whitespace-nowrap">{retailer.shop_email || "—"}</td>
+                        <td className="px-2 text-md text-gray-800 whitespace-nowrap font-medium">{retailer.gst_number || "—"}</td>
+                        <td className="px-2 whitespace-nowrap">
                           <StatusBadge status={retailer.status} />
                         </td>
-                        <td className="px-6 text-center whitespace-nowrap">
+                        <td className="px-1 text-center whitespace-nowrap">
                           <button
                             onClick={() => setSelectedRetailer(retailer)}
                             className="text-[#127690] hover:text-[#127690]/80 transition-colors"

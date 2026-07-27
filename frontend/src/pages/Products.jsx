@@ -11,12 +11,12 @@ export default function Products() {
     const [categoryFilter, setCategoryFilter] = useState("All Brands");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 16;
+    const [pageSize, setPageSize] = useState(20);
     const [totalPages, setTotalPages] = useState(1);
     const [summaryStats, setSummaryStats] = useState({
         totalProducts: 0,
         lowStockCount: 0,
-        totalWarehouses: 1
+        totalWarehouses: 0
     });
     const [productsData, setProductsData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -75,39 +75,37 @@ export default function Products() {
             if (debouncedSearch) {
                 const searchParams = {
                     search: debouncedSearch,
-                    limit: itemsPerPage,
+                    limit: 100,
                 };
                 response = await searchProductsAPI(searchParams);
             } else {
                 const params = {
-                    page: currentPage,
-                    page_size: itemsPerPage,
+                    page: currentPage
                 };
                 if (categoryFilter && categoryFilter !== "All Brands") {
                     params.brand = categoryFilter;
                 }
                 response = await getProductsAPI(params);
             }
+
             if (response.data && response.data.data) {
                 const mappedData = response.data.data.map((item) => {
                     return {
                         id: item.c_item_code,
                         name: item.itemName,
-                        shortName: item.itemShortName || "-",
-                        erpBrand: item.brandName || item.brand_name || "-",
-                        erpCategory: item.categoryName || item.type_label || "-",
-                        erpContent: item.contentName || "-",
-                        erpPack: item.packName || "-",
-                        hsnCode: item.hsnSacCode || "-",
-                        hsnName: item.hsnSacName || "-",
-                        itemAddedDate: item.itemAddedDate || "-",
-                        itemUpdatedDate: item.itemUpdatedDate ? item.itemUpdatedDate.split(' ')[0] : "-",
+                        shortName: item.itemShortName,
+                        erpBrand: item.brandName || item.brand_name,
+                        erpCategory: item.categoryName || item.type_label,
+                        erpContent: item.contentName,
+                        erpPack: item.packName,
+                        hsnCode: item.hsnSacCode,
+                        hsnName: item.hsnSacName,
+                        itemAddedDate: item.itemAddedDate,
+                        itemUpdatedDate: item.itemUpdatedDate ? item.itemUpdatedDate.split(' ')[0] : null,
                         category: item.brand_name || "not choose",
-                        mrp: item.mrp ? `₹${item.mrp}` : "N/A",
+                        mrp: item.mrp,
                         stock: item.stockBalQty || 0,
                         lowStock: (item.stockBalQty || 0) < 5,
-                        batch: item.batchNo || "N/A",
-                        expiry: item.expiryDate || "N/A",
                         description: item.description,
                         subheading: item.subheading,
                         type_label: item.type_label,
@@ -118,6 +116,9 @@ export default function Products() {
                         itemQtyPerBox: item.itemQtyPerBox,
                         cartStatus: item.cart_status,
                         wishlistStatus: item.wishlist_status,
+                        batchDetails: item.batchDetails || [],
+                        max_disc: item.maxDiscPer,
+                        std_disc: item.stdDiscRate,
                     };
                 });
 
@@ -129,8 +130,10 @@ export default function Products() {
 
                 if (response.data.pagination) {
                     setTotalPages(response.data.pagination.total_pages || 1);
+                    setPageSize(response.data.pagination.page_size || 20);
                 } else {
                     setTotalPages(1);
+                    setPageSize(20);
                 }
                 if (response.data.summary) {
                     setSummaryStats({
@@ -138,6 +141,8 @@ export default function Products() {
                         lowStockCount: response.data.summary.low_stock_count || 0,
                         totalWarehouses: response.data.summary.total_warehouses || 1
                     });
+                    console.log(response.data.summary);
+
                 }
             }
         } catch (error) {
@@ -238,39 +243,44 @@ export default function Products() {
     };
     // Merge stock data into products
     const paginatedProducts = productsData.map((product) => {
-        const stock = stockData[product.id];
-        if (stock) {
-            let totalStock = 0;
-            let mrp = product.mrp;
-
-            if (stock.batchDetails && stock.batchDetails.length > 0) {
-                totalStock = stock.batchDetails.reduce((acc, curr) => acc + (curr.totalBalLsQty || 0), 0);
-
-                // If main product mrp is N/A, fallback to the latest batch mrp
-                if (mrp === "N/A" && stock.batchDetails[0].mrp) {
-                    mrp = `₹${stock.batchDetails[0].mrp}`;
-                }
-            } else {
-                totalStock = stock.totalBalLsQty || 0;
-            }
-
-            return {
-                ...product,
-                stock: totalStock,
-                lowStock: totalStock < 5,
-                mrp: mrp,
-                qtyBox: stock.qtyBox || 0,
-                contCode: stock.contCode || "-",
-                contName: stock.contName || "-",
-                batchDetails: stock.batchDetails || [],
-                // Fallbacks
-                packQty: stock.packQty || 0,
-                looseQty: stock.looseQty || 0,
-                totalBalLsQty: stock.totalBalLsQty || 0,
-                stockLastModified: stock.lastModifiedDateTime || "-",
-            };
+        const stock = stockData[product.id] || {};
+        
+        // Merge batches from both search API (product.batchDetails) and stock API (stock.batchDetails)
+        let batchDetails = [...(product.batchDetails || [])];
+        if (stock.batchDetails && stock.batchDetails.length > 0) {
+            const batchMap = new Map(batchDetails.map(b => [b.batchNo, b]));
+            stock.batchDetails.forEach(b => {
+                batchMap.set(b.batchNo, { ...batchMap.get(b.batchNo), ...b });
+            });
+            batchDetails = Array.from(batchMap.values());
         }
-        return product;
+
+        let totalStock = product.stock;
+        let mrp = product.mrp ? `₹${product.mrp}` : null;
+
+        if (batchDetails.length > 0) {
+            totalStock = batchDetails.reduce((acc, curr) => acc + (curr.totalBalLsQty || 0), 0);
+            if (!mrp && batchDetails[0].mrp) {
+                mrp = `₹${batchDetails[0].mrp}`;
+            }
+        } else if (stock.totalBalLsQty !== undefined) {
+            totalStock = stock.totalBalLsQty;
+        }
+
+        return {
+            ...product,
+            stock: totalStock,
+            lowStock: totalStock < 5,
+            mrp: mrp,
+            qtyBox: stock.qtyBox !== undefined ? stock.qtyBox : product.itemQtyPerBox,
+            contCode: stock.contCode,
+            contName: stock.contName,
+            batchDetails: batchDetails,
+            packQty: stock.packQty,
+            looseQty: stock.looseQty,
+            totalBalLsQty: stock.totalBalLsQty,
+            stockLastModified: stock.lastModifiedDateTime,
+        };
     });
 
     const handleSearch = (e) => {
@@ -293,15 +303,32 @@ export default function Products() {
         editFormState.image_3 !== null
     ) : false;
 
+    const handleOpenViewModal = (product) => {
+        setSelectedProduct(product);
+        setEditFormState({
+            subheading: product.subheading || "",
+            description: product.description || "",
+            type_label: product.category || "",
+            image_1: null,
+            image_1_preview: product.images?.[0]?.image || null,
+            image_2: null,
+            image_2_preview: product.images?.[1]?.image || null,
+            image_3: null,
+            image_3_preview: product.images?.[2]?.image || null,
+        });
+        setSelectedBrandId(product.brandId || "");
+        setIsModalOpen(true);
+    };
+
     return (
         <div className="min-h-full flex flex-col ml-2 mt-3 mb-8">
 
             <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 ">
                 <div>
-                    <h1 className="text-xl sm:text-xl md:text-xl font-semibold text-[#505050]">
+                    <h1 className="text-2xl sm:text-2xl md:text-2xl font-semibold text-[#505050]">
                         Product & Inventory View
                     </h1>
-                    <p className="text-xs sm:text-sm text-[#505050] mt-1">
+                    <p className="text-sm sm:text-base text-[#505050] mt-1">
                         Real-time ERP-synced product catalog and stock levels
                     </p>
                 </div>
@@ -314,14 +341,14 @@ export default function Products() {
                         placeholder="Search by product name or ID..."
                         value={search}
                         onChange={handleSearch}
-                        className="flex-1 bg-transparent border-none outline-none px-3 text-sm text-[#505050] placeholder:text-[#9EA2A7]"
+                        className="flex-1 bg-transparent border-none outline-none px-3 text-base text-[#505050] placeholder:text-[#9EA2A7]"
                     />
 
                     {/* Custom Dropdown */}
                     <div className="relative border border-gray-100 rounded-lg bg-white">
                         <button
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="flex items-center gap-2 px-4 py-1.5 text-[#505050] text-sm font-medium hover:bg-gray-50 rounded-lg transition-colors whitespace-nowrap min-w-[140px] justify-between"
+                            className="flex items-center gap-2 px-4 py-1.5 text-[#505050] text-base font-medium hover:bg-gray-50 rounded-lg transition-colors whitespace-nowrap min-w-[140px] justify-between"
                         >
                             {categoryFilter}
                             <svg
@@ -340,7 +367,7 @@ export default function Products() {
                                 <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in zoom-in duration-200">
                                     <button
                                         onClick={() => handleCategoryChange("All Brands")}
-                                        className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors hover:bg-[#EEF1F5] ${categoryFilter === "All Brands" ? 'bg-[#EEF1F5] text-[#000000] font-semibold' : 'text-[#505050]'
+                                        className={`w-full text-left px-4 py-2.5 text-base transition-colors hover:bg-[#EEF1F5] ${categoryFilter === "All Brands" ? 'bg-[#EEF1F5] text-[#000000] font-semibold' : 'text-[#505050]'
                                             }`}
                                     >
                                         All Brands
@@ -349,7 +376,7 @@ export default function Products() {
                                         <button
                                             key={brand.id}
                                             onClick={() => handleCategoryChange(brand.name)}
-                                            className={`w-full text-left px-4 py-2.5 text-[13px] transition-colors hover:bg-[#EEF1F5] ${categoryFilter === brand.name ? 'bg-[#EEF1F5] text-[#000000] font-semibold' : 'text-[#505050]'
+                                            className={`w-full text-left px-4 py-2.5 text-base transition-colors hover:bg-[#EEF1F5] ${categoryFilter === brand.name ? 'bg-[#EEF1F5] text-[#000000] font-semibold' : 'text-[#505050]'
                                                 }`}
                                         >
                                             {brand.name}
@@ -400,7 +427,7 @@ export default function Products() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                        <thead className="bg-[#DCE4EA] text-gray-500 text-[11px] uppercase font-bold tracking-wider sticky top-0 z-10">
+                        <thead className="bg-[#DCE4EA] text-gray-500 text-sm uppercase font-bold tracking-wider sticky top-0 z-10">
                             <tr>
                                 <th className="px-2 py-4 text-center whitespace-nowrap">SI NO</th>
                                 <th className="whitespace-nowrap">PRODUCT ID</th>
@@ -414,7 +441,7 @@ export default function Products() {
                                 <th className="px-2 text-center whitespace-nowrap">ACTION</th>
                             </tr>
                         </thead>
-                        <tbody className="text-sm text-gray-700 divide-y divide-gray-50">
+                        <tbody className="text-base text-gray-700 divide-y divide-gray-50">
                             {loading ? (
                                 <tr>
                                     <td colSpan={10} className="px-6 py-10 text-center text-gray-400">
@@ -436,39 +463,34 @@ export default function Products() {
                                         key={index}
                                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#F4F6F8]"} hover:bg-[#EEF2F6] transition`}
                                     >
-                                        <td className="px-3 py-2 text-[12px] font-bold text-gray-800 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                                        <td className="px-2 text-sm text-[#127690] font-bold">{product.id}</td>
-                                        <td className="px-3 text-sm text-gray-800 font-medium">{product.name}</td>
-                                        <td className="px-2 text-sm text-gray-800">{product.category}</td>
-                                        <td className="px-2 py-4 text-sm text-gray-800">{product.hsnCode}</td>
-                                        <td className="px-2 py-4 text-sm text-gray-800">{product.erpPack}</td>
-                                        <td className="px-2 py-4 text-sm text-gray-600 font-bold whitespace-nowrap">{product.itemAddedDate}</td>
-                                        <td className="px-2 py-4 text-sm whitespace-nowrap">
-                                            <span className="text-gray-600 font-semibold">{product.itemUpdatedDate}</span>
+                                        <td className="px-3 py-2 text-sm font-bold text-gray-800 text-center">{(currentPage - 1) * pageSize + index + 1}</td>
+                                        <td 
+                                            className="px-2 text-base text-[#127690] font-bold cursor-pointer hover:underline transition-colors"
+                                            onClick={() => handleOpenViewModal(product)}
+                                        >
+                                            {product.id}
+                                        </td>
+                                        <td 
+                                            className="px-3 text-base text-gray-800 font-medium cursor-pointer hover:text-[#127690] hover:underline transition-colors"
+                                            onClick={() => handleOpenViewModal(product)}
+                                        >
+                                            {product.name}
+                                        </td>
+                                        <td className="px-2 text-base text-gray-800">{product.category || "-"}</td>
+                                        <td className="px-2 py-4 text-base text-gray-800">{product.hsnCode || "-"}</td>
+                                        <td className="px-2 py-4 text-base text-gray-800">{product.erpPack || "-"}</td>
+                                        <td className="px-2 py-4 text-base text-gray-600 font-bold whitespace-nowrap">{product.itemAddedDate || "-"}</td>
+                                        <td className="px-2 py-4 text-base whitespace-nowrap">
+                                            <span className="text-gray-600 font-semibold">{product.itemUpdatedDate || "-"}</span>
                                         </td>
                                         <td className="px-2 py-4 text-center whitespace-nowrap">
-                                            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap inline-block ${product.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
+                                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap inline-block ${product.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
                                                 {product.lowStock ? "Low Stock" : "Sufficient"}
                                             </span>
                                         </td>
-                                        <td className="px-2 text-[13px] text-center">
+                                        <td className="px-2 text-base text-center">
                                             <button
-                                                onClick={() => {
-                                                    setSelectedProduct(product);
-                                                    setEditFormState({
-                                                        subheading: product.subheading || "",
-                                                        description: product.description || "",
-                                                        type_label: product.category || "",
-                                                        image_1: null,
-                                                        image_1_preview: product.images?.[0]?.image || null,
-                                                        image_2: null,
-                                                        image_2_preview: product.images?.[1]?.image || null,
-                                                        image_3: null,
-                                                        image_3_preview: product.images?.[2]?.image || null,
-                                                    });
-                                                    setSelectedBrandId(product.brandId || "");
-                                                    setIsModalOpen(true);
-                                                }}
+                                                onClick={() => handleOpenViewModal(product)}
                                                 className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-[#127690]"
                                                 title="View / Edit Details"
                                             >
@@ -506,7 +528,7 @@ export default function Products() {
                                         <button
                                             key={pageNum}
                                             onClick={() => setCurrentPage(pageNum)}
-                                            className={`w-9 h-9 rounded-xl font-bold text-xs transition-all ${currentPage === pageNum
+                                            className={`w-9 h-9 rounded-xl font-bold text-sm transition-all ${currentPage === pageNum
                                                 ? 'bg-[#127690] text-white shadow-lg shadow-[#127690]/20 scale-110'
                                                 : 'bg-white border border-gray-200 text-gray-500 hover:border-[#127690] hover:text-[#127690]'
                                                 }`}
@@ -547,12 +569,12 @@ export default function Products() {
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-800">{selectedProduct.name}</h2>
-                                <p className="text-xs text-gray-400 mt-0.5">Product ID: {selectedProduct.id}</p>
+                                <h2 className="text-xl font-semibold text-gray-800">{selectedProduct.name}</h2>
+                                <p className="text-sm text-gray-400 mt-0.5">Product ID: {selectedProduct.id}</p>
                             </div>
                             <div className="flex items-center gap-3">
                                 {selectedProduct.lowStock && (
-                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-600">
                                         <AlertTriangle size={12} /> Low Stock
                                     </span>
                                 )}
@@ -573,9 +595,9 @@ export default function Products() {
                                 <div className="flex flex-col gap-3 p-4 border-r border-gray-100">
                                     {/* Images */}
                                     <div>
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest mb-2">
+                                        <p className="text-sm font-bold text-[#127690] uppercase tracking-widest mb-2">
                                             Product Images
-                                            <span className="block text-[10px] text-gray-600 normal-case tracking-normal mt-0.5 font-medium">Format: JPG, PNG, WEBP (Max 5MB)</span>
+                                            <span className="block text-xs text-gray-600 normal-case tracking-normal mt-0.5 font-medium">Format: JPG, PNG, WEBP (Max 5MB)</span>
                                         </p>
 
                                         <div className="flex flex-wrap lg:flex-nowrap gap-3">
@@ -623,11 +645,11 @@ export default function Products() {
 
                                     {/* Description */}
                                     <div className="bg-gray-50 rounded-xl p-3 flex-1 flex flex-col">
-                                        <label className="text-xs font-bold text-[#127690] uppercase tracking-widest mb-1.5 cursor-pointer">Description</label>
+                                        <label className="text-sm font-bold text-[#127690] uppercase tracking-widest mb-1.5 cursor-pointer">Description</label>
                                         <textarea
                                             value={editFormState.description}
                                             onChange={(e) => setEditFormState({ ...editFormState, description: e.target.value })}
-                                            className="w-full flex-1 min-h-[80px] px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#127690] focus:border-[#127690] transition-all placeholder:text-gray-800 resize-none"
+                                            className="w-full flex-1 min-h-[80px] px-3 py-2 bg-white border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-1 focus:ring-[#127690] focus:border-[#127690] transition-all placeholder:text-gray-800 resize-none"
                                             placeholder="Add product description..."
                                         />
                                     </div>
@@ -637,29 +659,29 @@ export default function Products() {
                                 <div className="flex flex-col gap-3 p-4 border-r border-gray-100">
                                     {/* Product Info */}
                                     <div className="space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Product Info</p>
+                                        <p className="text-sm font-bold text-[#127690] uppercase tracking-widest">Product Info</p>
                                         <ModalRow label="Product Code" value={selectedProduct.id} />
                                         <ModalRow label="Product Name" value={selectedProduct.name} />
                                         <ModalRow label="Short Name" value={selectedProduct.shortName} />
                                         <ModalRow label="ERP Brand" value={selectedProduct.erpBrand} />
                                         <ModalRow label="ERP Category" value={selectedProduct.erpCategory} />
-                                        <ModalRow label="Content" value={selectedProduct.erpContent} />
-                                        <ModalRow label="Pack" value={selectedProduct.erpPack} />
+                                        {/* <ModalRow label="Content" value={selectedProduct.erpContent} />
+                                        <ModalRow label="Pack" value={selectedProduct.erpPack} /> */}
                                         <ModalRow label="HSN Code" value={selectedProduct.hsnCode} />
                                         <ModalRow label="HSN Name" value={selectedProduct.hsnName} />
                                         {/* <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-                                            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0 mt-1.5">Category</span>
-                                            <input type="text" value={editFormState.type_label} onChange={e => setEditFormState({ ...editFormState, type_label: e.target.value })} className="flex-1 text-sm bg-gray-50 rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Category" />
+                                            <span className="text-sm font-semibold text-gray-400 uppercase tracking-wide w-40 shrink-0 mt-1.5">Category</span>
+                                            <input type="text" value={editFormState.type_label} onChange={e => setEditFormState({ ...editFormState, type_label: e.target.value })} className="flex-1 text-base bg-gray-50 rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Category" />
                                         </div> */}
                                         <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-                                            <span className="text-xs font-semibold uppercase tracking-wide w-40 shrink-0 mt-1.5">Subheading</span>
-                                            <input type="text" value={editFormState.subheading} onChange={e => setEditFormState({ ...editFormState, subheading: e.target.value })} className="flex-1 text-sm bg-gray-50  text-[#020202] rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Subheading" />
+                                            <span className="text-sm font-semibold uppercase tracking-wide w-40 shrink-0 mt-1.5">Subheading</span>
+                                            <input type="text" value={editFormState.subheading} onChange={e => setEditFormState({ ...editFormState, subheading: e.target.value })} className="flex-1 text-base bg-gray-50  text-[#020202] rounded px-2 py-1 border border-gray-200 focus:outline-none focus:border-[#127690] hover:bg-gray-100 transition-colors" placeholder="Subheading" />
                                         </div>
                                     </div>
 
                                     {/* Brand Selection */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Brand</p>
+                                        <p className="text-sm font-bold text-[#127690] uppercase tracking-widest">Category</p>
                                         <div className="relative">
                                             <button
                                                 type="button"
@@ -676,8 +698,8 @@ export default function Products() {
                                                             </div>
                                                         )}
                                                         <div>
-                                                            <p className="text-sm font-semibold">{brands.find(b => b.id === selectedBrandId)?.name || "Unknown Brand"}</p>
-                                                            <p className="text-[10px] text-gray-500 font-medium">Brand ID: {selectedBrandId}</p>
+                                                            <p className="text-base font-semibold">{brands.find(b => b.id === selectedBrandId)?.name || "Unknown Brand"}</p>
+                                                            <p className="text-xs text-gray-500 font-medium">Brand ID: {selectedBrandId}</p>
                                                         </div>
                                                     </div>
                                                 ) : (
@@ -685,7 +707,7 @@ export default function Products() {
                                                         <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
                                                             <Archive size={14} className="text-gray-400" />
                                                         </div>
-                                                        <span className="text-sm text-gray-400 font-medium">Select Brand</span>
+                                                        <span className="text-base text-gray-400 font-medium">Select category</span>
                                                     </div>
                                                 )}
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -700,11 +722,11 @@ export default function Products() {
                                                     <div className="fixed inset-0 z-40" onClick={() => setIsBrandDropdownOpen(false)} />
                                                     <div className="absolute bottom-full left-0 mb-2 w-51 max-h-60 overflow-y-auto bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
                                                         <div className="px-3 pb-2 border-b border-gray-50 mb-1">
-                                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select a Brand</p>
+                                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Select a Brand</p>
                                                         </div>
                                                         {/* <button
                                                             onClick={() => { setSelectedBrandId(""); setIsBrandDropdownOpen(false); }}
-                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-500 italic"
+                                                            className="w-full text-left px-4 py-2 text-base hover:bg-gray-50 text-gray-500 italic"
                                                         >
                                                             No Brand
                                                         </button> */}
@@ -715,14 +737,14 @@ export default function Products() {
                                                                     setSelectedBrandId(brand.id);
                                                                     setIsBrandDropdownOpen(false);
                                                                 }}
-                                                                className={`w-full text-left flex items-center px-4 py-2 text-sm transition-colors hover:bg-blue-50 ${selectedBrandId === brand.id ? 'bg-blue-50 text-blue-700 font-semibold border-r-4 border-blue-600' : 'text-gray-700'}`}
+                                                                className={`w-full text-left flex items-center px-4 py-2 text-base transition-colors hover:bg-blue-50 ${selectedBrandId === brand.id ? 'bg-blue-50 text-blue-700 font-semibold border-r-4 border-blue-600' : 'text-gray-700'}`}
                                                             >
                                                                 {/* {brand.logo ? (
                                                                     <img src={brand.logo} alt="" className="w-8 h-8 rounded-lg object-contain border border-gray-100 bg-white p-0.5" />
                                                                 ) :null} */}
                                                                 <div className="flex-1 text-left">
-                                                                    <p className="text-sm font-medium">{brand.name}</p>
-                                                                    <p className="text-[10px] text-gray-400">ID: {brand.id}</p>
+                                                                    <p className="text-base font-medium">{brand.name}</p>
+                                                                    <p className="text-xs text-gray-400">ID: {brand.id}</p>
                                                                 </div>
                                                             </button>
                                                         ))}
@@ -735,12 +757,12 @@ export default function Products() {
                                     {/* Batch & Expiry */}
                                     {selectedProduct.batchDetails && selectedProduct.batchDetails.length > 0 ? (
                                         <div className="bg-gray-50 rounded-xl p-3 space-y-3 max-h-[300px] overflow-y-auto">
-                                            <p className="text-xs font-bold text-[#127690] uppercase tracking-widest sticky top-0 bg-gray-50 z-10 pb-1">Batch Details</p>
+                                            <p className="text-sm font-bold text-[#127690] uppercase tracking-widest sticky top-0 bg-gray-50 z-10 pb-1">Batch Details</p>
                                             {selectedProduct.batchDetails.map((batch, idx) => (
                                                 <div key={idx} className="border border-gray-200 rounded-lg p-2 space-y-2 bg-white">
                                                     <div className="flex justify-between items-center border-b border-gray-100 pb-1 mb-1">
-                                                        <span className="text-xs font-bold text-gray-800">Batch: {batch.batchNo}</span>
-                                                        <span className="text-[10px] text-gray-500 font-semibold">Exp: {batch.expiryDate ? batch.expiryDate.split(' ')[0] : 'N/A'}</span>
+                                                        <span className="text-sm font-bold text-gray-800">Batch: {batch.batchNo}</span>
+                                                        <span className="text-xs text-gray-500 font-semibold">Exp: {batch.expiryDate ? batch.expiryDate.split(' ')[0] : 'N/A'}</span>
                                                     </div>
                                                     <ModalRow label="MRP" value={batch.mrp} />
                                                     <ModalRow label="MRP Box" value={batch.mrpBox} />
@@ -753,7 +775,7 @@ export default function Products() {
                                         </div>
                                     ) : (
                                         <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                            <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Batch & Expiry</p>
+                                            <p className="text-sm font-bold text-[#127690] uppercase tracking-widest">Batch & Expiry</p>
                                             <ModalRow label="Batch Number" value={selectedProduct.batch} />
                                             <ModalRow label="Expiry Date" value={selectedProduct.expiry} />
                                         </div>
@@ -764,7 +786,7 @@ export default function Products() {
                                 <div className="flex flex-col gap-3 p-4">
                                     {/* Pricing */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Pricing</p>
+                                        <p className="text-sm font-bold text-[#127690] uppercase tracking-widest">Pricing</p>
                                         <ModalRow label="MRP" value={selectedProduct.mrp} />
                                         <ModalRow label="Max Discount" value={selectedProduct.max_disc != null ? `${selectedProduct.max_disc}%` : null} />
                                         <ModalRow label="Standard Discount" value={selectedProduct.std_disc != null ? `${selectedProduct.std_disc}%` : null} />
@@ -772,7 +794,7 @@ export default function Products() {
 
                                     {/* Stock Details */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Item Stock Info</p>
+                                        <p className="text-sm font-bold text-[#127690] uppercase tracking-widest">Item Stock Info</p>
                                         <ModalRow label="Qty Per Box" value={selectedProduct.qtyBox} />
                                         <ModalRow label="Content Code" value={selectedProduct.contCode} />
                                         <ModalRow label="Content Name" value={selectedProduct.contName} />
@@ -788,22 +810,22 @@ export default function Products() {
 
                                     {/* Status */}
                                     <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                        <p className="text-xs font-bold text-[#127690] uppercase tracking-widest">Status</p>
+                                        <p className="text-sm font-bold text-[#127690] uppercase tracking-widest">Status</p>
                                         {/* <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Cart Status</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.cartStatus ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-800"}`}>
+                                            <span className="text-xs font-semibold uppercase tracking-wide w-28 shrink-0">Cart Status</span>
+                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${selectedProduct.cartStatus ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.cartStatus ? "In Cart" : "Not In Cart"}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0">Wishlist</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.wishlistStatus ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-800"}`}>
+                                            <span className="text-xs font-semibold uppercase tracking-wide w-28 shrink-0">Wishlist</span>
+                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${selectedProduct.wishlistStatus ? "bg-pink-100 text-pink-700" : "bg-gray-200 text-gray-800"}`}>
                                                 {selectedProduct.wishlistStatus ? "Wishlisted" : "Not Wishlisted"}
                                             </span>
                                         </div> */}
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-semibold uppercase tracking-wide w-28 shrink-0"> Stock</span>
-                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selectedProduct.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
+                                            <span className="text-xs font-semibold uppercase tracking-wide w-28 shrink-0"> Stock</span>
+                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${selectedProduct.lowStock ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
                                                 {selectedProduct.lowStock ? "Low Stock" : "Sufficient"}
                                             </span>
                                         </div>
@@ -816,7 +838,7 @@ export default function Products() {
                         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50 rounded-b-2xl">
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="px-5 py-2 text-sm font-medium bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors shadow-sm"
+                                className="px-5 py-2 text-base font-medium bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg transition-colors shadow-sm"
                                 disabled={savingProduct}
                             >
                                 Close
@@ -825,7 +847,7 @@ export default function Products() {
                                 <button
                                     onClick={handleUpdateSubmit}
                                     disabled={savingProduct}
-                                    className="px-6 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-sm shadow-blue-600/20 flex items-center gap-2 disabled:bg-blue-400"
+                                    className="px-6 py-2 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-sm shadow-blue-600/20 flex items-center gap-2 disabled:bg-blue-400"
                                 >
                                     {savingProduct && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                                     {savingProduct ? 'Saving...' : 'Save Changes'}
@@ -843,12 +865,15 @@ export default function Products() {
 
 // Helper Component for Modal Detail Rows (matches Retailer modal style)
 function ModalRow({ label, value }) {
+    const isMissing = value === undefined || value === null || value === "" || value === "-";
     return (
         <div className="flex flex-col sm:flex-row sm:items-start gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide w-40 shrink-0">
+            <span className="text-sm font-semibold uppercase tracking-wide w-40 shrink-0">
                 {label}
             </span>
-            <span className="text-sm font-medium text-gray-900 break-all">{value ?? "—"}</span>
+            <span className={`text-base font-medium break-all ${isMissing ? 'text-orange-500 italic text-sm py-0.5' : 'text-gray-900'}`}>
+                {isMissing ? "Not provided by backend" : value}
+            </span>
         </div>
     );
 }

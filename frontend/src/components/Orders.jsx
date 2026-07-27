@@ -311,6 +311,7 @@ const Orders = () => {
     };
     fetchAdminProfile();
   }, []);
+  
   const getStatusStyles = (status) => {
     switch (status) {
       case 'Delivered':
