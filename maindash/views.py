@@ -1517,19 +1517,19 @@ class SuperAdminOrdersView(APIView):
             timeline = []
             timeline.append({
                 'label': 'Created',
-                'date': order.created_at.strftime('%Y-%m-%d %I:%M %p') if order.created_at else '',
+                'date': timezone.localtime(order.created_at).strftime('%Y-%m-%d %I:%M %p') if order.created_at else '',
                 'status': 'completed'
             })
             if order.ord_conversion_flag:
                 timeline.append({
                     'label': 'Confirmed',
-                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'date': timezone.localtime(order.updated_at).strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
                     'status': 'completed'
                 })
             if order.dc_conversion_flag:
                 timeline.append({
                     'label': 'Dispatched',
-                    'date': order.updated_at.strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
+                    'date': timezone.localtime(order.updated_at).strftime('%Y-%m-%d %I:%M %p') if order.updated_at else '',
                     'status': 'completed'
                 })
                 

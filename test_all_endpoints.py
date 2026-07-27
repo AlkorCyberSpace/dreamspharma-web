@@ -6,9 +6,10 @@ Tests ALL endpoints including: Auth, Cart, Wishlist, Products, Search, Recommend
 
 import requests
 import json
+import os
 from datetime import datetime
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.getenv("TEST_BASE_URL", "http://127.0.0.1:8000")
 
 # Test data
 TEST_USER_PHONE = "9999999999"
@@ -402,7 +403,7 @@ def run_all_tests():
     
     results.append(test_endpoint(
         "PersonalizedRecommendationsView (Personalized Recommendations)",
-        "GET", "/api/recommendations/personalized/",
+        "GET", "/api/recommendations/for-you/",
         params={'limit': 10},
         expected_status=[200, 401]
     ))

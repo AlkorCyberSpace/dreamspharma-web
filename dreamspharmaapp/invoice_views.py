@@ -18,17 +18,19 @@ def _safe(val, default="-"):
         return default
     return str(val)
 
+from reportlab.lib.pagesizes import A4, landscape
+
 def build_invoice_pdf(sales_order, invoice) -> bytes:
     """
-    Build a simple Dreams Pharma invoice PDF.
+    Build a detailed Dreams Pharma invoice PDF.
     Returns raw bytes of the PDF.
     """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
-        pagesize=A4,
-        rightMargin=20*mm, leftMargin=20*mm,
-        topMargin=20*mm, bottomMargin=20*mm,
+        pagesize=landscape(A4),
+        rightMargin=10*mm, leftMargin=10*mm,
+        topMargin=15*mm, bottomMargin=15*mm,
         title=f"Invoice {invoice.doc_no}",
     )
 
@@ -36,36 +38,63 @@ def build_invoice_pdf(sales_order, invoice) -> bytes:
     styles = getSampleStyleSheet()
     
     # Title
-    story.append(Paragraph(f"<b>Dreams Pharma - Invoice</b>", styles['Title']))
+    story.append(Paragraph(f"<b>Dreams Pharma - Detailed Invoice</b>", styles['Title']))
     story.append(Spacer(1, 5 * mm))
     
-    # Meta Info
-    story.append(Paragraph(f"<b>Order ID:</b> {_safe(sales_order.order_id)}", styles['Normal']))
-    story.append(Paragraph(f"<b>Invoice No:</b> {_safe(invoice.doc_no)}", styles['Normal']))
-    story.append(Paragraph(f"<b>Date:</b> {_safe(invoice.doc_date)}", styles['Normal']))
-    story.append(Spacer(1, 5 * mm))
-    
-    # Billing Info
-    story.append(Paragraph(f"<b>Billed To:</b> {_safe(sales_order.patient_name)}", styles['Normal']))
-    story.append(Paragraph(f"<b>Phone:</b> {_safe(sales_order.mobile_no)}", styles['Normal']))
+    # Meta Info Table
+    meta_data = [
+        [Paragraph(f"<b>Order ID:</b> {_safe(sales_order.order_id)}", styles['Normal']),
+         Paragraph(f"<b>Invoice No:</b> {_safe(invoice.doc_no)}", styles['Normal']),
+         Paragraph(f"<b>Date:</b> {_safe(invoice.doc_date)}", styles['Normal'])],
+        [Paragraph(f"<b>Billed To:</b> {_safe(sales_order.patient_name)}", styles['Normal']),
+         Paragraph(f"<b>Phone:</b> {_safe(sales_order.mobile_no)}", styles['Normal']),
+         Paragraph(f"<b>Status:</b> {_safe(invoice.doc_status)}", styles['Normal'])],
+        [Paragraph(f"<b>Customer Code:</b> {_safe(sales_order.cust_code)}", styles['Normal']),
+         Paragraph(f"<b>Doctor Name:</b> {_safe(sales_order.dr_name)}", styles['Normal']),
+         Paragraph(f"<b>Created By:</b> {_safe(invoice.created_by)}", styles['Normal'])]
+    ]
+    meta_table = Table(meta_data, colWidths=[90*mm, 90*mm, 90*mm])
+    story.append(meta_table)
     story.append(Spacer(1, 10 * mm))
 
     # Items Table
-    col_labels = ["#", "Product", "Batch", "Qty", "Rate", "Total"]
+    col_labels = [
+        "#", "Product", "HSN", "Pack", "Batch", "Exp Date", 
+        "Qty", "MRP", "Rate", "Disc%", "DiscAmt", 
+        "CGST", "SGST", "IGST", "Total"
+    ]
     tbl_data = [col_labels]
     
     details = list(invoice.details.all())
     subtotal = 0.0
+    total_disc = 0.0
+    total_cgst = 0.0
+    total_sgst = 0.0
+    total_igst = 0.0
 
     for idx, d in enumerate(details):
         item_total = float(d.item_total or 0)
         subtotal += item_total
+        total_disc += float(d.disc_amt or 0)
+        total_cgst += float(d.cgst_amt or 0)
+        total_sgst += float(d.sgst_amt or 0)
+        total_igst += float(d.igst_amt or 0)
+        
         tbl_data.append([
             str(idx + 1),
             _safe(d.product_name),
+            _safe(d.hsn_code),
+            _safe(d.qty_per_box),
             _safe(d.batch),
-            _safe(d.qty),
+            _safe(d.expiry_date),
+            f"{float(d.qty or 0):.2f}",
+            f"{float(d.mrp or 0):.2f}",
             f"{float(d.sale_rate or 0):.2f}",
+            f"{float(d.disc_per or 0):.2f}%",
+            f"{float(d.disc_amt or 0):.2f}",
+            f"{float(d.cgst_amt or 0):.2f} ({float(d.cgst_per or 0):.0f}%)",
+            f"{float(d.sgst_amt or 0):.2f} ({float(d.sgst_per or 0):.0f}%)",
+            f"{float(d.igst_amt or 0):.2f} ({float(d.igst_per or 0):.0f}%)",
             f"{item_total:.2f}"
         ])
 
@@ -75,18 +104,34 @@ def build_invoice_pdf(sales_order, invoice) -> bytes:
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),  # smaller font to fit landscape
         ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#F4F6F9")),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
     ]))
     story.append(table)
     story.append(Spacer(1, 10 * mm))
 
-    # Totals
-    grand_total = float(invoice.doc_total or 0)
-    story.append(Paragraph(f"<b>Subtotal:</b> {subtotal:.2f}", styles['Normal']))
-    story.append(Paragraph(f"<b>Grand Total:</b> {grand_total:.2f}", styles['Heading3']))
+    # Totals Section
+    totals_data = [
+        ["Total Discount:", f"{total_disc:.2f}"],
+        ["Total CGST:", f"{total_cgst:.2f}"],
+        ["Total SGST:", f"{total_sgst:.2f}"],
+        ["Total IGST:", f"{total_igst:.2f}"],
+        ["Doc Discount:", f"{float(invoice.doc_discount or 0):.2f}"],
+        ["Subtotal:", f"{subtotal:.2f}"],
+        ["Grand Total:", f"{float(invoice.doc_total or 0):.2f}"]
+    ]
+    totals_table = Table(totals_data, colWidths=[50*mm, 40*mm], hAlign='RIGHT')
+    totals_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+        ('FONTNAME', (0, -1), (1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (1, -1), 12),
+        ('TOPPADDING', (0, -1), (1, -1), 5),
+    ]))
+    story.append(totals_table)
     
     story.append(Spacer(1, 10 * mm))
     story.append(Paragraph("Thank you for your business!", styles['Normal']))

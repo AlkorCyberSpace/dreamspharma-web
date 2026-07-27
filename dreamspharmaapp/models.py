@@ -1015,6 +1015,8 @@ class Wishlist(models.Model):
     
     def get_item_count(self):
         """Get total number of items in wishlist"""
+        if hasattr(self, '_prefetched_objects_cache') and 'items' in self._prefetched_objects_cache:
+            return len(self._prefetched_objects_cache['items'])
         return self.items.count()
     
     def __str__(self):
