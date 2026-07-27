@@ -90,6 +90,21 @@ class DreamspharmaappConfig(AppConfig):
         """Start APScheduler and initialize ERP token when app is ready"""
         global _scheduler_started
         
+        # Monkey-patch APScheduler executor to suppress harmless shutdown RuntimeError
+        try:
+            from apscheduler.executors.base import BaseExecutor
+            def safe_submit_job(self, job, run_times):
+                import sys
+                try:
+                    self._do_submit_job(job, run_times)
+                except Exception as e:
+                    if 'after shutdown' in str(e) or sys.is_finalizing():
+                        return
+                    self._logger.exception('Error submitting job "%s" to executor "%s"', job, self._alias)
+            BaseExecutor.submit_job = safe_submit_job
+        except Exception:
+            pass
+        
         # Skip if already started in this process
         if _scheduler_started:
             return

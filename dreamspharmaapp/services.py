@@ -32,7 +32,6 @@ def send_push_notification(user, title, body, data=None):
     """
     try:
         if not firebase_admin._apps:
-            logger = logging.getLogger(__name__)
             logger.warning("Firebase is not initialized. Cannot send notification.")
             return {"error": "Firebase not initialized"}
             
@@ -83,8 +82,6 @@ def send_push_notification(user, title, body, data=None):
             "failure": response.failure_count
         }
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.exception(f"Error sending push notification: {e}")
         return {"error": str(e)}
 
@@ -135,6 +132,14 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                 api_key_fresh = get_cached_erp_token()
                 if api_key_fresh:
                     sales_order.erp_sync_payload['apiKey'] = api_key_fresh
+                
+                # Apply fallback customer codes if empty
+                if not sales_order.erp_sync_payload.get('actCode'):
+                    sales_order.erp_sync_payload['actCode'] = 'GC01'
+                if not sales_order.erp_sync_payload.get('actName'):
+                    sales_order.erp_sync_payload['actName'] = sales_order.patient_name or 'General Customer'
+                if not sales_order.erp_sync_payload.get('drCode') or sales_order.erp_sync_payload.get('drCode') == '':
+                    sales_order.erp_sync_payload['drCode'] = 'GD01'
 
                 erp_response = requests.post(erp_url, json=sales_order.erp_sync_payload, timeout=15)
                 
@@ -142,15 +147,20 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                     return False
                 
                 if erp_response.status_code in [200, 201]:
-                    erp_data = erp_response.json()
-                    if erp_data.get('code') == '200':
+                    import json as _json
+                    import re as _re
+                    raw_text = erp_response.text
+                    raw_text = _re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
+                    erp_data = _json.loads(raw_text)
+                    erp_message = erp_data.get('message', '') or ''
+                    if erp_data.get('code') == '200' or 'Order Number Already Exists' in erp_message:
                         if not sys.is_finalizing():
-                            logger.info(f"[OUTBOX_RETRY] [SUCCESS] Order {order_id} re-pushed and accepted by ERP!")
+                            logger.info(f"[OUTBOX_RETRY] [SUCCESS] Order {order_id} synced (status: {erp_message})")
                         sales_order.is_erp_synced = True
                         sales_order.erp_sync_error = None
                         sales_order.save(update_fields=['is_erp_synced', 'erp_sync_error', 'erp_sync_attempts', 'last_erp_sync_attempt'])
                     else:
-                        err_msg = f"ERP rejected order re-push: {erp_data.get('message')}"
+                        err_msg = f"ERP rejected order re-push: {erp_message}"
                         if not sys.is_finalizing():
                             logger.warning(f"[OUTBOX_RETRY] {err_msg}")
                         sales_order.erp_sync_error = err_msg
@@ -209,7 +219,11 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                     return False
                 
                 if response.status_code == 200:
-                    data = response.json()
+                    import json as _json
+                    import re as _re
+                    raw_text = response.text
+                    raw_text = _re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
+                    data = _json.loads(raw_text)
                     if not sys.is_finalizing():
                         logger.debug(f"[INVOICE_SYNC] ERP Response: {data}")
                     
@@ -289,7 +303,7 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                 invoice = Invoice.objects.create(
                     sales_order=sales_order,
                     doc_no=doc_no,
-                    doc_date=parse_date(invoice_data.get('docDate')),
+                    doc_date=parse_date(invoice_data.get('docDate')) or timezone.now().date(),
                     doc_status=invoice_data.get('docStatus', 'Invoice Created'),
                     created_by=invoice_data.get('createdBy', 'SYSTEM'),
                     doc_discount=invoice_data.get('docDiscount', 0),
@@ -310,7 +324,7 @@ def sync_invoice_from_erp(order_id, c2_code, store_id, max_retries=10):
                             qty_per_box=line_item.get('qtyPerBox', '1'),
                             batch=line_item.get('batch', ''),
                             qty=line_item.get('qty', 0),
-                            expiry_date=parse_date(line_item.get('expiryDate')),
+                            expiry_date=parse_date(line_item.get('expiryDate')) or parse_date('2099-12-31'),
                             mrp=line_item.get('mrp', 0),
                             sale_rate=line_item.get('saleRate', 0),
                             disc_amt=line_item.get('discAmt', 0),

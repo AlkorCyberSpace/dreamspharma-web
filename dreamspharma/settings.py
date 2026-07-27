@@ -29,16 +29,29 @@ logging.Handler.handle = _safe_handle
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load .env file manually if it exists (useful for local development and Droplets)
+env_path = BASE_DIR / '.env'
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, val = line.split('=', 1)
+                val = val.strip()
+                # Strip leading/trailing quotes if present
+                if len(val) >= 2 and ((val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'"))):
+                    val = val[1:-1]
+                os.environ[key.strip()] = val
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-v9div(*7#85s3qa+mt-wc%&&57s0sz5bpx4i-(h&)li__-1r*+'
+SECRET_KEY = os.environ.get('SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 CORS_ALLOW_ALL_ORIGINS = False
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 CORS_ALLOWED_ORIGINS = [
     "https://dreamspharma-web.vercel.app",
@@ -57,7 +70,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'ngrok-skip-browser-warning',
 ]
 CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
 
 # Application definition
@@ -193,17 +206,17 @@ CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000  # Prevent memory leaks in workers
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'pharma',        
-        'USER': 'postgres',      
-        'PASSWORD': 'Soorya@123',
-        'HOST': 'localhost',     
-        'PORT': '5432',         
+        'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.environ.get('DB_NAME', 'pharma'),        
+        'USER': os.environ.get('DB_USER', 'postgres'),      
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),     
+        'PORT': os.environ.get('DB_PORT', '5432'),         
         # ==================== CONNECTION POOLING ====================
         # ✅ PRODUCTION FIX #1: Reuse database connections (prevents connection exhaustion)
         # Without this: Every request creates new DB connection → 100+ users = 100+ connections!
         # With this: Connection pool reuses existing connections → Massive performance boost
-        'CONN_MAX_AGE': 0,  # Close connections immediately in development to prevent connection exhaustion
+        'CONN_MAX_AGE': int(os.environ.get('CONN_MAX_AGE', '0')),  # Close connections immediately in development to prevent connection exhaustion
         'OPTIONS': {
             'connect_timeout': 10,
             'keepalives': 1,
@@ -292,9 +305,9 @@ OTP_EXPIRY_TIME = 600  # 10 minutes in seconds
 EMAIL_HOST='smtp.gmail.com'
 EMAIL_USE_TLS=True
 EMAIL_PORT=587
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'heysoorya1@gmail.com')  # Use environment variable
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'ibot dfts yoke orsn')  # Use environment variable
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'sooryakr2004@gmail.com')  # Use environment variable
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')  # Use environment variable
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')  # Use environment variable
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')  # Use environment variable
 
 
 # ==================== ERP INTEGRATION ====================
@@ -307,10 +320,10 @@ ERP_BASE_URL = os.environ.get('ERP_BASE_URL', 'http://59.96.58.81:45501')  # ERP
  
 # ⚠️ Fallback ERP settings (used when no stores in database)
 # In production, these should be set via environment variables or Store model in database
-ERP_C2_CODE = os.environ.get('ERP_C2_CODE', '0X1000')
-ERP_STORE_ID = os.environ.get('ERP_STORE_ID', '501')
-ERP_PROD_CODE = os.environ.get('ERP_PROD_CODE', '02')
-ERP_SECURITY_KEY = os.environ.get('ERP_SECURITY_KEY', 'TUZneE5UQXhNalU9')
+ERP_C2_CODE = os.environ.get('ERP_C2_CODE', '')
+ERP_STORE_ID = os.environ.get('ERP_STORE_ID', '')
+ERP_PROD_CODE = os.environ.get('ERP_PROD_CODE', '')
+ERP_SECURITY_KEY = os.environ.get('ERP_SECURITY_KEY', '')
 
 # Token refresh settings (in hours)
 ERP_TOKEN_REFRESH_HOURS = 23  # Refresh token every 23 hours (before 24-hour expiry)
@@ -411,8 +424,8 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # ==================== RAZORPAY PAYMENT SETTINGS ====================
-RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_SN2KVaGDoF3Mdz')
-RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', 'e180zkNhC8ks54aeD0FuU9am')
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '')
 
 # Razorpay Settings
-RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', 'your_webhook_secret')
+RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
