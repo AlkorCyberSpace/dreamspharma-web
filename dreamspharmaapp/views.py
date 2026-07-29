@@ -942,14 +942,30 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
-            # 1. Extract token from request body or fallback to Authorization header
-            token_str = request.data.get("access") or request.data.get("token")
-            if not token_str and "tokens" in request.data:
-                token_str = request.data["tokens"].get("access") or request.data["tokens"].get("token")
-            if not token_str and request.data.get("refresh"):
-                token_str = request.data.get("refresh")
-            if not token_str and "tokens" in request.data:
-                token_str = request.data["tokens"].get("refresh")
+            print(f"DEBUG LOGOUT: request.data = {request.data}")
+            # Explicitly fail if refresh token key name is supplied in the request body
+            if "refresh" in request.data or ("tokens" in request.data and isinstance(request.data["tokens"], dict) and "refresh" in request.data["tokens"]):
+                return Response({
+                    "error": "Refresh token is not allowed for logout. Please use access token.",
+                    "code": "refresh_token_not_allowed"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # 1. Extract token safely from request body (handling nesting like "tokens" or "data")
+            def extract_token(d):
+                if not isinstance(d, dict):
+                    return None
+                token = d.get("access") or d.get("token")
+                if token:
+                    return token
+                if "tokens" in d and isinstance(d["tokens"], dict):
+                    token = d["tokens"].get("access") or d["tokens"].get("token")
+                    if token:
+                        return token
+                if "data" in d and isinstance(d["data"], dict):
+                    return extract_token(d["data"])
+                return None
+
+            token_str = extract_token(request.data)
                 
             if not token_str:
                 auth_header = request.headers.get("Authorization", "")
