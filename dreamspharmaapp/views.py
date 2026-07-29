@@ -942,22 +942,47 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
-            # Explicitly fail if refresh token is supplied in the request body
-            if "refresh" in request.data or ("tokens" in request.data and "refresh" in request.data["tokens"]):
-                return Response({
-                    "error": "Refresh token is not allowed for logout. Please use access token.",
-                    "code": "refresh_token_not_allowed"
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # Handle both top-level and nested access tokens
-            access_token = request.data.get("access")
-            if not access_token and "tokens" in request.data:
-                access_token = request.data["tokens"].get("access")
+            # 1. Extract token from request body or fallback to Authorization header
+            token_str = request.data.get("access") or request.data.get("token")
+            if not token_str and "tokens" in request.data:
+                token_str = request.data["tokens"].get("access") or request.data["tokens"].get("token")
+            if not token_str and request.data.get("refresh"):
+                token_str = request.data.get("refresh")
+            if not token_str and "tokens" in request.data:
+                token_str = request.data["tokens"].get("refresh")
                 
-            if not access_token:
+            if not token_str:
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header.startswith("Bearer "):
+                    token_str = auth_header.split(" ")[1]
+                    
+            if not token_str:
                 return Response({
-                    "error": "Access token is required",
+                    "error": "Token is required",
                     "code": "missing_token"
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            # 2. Validate token type claim using simplejwt
+            from rest_framework_simplejwt.tokens import AccessToken, RefreshToken, TokenError
+            
+            # Check if it is a valid AccessToken
+            try:
+                AccessToken(token_str)
+            except TokenError as e:
+                # If AccessToken fails, check if it's a RefreshToken
+                try:
+                    RefreshToken(token_str)
+                    return Response({
+                        "error": "Refresh token is not allowed for logout. Please use access token.",
+                        "code": "refresh_token_not_allowed"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                except TokenError:
+                    pass
+                
+                return Response({
+                    "error": "Invalid or expired access token",
+                    "code": "invalid_token",
+                    "details": str(e)
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
             # Blacklist outstanding refresh tokens for this user so they must re-login
