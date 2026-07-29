@@ -2665,6 +2665,11 @@ class CartView(APIView):
         user = request.user
         
         cart, created = Cart.objects.get_or_create(user=user)
+        
+        # 1. Update stock and price in DB for all items first
+        for cart_item in cart.items.all():
+            get_item_stock_status(cart_item.item.item_code)
+            
         serializer = CartSerializer(cart)
         
         # Fetch fresh stock status for each item
@@ -2677,7 +2682,7 @@ class CartView(APIView):
             item['availability'] = stock_status.get('status', 'Unknown')
             item['available_qty'] = stock_status.get('qty', 0)
             item['in_stock'] = stock_status.get('available', False)
-            item['current_price'] = str(round(stock_status.get('price', float(item.get('mrp', 0))), 2))
+            item['current_price'] = str(round(stock_status.get('price', float(item.get('mrpBox', 0))), 2))
             item['current_discount'] = round(stock_status.get('discount', 0), 2)
         
         return Response({
@@ -2844,13 +2849,24 @@ class AddToCartView(APIView):
                 'available_qty': stock_status['qty']
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Reload item from database to get the fresh MRP and details updated by get_item_stock_status
+        item = ItemMaster.objects.get(item_code=item_code)
+
+        # Get active store_id for stock locking
+        from .erp_service import ERPService
+        store_info = ERPService.get_config_by_store_id(store_id) if store_id else ERPService._get_fallback_config()
+        active_store_id = store_info['erp_config']['store_id'] if store_info else (store_id or '001')
+
         # ─── STEP 2: Atomic transaction ONLY for DB writes (fast, minimal lock time) ───
         try:
             with transaction.atomic():
                 # Lock only during DB write — no ERP calls inside here
                 try:
-                    stock_record = Stock.objects.select_for_update().get(item__item_code=item_code)
-                except Stock.DoesNotExist:
+                    stock_record = Stock.objects.select_for_update().filter(
+                        item__item_code=item_code,
+                        store_id=active_store_id
+                    ).first()
+                except Exception:
                     stock_record = None
 
                 # Get or create cart
@@ -2881,7 +2897,7 @@ class AddToCartView(APIView):
                 item_data['availability'] = stock_status.get('status', 'Unknown')
                 item_data['available_qty'] = stock_status.get('qty', 0)
                 item_data['in_stock'] = stock_status.get('available', False)
-                item_data['current_price'] = str(round(stock_status.get('price', float(item_data.get('mrp', 0))), 2))
+                item_data['current_price'] = str(round(stock_status.get('price', float(item_data.get('mrpBox', 0))), 2))
                 item_data['current_discount'] = round(stock_status.get('discount', 0), 2)
                 
                 # ── Show wallet balance (preview only - no deduction) ──
@@ -2938,16 +2954,20 @@ class UpdateCartItemView(APIView):
             cart_item.quantity = serializer.validated_data['quantity']
             cart_item.save()
             
+            # Add stock status to response and update DB cache
+            item_code = cart_item.item.item_code
+            stock_status = get_item_stock_status(item_code)
+            
+            # Refresh cart_item from DB to get the updated ItemMaster fields
+            cart_item.refresh_from_db()
+            
             item_serializer = CartItemSmallSerializer(cart_item)
             item_data = item_serializer.data
             
-            # Add stock status to response
-            item_code = cart_item.item.item_code
-            stock_status = get_item_stock_status(item_code)
             item_data['availability'] = stock_status.get('status', 'Unknown')
             item_data['available_qty'] = stock_status.get('qty', 0)
             item_data['in_stock'] = stock_status.get('available', False)
-            item_data['current_price'] = str(round(stock_status.get('price', float(item_data.get('mrp', 0))), 2))
+            item_data['current_price'] = str(round(stock_status.get('price', float(item_data.get('mrpBox', 0))), 2))
             item_data['current_discount'] = round(stock_status.get('discount', 0), 2)
             
             return Response({
@@ -3398,6 +3418,10 @@ class MoveToCartView(APIView):
                 'requested': quantity,
                 'available_qty': stock_status['qty']
             }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Reload item from database to get the fresh MRP and details updated by get_item_stock_status
+        item = ItemMaster.objects.get(item_code=item_code)
+        
         cart, _ = Cart.objects.get_or_create(user=request.user)
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
@@ -3410,6 +3434,10 @@ class MoveToCartView(APIView):
         # Remove from wishlist
         wishlist_item.delete()
         
+        # Update stock and price in DB for all items first
+        for c_item in cart.items.all():
+            get_item_stock_status(c_item.item.item_code)
+            
         cart_serializer = CartSerializer(cart)
         cart_data = cart_serializer.data
         
@@ -3420,7 +3448,7 @@ class MoveToCartView(APIView):
             item['availability'] = stock_status.get('status', 'Unknown')
             item['available_qty'] = stock_status.get('qty', 0)
             item['in_stock'] = stock_status.get('available', False)
-            item['current_price'] = str(round(stock_status.get('price', float(item.get('mrp', 0))), 2))
+            item['current_price'] = str(round(stock_status.get('price', float(item.get('mrpBox', 0))), 2))
             item['current_discount'] = round(stock_status.get('discount', 0), 2)
         
         return Response({
@@ -4876,6 +4904,9 @@ def fetch_stock_from_erp(item_code, store_id=None):
     try:
         from .erp_token_service import get_erp_token_for_store_config
         from .erp_service import ERPService
+        from django.utils import timezone
+        from datetime import datetime
+        from .models import ItemMaster, ProductInfo, Stock
         
         if store_id:
             store_info = ERPService.get_config_by_store_id(store_id)
@@ -4922,7 +4953,6 @@ def fetch_stock_from_erp(item_code, store_id=None):
             logger.error(f"[STOCK_DEBUG] ERP JSON malformed for {item_code} ({len(raw_bytes)} bytes): {json_err}")
             # ✅ Fallback: use local Stock DB pack_qty (synced from ERP via sync_itemmaster)
             try:
-                from .models import Stock
                 stock_obj = Stock.objects.filter(item__item_code=item_code).first()
                 if stock_obj:
                     logger.info(f"[STOCK_DEBUG] ERP parse failed → DB fallback pack_qty={stock_obj.pack_qty} for {item_code}")
@@ -4946,17 +4976,121 @@ def fetch_stock_from_erp(item_code, store_id=None):
                 try:
                     batch_list = stock_item.get('batchDetails', [])
                     logger.info(f"[STOCK_DEBUG] MATCHED {item_code} — batchDetails: {batch_list}")
-                    # Use packQty from batchDetails for stock availability
-                    total_pack_qty = sum(int(float(b.get('packQty') or 0)) for b in batch_list)
-                    logger.info(f"[STOCK_DEBUG] total_pack_qty (packQty) for {item_code}: {total_pack_qty}")
+                    
+                    qty_box = int(stock_item.get('qtyBox') or 1)
+                    today = timezone.now().date()
+                    
+                    active_batches = []
+                    expired_batches = []
+                    zero_qty_batches = []
+                    
+                    for b in batch_list:
+                        batch_no = b.get('batchNo', '')
+                        expiry_date_str = b.get('expiryDate', '')
+                        pack_qty = float(b.get('packQty') or 0)
+                        mrp_box = float(b.get('mrpBox') or b.get('mrp') or 0)
+                        
+                        # Check expiry
+                        is_expired = False
+                        try:
+                            if expiry_date_str:
+                                expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+                                if expiry_date < today:
+                                    is_expired = True
+                            else:
+                                expiry_date = datetime(2099, 12, 31).date()
+                        except Exception:
+                            expiry_date = datetime(2099, 12, 31).date()
+                            is_expired = False
+                            
+                        batch_info = {
+                            'batch_no': batch_no,
+                            'expiry_date': expiry_date,
+                            'pack_qty': pack_qty,
+                            'mrp_box': mrp_box,
+                            'is_expired': is_expired,
+                            'raw': b
+                        }
+                        
+                        if is_expired:
+                            expired_batches.append(batch_info)
+                        elif pack_qty <= 0:
+                            zero_qty_batches.append(batch_info)
+                        else:
+                            active_batches.append(batch_info)
+                            
+                    # FEFO Logic for Selecting Batch
+                    selected_batch = None
+                    if active_batches:
+                        active_batches.sort(key=lambda x: x['expiry_date'])
+                        selected_batch = active_batches[0]
+                    elif zero_qty_batches:
+                        zero_qty_batches.sort(key=lambda x: x['expiry_date'])
+                        selected_batch = zero_qty_batches[0]
+                    elif expired_batches:
+                        expired_batches.sort(key=lambda x: x['expiry_date'], reverse=True)
+                        selected_batch = expired_batches[0]
+                        
+                    mrp_box = 0.0
+                    expiry_date = datetime(2099, 12, 31).date()
+                    batch_no = '-'
+                    
+                    if selected_batch:
+                        mrp_box = selected_batch['mrp_box']
+                        expiry_date = selected_batch['expiry_date']
+                        batch_no = selected_batch['batch_no']
+                    
+                    # Sum only non-expired packQty
+                    total_pack_qty = sum(int(b['pack_qty']) for b in active_batches)
+                    
+                    # Update local database cache
+                    item, _ = ItemMaster.objects.update_or_create(
+                        item_code=item_code,
+                        defaults={
+                            'item_name': stock_item.get('itemName') or 'Unknown Product',
+                            'item_qty_per_box': qty_box,
+                            'batch_no': batch_no,
+                            'mrp': mrp_box, # Use mrpBox from the ERP as the price!
+                            'expiry_date': expiry_date,
+                        }
+                    )
+                    
+                    # Ensure ProductInfo
+                    ProductInfo.objects.update_or_create(
+                        item=item,
+                        defaults={
+                            'type_label': stock_item.get('contName') or 'Medicine',
+                        }
+                    )
+                    
+                    # Sum across all active/non-expired batches
+                    total_pack_qty = sum(int(b['pack_qty']) for b in active_batches)
+                    total_bal_ls_qty = sum(int(b['raw'].get('totalBalLsQty') or 0) for b in active_batches)
+                    total_loose_qty = sum(int(b['raw'].get('looseQty') or 0) for b in active_batches)
+                    
+                    # Update Stock table
+                    Stock.objects.update_or_create(
+                        item=item,
+                        store_id=store_id or erp_config['store_id'],
+                        defaults={
+                            'total_bal_ls_qty': total_bal_ls_qty,
+                            'pack_qty': total_pack_qty,
+                            'loose_qty': total_loose_qty,
+                            'qty_box': qty_box,
+                            'cont_code': stock_item.get('contCode') or stock_item.get('cont_code') or '-',
+                            'cont_name': stock_item.get('contName') or stock_item.get('cont_name') or '-',
+                        }
+                    )
+                    
+                    logger.info(f"[STOCK_DEBUG] Updated item {item_code}: stock={total_pack_qty}, mrp_box={mrp_box}, batch={batch_no}, expiry={expiry_date}")
                     return total_pack_qty
                 except Exception as inner_e:
-                    logger.error(f"[STOCK_DEBUG] Error parsing packQty for {item_code}: {inner_e}")
+                    logger.error(f"[STOCK_DEBUG] Error processing stockDetails for {item_code}: {inner_e}", exc_info=True)
                     return 0
         logger.warning(f"[STOCK_DEBUG] item_code='{item_code}' NOT FOUND in ERP stock response ({len(stock_items)} items)")
         return 0
     except Exception as e:
-        logger.error(f"[STOCK_DEBUG] Exception in fetch_stock_from_erp for {item_code}: {str(e)}")
+        logger.error(f"[STOCK_DEBUG] Exception in fetch_stock_from_erp for {item_code}: {str(e)}", exc_info=True)
         return 0
 
 
@@ -4971,88 +5105,34 @@ def get_item_stock_status(item_code, store_id=None):
     [UPDATED] Now uses auto-generated token automatically and supports store_id
     """
     try:
-        item_data = fetch_item_from_erp(item_code, store_id=store_id)
+        from django.utils import timezone
+        from .models import ItemMaster
         
-        # If not found in ERP master, fallback to local DB cache
-        if not item_data:
-            from .models import ItemMaster
-            item = ItemMaster.objects.filter(item_code=item_code).first()
-            if item:
-                item_data = {
-                    'c_item_code': item.item_code,
-                    'itemCode': item.item_code,
-                    'itemName': item.item_name,
-                    'mrp': float(item.mrp),
-                    'std_disc': float(item.std_disc),
-                    'max_disc': float(item.max_disc),
-                    'expiryDate': str(item.expiry_date) if item.expiry_date else '2099-12-31'
-                }
-                
-        # If still not found, check stock response to get itemName
-        if not item_data:
-            try:
-                from .erp_token_service import get_erp_token_for_store_config
-                from .erp_service import ERPService
-                store_info = ERPService.get_config_by_store_id(store_id) if store_id else ERPService._get_fallback_config()
-                if store_info:
-                    erp_config = store_info['erp_config']
-                    api_key = get_erp_token_for_store_config(erp_config)
-                    if api_key:
-                        erp_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
-                        erp_payload = {
-                            'apiKey':        api_key,
-                            'prodCode':      erp_config['prod_code'],
-                            'c2Code':        erp_config['c2_code'],
-                            'storeId':       erp_config['store_id'],
-                            'inputDateTime': '2021-07-01 10:10:00',
-                            'itemCodes':     [item_code]
-                        }
-                        response = requests.get(erp_url, json=erp_payload, timeout=10)
-                        if response.status_code == 200:
-                            raw_text = response.text
-                            raw_text = re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
-                            stock_data = json.loads(raw_text)
-                            stock_items = []
-                            if isinstance(stock_data, dict):
-                                stock_items = stock_data.get('stockDetails', []) or stock_data.get('data', [])
-                            elif isinstance(stock_data, list):
-                                stock_items = stock_data
-                            for s_item in stock_items:
-                                item_code_val = s_item.get('c_item_code') or s_item.get('itemCode')
-                                if item_code_val == item_code:
-                                    batch_list = s_item.get('batchDetails', [])
-                                    first_batch = batch_list[0] if batch_list else {}
-                                    mrp_val = first_batch.get('mrpBox') or first_batch.get('mrp', 0.0)
-                                    expiry_date_str = first_batch.get('expiryDate') or '2099-12-31'
-                                    item_data = {
-                                        'c_item_code': item_code,
-                                        'itemCode': item_code,
-                                        'itemName': s_item.get('itemName') or 'Unknown Product',
-                                        'mrp': float(mrp_val),
-                                        'std_disc': 0.0,
-                                        'max_disc': 0.0,
-                                        'expiryDate': expiry_date_str
-                                    }
-                                    break
-            except Exception as e:
-                logger.error(f"Error checking stock for fallback item data: {str(e)}")
-
-        if not item_data:
-            return {'available': False, 'status': 'Not found in ERP', 'qty': 0, 'is_expired': False, 'expiry_date': None}
-        
-        # ✅ Fetch real stock from ws_c2_services_fetch_stock
+        # 1. Fetch stock and update the local DB
         stock_qty = fetch_stock_from_erp(item_code, store_id=store_id)
         
-        # ✅ FIX #1: CHECK EXPIRY DATE - CRITICAL FOR PHARMACY
-        try:
-            expiry_date_str = item_data.get('expiryDate', '2099-12-31')
-            expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
-            is_expired = expiry_date < timezone.now().date()
-        except:
-            expiry_date = None
-            is_expired = False
+        # 2. Get the updated ItemMaster from the database
+        item = ItemMaster.objects.filter(item_code=item_code).first()
         
-        # Medicine is available ONLY if stock > 0 AND not expired
+        # If still not found, fallback to fetching master data (or auto-create)
+        if not item:
+            item_data = fetch_item_from_erp(item_code, store_id=store_id)
+            if item_data:
+                item = update_itemmaster_cache(item_code, item_data)
+        
+        if not item:
+            return {
+                'available': False,
+                'status': 'Product not found',
+                'qty': 0,
+                'price': 0.0,
+                'discount': 0.0,
+                'expiry_date': None,
+                'is_expired': False
+            }
+            
+        today = timezone.now().date()
+        is_expired = item.expiry_date < today if item.expiry_date else False
         available = stock_qty > 0 and not is_expired
         
         if is_expired:
@@ -5061,18 +5141,18 @@ def get_item_stock_status(item_code, store_id=None):
             status = 'Out of Stock'
         else:
             status = 'In Stock'
-        
+            
         return {
             'available': available,
             'status': status,
             'qty': int(stock_qty),
-            'price': float(item_data.get('mrp', 0)),
-            'discount': float(item_data.get('std_disc', 0)),
-            'expiry_date': str(expiry_date) if expiry_date else None,
+            'price': float(item.mrp),
+            'discount': float(item.std_disc),
+            'expiry_date': str(item.expiry_date) if item.expiry_date else None,
             'is_expired': is_expired
         }
     except Exception as e:
-        logger.error(f"Error getting stock status: {str(e)}")
+        logger.error(f"Error getting stock status: {str(e)}", exc_info=True)
         return {'available': False, 'status': 'Unable to check availability', 'qty': 0, 'is_expired': False, 'expiry_date': None}
 
 
