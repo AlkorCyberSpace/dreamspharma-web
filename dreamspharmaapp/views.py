@@ -942,17 +942,18 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
+            # Explicitly fail if refresh token is supplied in the request body
+            if "refresh" in request.data or ("tokens" in request.data and "refresh" in request.data["tokens"]):
+                return Response({
+                    "error": "Refresh token is not allowed for logout. Please use access token.",
+                    "code": "refresh_token_not_allowed"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             # Handle both top-level and nested access tokens
             access_token = request.data.get("access")
             if not access_token and "tokens" in request.data:
                 access_token = request.data["tokens"].get("access")
                 
-            # Fallback: get access token from Authorization header if not in body
-            if not access_token:
-                auth_header = request.headers.get("Authorization", "")
-                if auth_header.startswith("Bearer "):
-                    access_token = auth_header.split(" ")[1]
-                    
             if not access_token:
                 return Response({
                     "error": "Access token is required",
