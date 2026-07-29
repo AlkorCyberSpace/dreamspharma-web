@@ -942,25 +942,36 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
-            # Handle both top-level and nested refresh tokens
-            refresh_token = request.data.get("refresh")
-            if not refresh_token and "tokens" in request.data:
-                refresh_token = request.data["tokens"].get("refresh")
+            # Handle both top-level and nested access tokens
+            access_token = request.data.get("access")
+            if not access_token and "tokens" in request.data:
+                access_token = request.data["tokens"].get("access")
                 
-            if not refresh_token:
+            # Fallback: get access token from Authorization header if not in body
+            if not access_token:
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header.startswith("Bearer "):
+                    access_token = auth_header.split(" ")[1]
+                    
+            if not access_token:
                 return Response({
-                    "error": "Refresh token is required",
+                    "error": "Access token is required",
                     "code": "missing_token"
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            # Blacklist outstanding refresh tokens for this user so they must re-login
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+            user = request.user
+            outstanding_tokens = OutstandingToken.objects.filter(user=user)
+            for out_token in outstanding_tokens:
+                BlacklistedToken.objects.get_or_create(token=out_token)
+                
             logout(request)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
-                "error": "Invalid or expired token",
-                "code": "invalid_token",
+                "error": "Logout failed",
+                "code": "logout_failed",
                 "details": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
