@@ -772,7 +772,7 @@ class CartItemSerializer(serializers.ModelSerializer):
     description = serializers.SerializerMethodField()
     categoryName = serializers.SerializerMethodField()
     images = serializers.SerializerMethodField()
-    mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
+    mrpBox = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
     discountPercentage = serializers.SerializerMethodField()
     discountedPrice = serializers.SerializerMethodField()
     itemTotalMrp = serializers.SerializerMethodField()
@@ -784,7 +784,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = [
             'id', 'itemCode', 'itemName', 'subheading', 'description', 
-            'categoryName', 'images', 'mrp', 'quantity', 'batchNo',
+            'categoryName', 'images', 'mrpBox', 'quantity', 'batchNo',
             'discountPercentage', 'discountedPrice', 'itemTotalMrp', 
             'itemTotalDiscounted', 'itemSavings'
         ]
@@ -881,7 +881,7 @@ class CartItemSmallSerializer(serializers.ModelSerializer):
     itemName = serializers.CharField(source='item.item_name', read_only=True)
     subheading = serializers.SerializerMethodField()
     primaryImage = serializers.SerializerMethodField()
-    mrp = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
+    mrpBox = serializers.DecimalField(source='item.mrp', max_digits=10, decimal_places=2, read_only=True)
     discountPercentage = serializers.SerializerMethodField()
     discountedPrice = serializers.SerializerMethodField()
     itemTotalMrp = serializers.SerializerMethodField()
@@ -892,7 +892,7 @@ class CartItemSmallSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = [
             'id', 'itemCode', 'itemName', 'subheading', 'primaryImage',
-            'mrp', 'quantity', 'discountPercentage', 'discountedPrice', 
+            'mrpBox', 'quantity', 'discountPercentage', 'discountedPrice', 
             'itemTotalMrp', 'itemTotalDiscounted', 'itemSavings'
         ]
     
