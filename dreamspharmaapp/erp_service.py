@@ -128,7 +128,7 @@ class ERPService:
             'distance_km': 0,
             'erp_config': {
                 'c2_code': getattr(settings, 'ERP_C2_CODE', '03C000'),
-                'store_id': getattr(settings, 'ERP_STORE_ID', '001'),
+                'store_id': getattr(settings, 'ERP_STORE_ID', '501'),
                 'prod_code': getattr(settings, 'ERP_PROD_CODE', '02'),
                 'security_key': getattr(settings, 'ERP_SECURITY_KEY', 'TUVVek1EQXhNalE9'),
                 'base_url': settings.ERP_BASE_URL

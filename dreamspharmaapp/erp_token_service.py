@@ -118,23 +118,18 @@ def generate_erp_token_from_server():
 def get_cached_erp_token_for_store(store_config):
     """
     Get ERP token from cache for a specific store. Generate if expired/missing.
-    
-    Args:
-        store_config (dict): Store configuration with c2_code, store_id, etc.
-    
-    Returns:
-        str: API token or None
+    Uses Redis lock to prevent multiple workers generating tokens simultaneously.
     """
     store_id = store_config['store_id']
     cache_key = get_erp_token_cache_key(store_id)
     expiry_key = get_erp_token_expiry_cache_key(store_id)
-    
-    # Try to get from cache first
+    lock_key = f'erp_token_lock_{store_id}'
+
+    # Try to get from cache first (fast path - no lock needed)
     cached_token = cache.get(cache_key)
     cached_expiry = cache.get(expiry_key)
-    
+
     if cached_token and cached_expiry:
-        # Check if token is still valid (with 1 hour buffer)
         try:
             expiry_time = datetime.fromisoformat(cached_expiry)
             if timezone.now() < (expiry_time - timedelta(hours=1)):
@@ -145,25 +140,43 @@ def get_cached_erp_token_for_store(store_config):
                 return cached_token
         except:
             pass
-    
-    # Token not in cache or expired - generate new one
-    logger.info(f"[ERP_TOKEN] [STORE {store_id}] Token expired/missing - generating new...")
-    result = generate_erp_token_for_store(store_config)
-    
-    if result:
-        token = result['token']
-        # Cache for 24 hours
-        cache_timeout = 24 * 60 * 60
-        new_expiry = timezone.now() + timedelta(hours=24)
-        
-        cache.set(cache_key, token, cache_timeout)
-        cache.set(expiry_key, new_expiry.isoformat(), cache_timeout)
-        
-        logger.info(f"[ERP_TOKEN] [STORE {store_id}] [OK] Cached new token for 24 hours")
-        return token
-    
-    logger.warning(f"[ERP_TOKEN] [STORE {store_id}] [FAIL] Failed to generate new token")
-    return None
+
+    # Token expired/missing — use Redis lock so only ONE worker generates
+    # Other workers wait up to 15 seconds then re-check cache
+    lock_acquired = cache.add(lock_key, '1', timeout=30)  # 30s lock TTL
+
+    if not lock_acquired:
+        # Another worker is generating — wait and use their result
+        logger.info(f"[ERP_TOKEN] [STORE {store_id}] Waiting for another worker to generate token...")
+        import time
+        for _ in range(15):  # Wait up to 15 seconds
+            time.sleep(1)
+            token = cache.get(cache_key)
+            if token:
+                logger.info(f"[ERP_TOKEN] [STORE {store_id}] [OK] Got token from other worker")
+                return token
+        # Fallback: generate anyway if wait times out
+        logger.warning(f"[ERP_TOKEN] [STORE {store_id}] Wait timeout — generating token anyway")
+
+    try:
+        # Generate new token
+        logger.info(f"[ERP_TOKEN] [STORE {store_id}] Token expired/missing - generating new...")
+        result = generate_erp_token_for_store(store_config)
+
+        if result:
+            token = result['token']
+            cache_timeout = 8 * 60 * 60
+            new_expiry = timezone.now() + timedelta(hours=8)
+            cache.set(cache_key, token, cache_timeout)
+            cache.set(expiry_key, new_expiry.isoformat(), cache_timeout)
+            logger.info(f"[ERP_TOKEN] [STORE {store_id}] [OK] Cached new token for 8 hours")
+            return token
+
+        logger.warning(f"[ERP_TOKEN] [STORE {store_id}] [FAIL] Failed to generate new token")
+        return None
+    finally:
+        # Always release the lock
+        cache.delete(lock_key)
 
 
 def get_cached_erp_token():
@@ -243,8 +256,8 @@ def refresh_erp_token_for_store(store_config):
         store_id = store_config['store_id']
         
         # Update cache
-        cache_timeout = 24 * 60 * 60
-        new_expiry = timezone.now() + timedelta(hours=24)
+        cache_timeout = 8 * 60 * 60
+        new_expiry = timezone.now() + timedelta(hours=8)
         
         cache.set(get_erp_token_cache_key(store_id), token, cache_timeout)
         cache.set(get_erp_token_expiry_cache_key(store_id), new_expiry.isoformat(), cache_timeout)
