@@ -2893,13 +2893,35 @@ class AddToCartView(APIView):
                 'is_expired': stock_status.get('is_expired')
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        if quantity > stock_status['qty']:
-            logger.warning(f"User {user.id} requested {quantity} units but only {stock_status['qty']} available for {item_code}")
+        # Check against TOTAL quantity (already in cart + newly requested)
+        existing_cart_qty = 0
+        try:
+            existing_cart = Cart.objects.filter(user=user).first()
+            if existing_cart:
+                existing_item = CartItem.objects.filter(cart=existing_cart, item__item_code=item_code).first()
+                if existing_item:
+                    existing_cart_qty = existing_item.quantity
+        except Exception:
+            existing_cart_qty = 0
+
+        total_requested_qty = existing_cart_qty + quantity
+        if total_requested_qty > stock_status['qty']:
+            remaining = max(0, stock_status['qty'] - existing_cart_qty)
+            logger.warning(
+                f"User {user.id} requested {quantity} units (already has {existing_cart_qty} in cart, "
+                f"total={total_requested_qty}) but only {stock_status['qty']} available for {item_code}"
+            )
             return Response({
                 'success': False,
-                'message': f'Only {stock_status["qty"]} units available',
+                'message': (
+                    f'Cannot add {quantity} units. You already have {existing_cart_qty} in cart. '
+                    f'Only {remaining} more unit(s) can be added (max {stock_status["qty"]} total).'
+                ) if existing_cart_qty > 0 else f'Only {stock_status["qty"]} units available',
                 'requested': quantity,
-                'available_qty': stock_status['qty']
+                'existing_in_cart': existing_cart_qty,
+                'total_requested': total_requested_qty,
+                'available_qty': stock_status['qty'],
+                'can_add': remaining
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Reload item from database to get the fresh MRP and details updated by get_item_stock_status
@@ -3004,25 +3026,48 @@ class UpdateCartItemView(APIView):
         try:
             cart = Cart.objects.get(user=user)
             cart_item = CartItem.objects.get(id=item_id, cart=cart)
-            cart_item.quantity = serializer.validated_data['quantity']
-            cart_item.save()
-            
-            # Add stock status to response and update DB cache
+
+            new_quantity = serializer.validated_data['quantity']
             item_code = cart_item.item.item_code
+
+            # Validate against live packQty from ERP before saving
             stock_status = get_item_stock_status(item_code)
-            
+            if not stock_status['available']:
+                return Response({
+                    'success': False,
+                    'message': f'{cart_item.item.item_name} is {stock_status["status"]}',
+                    'status': stock_status['status'],
+                    'available_qty': stock_status['qty'],
+                    'is_expired': stock_status.get('is_expired')
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if new_quantity > stock_status['qty']:
+                logger.warning(
+                    f"[CART_UPDATE] User {user.id} tried to set qty={new_quantity} "
+                    f"but only {stock_status['qty']} available for {item_code}"
+                )
+                return Response({
+                    'success': False,
+                    'message': f'Only {stock_status["qty"]} units available. Cannot set quantity to {new_quantity}.',
+                    'requested': new_quantity,
+                    'available_qty': stock_status['qty']
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            cart_item.quantity = new_quantity
+            cart_item.save()
+
             # Refresh cart_item from DB to get the updated ItemMaster fields
             cart_item.refresh_from_db()
-            
+
             item_serializer = CartItemSmallSerializer(cart_item)
             item_data = item_serializer.data
-            
+
             item_data['availability'] = stock_status.get('status', 'Unknown')
             item_data['available_qty'] = stock_status.get('qty', 0)
             item_data['in_stock'] = stock_status.get('available', False)
             item_data['current_price'] = str(round(stock_status.get('price', float(item_data.get('mrpBox', 0))), 2))
             item_data['current_discount'] = round(stock_status.get('discount', 0), 2)
-            
+
             return Response({
                 'success': True,
                 'message': 'Cart item updated successfully',
@@ -5092,9 +5137,6 @@ def fetch_stock_from_erp(item_code, store_id=None):
                         mrp_box = selected_batch['mrp_box']
                         expiry_date = selected_batch['expiry_date']
                         batch_no = selected_batch['batch_no']
-                    
-                    # Sum only non-expired packQty
-                    total_pack_qty = sum(int(b['pack_qty']) for b in active_batches)
                     
                     # Update local database cache
                     item, _ = ItemMaster.objects.update_or_create(
