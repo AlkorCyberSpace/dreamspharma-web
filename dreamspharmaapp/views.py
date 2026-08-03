@@ -1239,7 +1239,95 @@ class GetItemMasterView(APIView):
                     # Store in Redis for next requests
                     ERPRedisCache.set_master_data(erp_store_id, input_date_time, all_items)
 
-                # ── 2. Paginate in-memory ──────────────────────────────────
+                # ── 2. Get Global Stock Map (Redis cache-first) ─────────────
+                global_stock_map = ERPRedisCache.get_global_stock_map(erp_store_id)
+                if not global_stock_map:
+                    global_stock_map = {}
+                    try:
+                        stock_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
+                        stock_payload = {
+                            'apiKey':        api_key,
+                            'prodCode':      erp_config['prod_code'],
+                            'c2Code':        erp_config['c2_code'],
+                            'storeId':       erp_store_id,
+                            'inputDateTime': input_date_time,
+                            'itemCodes':     []  # fetch all stock
+                        }
+                        headers = {
+                            'User-Agent': 'PostmanRuntime/7.43.0',
+                            'Accept': '*/*',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'Connection': 'keep-alive'
+                        }
+                        stock_response = requests.post(stock_server_url, json=stock_payload, headers=headers, timeout=30, stream=True)
+                        stock_items = []
+                        if stock_response.status_code == 200:
+                            raw_chunks = []
+                            for chunk in stock_response.iter_content(chunk_size=65536):
+                                if chunk:
+                                    raw_chunks.append(chunk)
+                            raw_bytes = b''.join(raw_chunks)
+                            raw_text = raw_bytes.decode('utf-8', errors='replace').strip()
+                            if raw_text.startswith('\ufeff'):
+                                raw_text = raw_text[1:]
+                            import re
+                            raw_text = re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
+                            try:
+                                stock_data = json.loads(raw_text)
+                                if isinstance(stock_data, dict):
+                                    stock_items = stock_data.get('stockDetails', []) or stock_data.get('data', [])
+                                elif isinstance(stock_data, list):
+                                    stock_items = stock_data
+                            except Exception as parse_err:
+                                logger.error(f"Error parsing stock response: {parse_err}")
+
+                        for s in stock_items:
+                            s_code = s.get('c_item_code') or s.get('itemCode')
+                            if s_code:
+                                s_code = str(s_code).strip()
+                                s_code_val = s.get('itemCode') or s.get('c_item_code')
+                                s.pop('c_item_code', None)
+                                if s_code_val:
+                                    s['itemCode'] = str(s_code_val).strip()
+
+                                if s_code not in global_stock_map:
+                                    global_stock_map[s_code] = dict(s)
+                                    global_stock_map[s_code]['batchDetails'] = list(s.get('batchDetails', []) or [])
+                                else:
+                                    global_stock_map[s_code]['batchDetails'].extend(s.get('batchDetails', []) or [])
+                                    for key in ('qtyBox', 'contCode', 'contName'):
+                                        if key not in global_stock_map[s_code] or global_stock_map[s_code][key] is None:
+                                            global_stock_map[s_code][key] = s.get(key)
+
+                        # Write to global stock cache (60s TTL) so search and views can reuse
+                        if global_stock_map:
+                            ERPRedisCache.set_global_stock_map(erp_store_id, global_stock_map)
+
+                    except Exception as e:
+                        logger.error(f"Error fetching global stock data from ERP: {e}")
+
+                # ── 3. Populate stockBalQty & batchDetails on all items ──────
+                for item in all_items:
+                    item_code = str(item.get('c_item_code') or item.get('itemCode') or '').strip()
+                    stock_entry = global_stock_map.get(item_code) if global_stock_map else None
+                    if isinstance(stock_entry, dict):
+                        batch_list = stock_entry.get('batchDetails', [])
+                        if batch_list:
+                            total_pack_qty = sum(int(float(b.get('packQty') or 0)) for b in batch_list)
+                            item['stockBalQty'] = total_pack_qty
+                        else:
+                            item['stockBalQty'] = int(float(stock_entry.get('totalBalLsQty') or stock_entry.get('packQty') or 0))
+                        item['batchDetails'] = batch_list
+                    else:
+                        item['stockBalQty'] = 0
+                        item['batchDetails'] = []
+
+                # ── 4. Stable sort: in-stock first, out-of-stock last ─────────
+                all_items.sort(
+                    key=lambda item: 0 if float(item.get('stockBalQty', 0) or 0) > 0 else 1
+                )
+
+                # ── 5. Paginate in-memory ──────────────────────────────────
                 total_items = len(all_items)
                 low_stock_count = sum(1 for item in all_items if float(item.get('stockBalQty', 0) or 0) < 5)
 
@@ -1252,80 +1340,13 @@ class GetItemMasterView(APIView):
                     start       = (page - 1) * page_size
                     paged_items = all_items[start: start + page_size]
 
-                # ── 3. Stock Map — Redis cache-first (5-min TTL) ───────────
+                # ── 6. Setup variables for subsequent enrichment ────────────
                 page_item_codes = [
                     itm.get('c_item_code') or itm.get('itemCode')
                     for itm in paged_items
                 ]
                 page_item_codes = [c for c in page_item_codes if c]
-
-                # If no_pagination is True, fetch all stock items at once
-                item_codes_to_fetch = [] if no_pagination else page_item_codes
-
-                # Always fetch real-time stock from ERP — no Redis cache for stock
-                stock_map = {}
-                try:
-                    stock_server_url = f"{erp_config['base_url']}/ws_c2_services_fetch_stock"
-                    stock_payload = {
-                        'apiKey':        api_key,
-                        'prodCode':      erp_config['prod_code'],
-                        'c2Code':        erp_config['c2_code'],
-                        'storeId':       erp_store_id,
-                        'inputDateTime': input_date_time,
-                        'itemCodes':     item_codes_to_fetch
-                    }
-                    headers = {
-                        'User-Agent': 'PostmanRuntime/7.43.0',
-                        'Accept': '*/*',
-                        'Accept-Encoding': 'gzip, deflate',
-                        'Connection': 'keep-alive'
-                    }
-                    stock_response = requests.post(stock_server_url, json=stock_payload, headers=headers, timeout=30, stream=True)
-                    stock_items = []
-                    if stock_response.status_code == 200:
-                        raw_chunks = []
-                        for chunk in stock_response.iter_content(chunk_size=65536):
-                            if chunk:
-                                raw_chunks.append(chunk)
-                        raw_bytes = b''.join(raw_chunks)
-                        raw_text = raw_bytes.decode('utf-8', errors='replace').strip()
-                        if raw_text.startswith('\ufeff'):
-                            raw_text = raw_text[1:]
-                        import re
-                        raw_text = re.sub(r'([:,\[]\s*)\.(\d)', r'\g<1>0.\2', raw_text)
-                        try:
-                            stock_data = json.loads(raw_text)
-                            if isinstance(stock_data, dict):
-                                stock_items = stock_data.get('stockDetails', []) or stock_data.get('data', [])
-                            elif isinstance(stock_data, list):
-                                stock_items = stock_data
-                        except Exception as parse_err:
-                            logger.error(f"Error parsing stock response: {parse_err}")
-
-                    for s in stock_items:
-                        s_code = s.get('c_item_code') or s.get('itemCode')
-                        if s_code:
-                            s_code = str(s_code).strip()
-                            s_code_val = s.get('itemCode') or s.get('c_item_code')
-                            s.pop('c_item_code', None)
-                            if s_code_val:
-                                s['itemCode'] = str(s_code_val).strip()
-
-                            if s_code not in stock_map:
-                                stock_map[s_code] = dict(s)
-                                stock_map[s_code]['batchDetails'] = list(s.get('batchDetails', []) or [])
-                            else:
-                                stock_map[s_code]['batchDetails'].extend(s.get('batchDetails', []) or [])
-                                for key in ('qtyBox', 'contCode', 'contName'):
-                                    if key not in stock_map[s_code] or stock_map[s_code][key] is None:
-                                        stock_map[s_code][key] = s.get(key)
-
-                    # Write to global stock cache (60s TTL) so search can reuse without ERP call
-                    if stock_map:
-                        ERPRedisCache.set_global_stock_map(erp_store_id, stock_map)
-
-                except Exception as e:
-                    logger.error(f"Error fetching stock data from ERP: {e}")
+                stock_map = global_stock_map
 
                 # ── 4. Bulk pre-fetch DB records (admin-only fields) ──────────
                 # ItemMaster is NOT queried here — ERP is the source for catalog fields.
