@@ -7774,6 +7774,8 @@ class RetailerOrdersView(APIView):
             
             # ── Determine order status (matching superadmin logic) ──
             # Based on payment outcome and ERP conversion flags
+            is_cod = payment and payment.payment_method == 'COD'
+
             if payment and payment.status in ['FAILED', 'CANCELLED']:
                 # Online payment explicitly failed or cancelled
                 order_status = 'Cancelled'
@@ -7782,26 +7784,44 @@ class RetailerOrdersView(APIView):
                 # Online payment was initiated but never completed
                 order_status = 'Cancelled'
                 is_completed = True
-            elif order.dc_conversion_flag:
-                # Order delivered
-                order_status = 'Delivered'
-                is_completed = True
-            elif order.invoices.exists():
-                # Order has invoice - show as Dispatched
-                order_status = 'Dispatched'
-                is_completed = True
-            elif order.ord_conversion_flag:
-                # Order confirmed
-                order_status = 'Confirmed'
-                is_completed = True
-            elif payment and payment.status == 'SUCCESS' and payment.payment_method not in ('COD',):
-                # Online payment received = auto-Confirmed
-                order_status = 'Confirmed'
-                is_completed = True
+            elif is_cod:
+                # COD order status logic:
+                if order.dc_conversion_flag:
+                    order_status = 'Delivered'
+                    is_completed = True
+                elif order.ord_conversion_flag:
+                    order_status = 'Confirmed'
+                    is_completed = True
+                elif order.invoices.exists():
+                    # Order has invoice - show as Dispatched
+                    order_status = 'Dispatched'
+                    # COD order is NOT completed until admin confirms it
+                    is_completed = False
+                else:
+                    order_status = 'Pending'
+                    is_completed = False
             else:
-                # COD or pending order
-                order_status = 'Pending'
-                is_completed = False
+                # Online payment or standard flow
+                if order.dc_conversion_flag:
+                    # Order delivered
+                    order_status = 'Delivered'
+                    is_completed = True
+                elif order.invoices.exists():
+                    # Order has invoice - show as Dispatched
+                    order_status = 'Dispatched'
+                    is_completed = True
+                elif order.ord_conversion_flag:
+                    # Order confirmed
+                    order_status = 'Confirmed'
+                    is_completed = True
+                elif payment and payment.status == 'SUCCESS' and payment.payment_method not in ('COD',):
+                    # Online payment received = auto-Confirmed
+                    order_status = 'Confirmed'
+                    is_completed = True
+                else:
+                    # COD or pending order
+                    order_status = 'Pending'
+                    is_completed = False
 
             # ── Build timeline ──
             timeline = []
