@@ -4626,9 +4626,22 @@ def fetch_item_from_erp(item_code, store_id=None):
     """
     Fetch a specific item from ERP endpoint
     Returns item data dict or None if not found
-    ALWAYS FRESH - no cache used here
-    [UPDATED] Now uses auto-generated token automatically and supports store_id
+    [UPDATED] Checks Redis master cache first before hitting ERP
     """
+    try:
+        # Check Redis master_dict cache first — avoids ERP call
+        from .erp_redis_cache import ERPRedisCache
+        _store_id = store_id or '501'
+        master_dict = ERPRedisCache.get_master_dict(_store_id, '2021-07-01 10:10:00')
+        if master_dict and str(item_code) in master_dict:
+            item_data = master_dict[str(item_code)]
+            item_data['c_item_code'] = item_code
+            item_data['itemCode'] = item_code
+            logger.info(f"[FETCH_ITEM] Redis cache HIT for {item_code}")
+            return item_data
+    except Exception as cache_err:
+        logger.warning(f"[FETCH_ITEM] Redis cache check failed for {item_code}: {cache_err}")
+
     try:
         from .erp_token_service import get_erp_token_for_store_config
         from .erp_service import ERPService
@@ -5000,6 +5013,36 @@ def fetch_stock_from_erp(item_code, store_id=None):
     Fallback: uses local Stock DB (pack_qty) if ERP JSON is malformed/unreadable.
     """
     try:
+        # Check Redis global stock cache first — avoids ERP call
+        from .erp_redis_cache import ERPRedisCache
+        from .erp_service import ERPService
+        _store_id = store_id or '501'
+        global_stock = ERPRedisCache.get_global_stock_map(_store_id)
+        if global_stock and str(item_code) in global_stock:
+            cached_item = global_stock[str(item_code)]
+            batch_list = cached_item.get('batchDetails', [])
+            from django.utils import timezone
+            from datetime import datetime
+            today = timezone.now().date()
+            total_qty = 0
+            for b in batch_list:
+                pack_qty = float(b.get('packQty') or 0)
+                expiry_str = b.get('expiryDate', '')
+                try:
+                    if expiry_str:
+                        exp = datetime.strptime(expiry_str, '%Y-%m-%d').date()
+                        if exp >= today:
+                            total_qty += pack_qty
+                    else:
+                        total_qty += pack_qty
+                except Exception:
+                    total_qty += pack_qty
+            logger.info(f"[STOCK_DEBUG] Redis cache HIT for {item_code} — qty={total_qty}")
+            return int(total_qty)
+    except Exception as cache_err:
+        logger.warning(f"[STOCK_DEBUG] Redis cache check failed for {item_code}: {cache_err}")
+
+    try:
         from .erp_token_service import get_erp_token_for_store_config
         from .erp_service import ERPService
         from django.utils import timezone
@@ -5237,11 +5280,28 @@ def get_item_stock_status(item_code, store_id=None):
         else:
             status = 'In Stock'
             
+        # Get price from Redis stock cache — DB mrp is often 0
+        redis_price = 0.0
+        try:
+            from .erp_redis_cache import ERPRedisCache
+            _store_id = store_id or '501'
+            global_stock = ERPRedisCache.get_global_stock_map(_store_id)
+            if global_stock and str(item_code) in global_stock:
+                batches = global_stock[str(item_code)].get('batchDetails', [])
+                for b in batches:
+                    bp = float(b.get('mrpBox') or b.get('mrp') or 0)
+                    if bp > 0:
+                        redis_price = bp
+                        break
+        except Exception:
+            pass
+        final_price = redis_price if redis_price > 0 else float(item.mrp)
+
         return {
             'available': available,
             'status': status,
             'qty': int(stock_qty),
-            'price': float(item.mrp),
+            'price': final_price,
             'discount': float(item.std_disc),
             'expiry_date': str(item.expiry_date) if item.expiry_date else None,
             'is_expired': is_expired
